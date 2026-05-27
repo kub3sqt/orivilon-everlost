@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 79a52819221a96f4992a03c54d6a16d4, type: 3}
+  m_Name: Candle
+  m_EditorClassIdentifier: Axegen::Axegen.ShapedRecipe
+  pattern:
+  - {fileID: 11400000, guid: 4210e24d6a9d0ac4496edc7687f5fd86, type: 2}
+  - {fileID: 11400000, guid: 890940c71bd2a0247a621f907c1df7ff, type: 2}
+  width: 1
+  height: 2
+  result: {fileID: 11400000, guid: a8af499f3dc313e48a2160f212a26d84, type: 2}
+  resultAmount: 1
+  allowMirror: 0

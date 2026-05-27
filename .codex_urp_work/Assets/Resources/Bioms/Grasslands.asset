@@ -1,0 +1,57 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0042cf19dc2853b45b6ca6500686d8ea, type: 3}
+  m_Name: Grasslands
+  m_EditorClassIdentifier: 
+  biomeName: Grasslands
+  biomeType: 5
+  humidity: 0.5
+  temperature: 0.5
+  terrainTypes:
+  - name: Rock
+    altitude: 0
+    varyHeight: 0
+    variance: 1
+    heightMultiplier: -1
+    color: {r: 0.99258995, g: 1, b: 0, a: 0}
+  - name: Grass
+    altitude: 0.1
+    varyHeight: 0
+    variance: 1
+    heightMultiplier: 5
+    color: {r: 0.16470587, g: 0.5, b: 0, a: 0}
+  - name: Grass
+    altitude: 15
+    varyHeight: 0
+    variance: 1
+    heightMultiplier: 15
+    color: {r: 0.012695525, g: 0.4528302, b: 0.0064079626, a: 1}
+  - name: Grass
+    altitude: 1
+    varyHeight: 0
+    variance: 1
+    heightMultiplier: 70
+    color: {r: 0.15156639, g: 0.24528301, b: 0.15393896, a: 0}
+  - name: Snow Peak
+    altitude: 1.6
+    varyHeight: 0
+    variance: 1
+    heightMultiplier: 300
+    color: {r: 1, g: 1, b: 1, a: 0}
+  - name: Snow Peak
+    altitude: 1.8
+    varyHeight: 0
+    variance: 1
+    heightMultiplier: 500
+    color: {r: 1, g: 1, b: 1, a: 0}
+  colorBlendFactor: 0.5
+  heightBlendFactor: 1

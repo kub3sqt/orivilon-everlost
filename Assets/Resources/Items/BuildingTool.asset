@@ -1,0 +1,26 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd29446676a9dbe4c907db699f8e63b9, type: 3}
+  m_Name: BuildingTool
+  m_EditorClassIdentifier: Orivilon::Orivilon.Inventory.Inventory.InventoryItemData
+  id: everlost:building_tool
+  icon: {fileID: 21300000, guid: edb0fb386755aea42a3aff3475eba9a8, type: 3}
+  itemName: Building Tool
+  description: Used for building structures
+  stackable: 0
+  maxStack: 1
+  handPrefab: {fileID: 3591119923911288665, guid: 87407839c43b95d45b0ae27ee47fc749,
+    type: 3}
+  handPositionOffset: {x: 0.1, y: -0.18, z: 0.23}
+  handRotationOffset: {x: 10, y: 0, z: -10}
+  handScale: {x: 2, y: 2, z: 2}
+  toolType: 0

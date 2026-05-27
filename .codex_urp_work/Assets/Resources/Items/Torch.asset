@@ -1,0 +1,25 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: dd29446676a9dbe4c907db699f8e63b9, type: 3}
+  m_Name: Torch
+  m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
+  id: everlost:torch
+  icon: {fileID: 21300000, guid: c719b77378bbfda4eb15254c68e89507, type: 3}
+  itemName: Torch
+  description: The light in the end of the tunel
+  stackable: 1
+  maxStack: 64
+  handPrefab: {fileID: 0}
+  handPositionOffset: {x: 0, y: 0, z: 0}
+  handRotationOffset: {x: 0, y: 0, z: 0}
+  handScale: {x: 1, y: 1, z: 1}
+  toolType: 0

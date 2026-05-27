@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20b465b0ecffc8b4c9613c547effba0f, type: 3}
+  m_Name: LogFoundation
+  m_EditorClassIdentifier: Orivilon::BuildingPieceData
+  id: everlost:log_platform
+  prefab: {fileID: 899928754211638876, guid: e4f6f2a978f5a144884d8cbc174dcec5, type: 3}
+  previewPrefab: {fileID: 7284144521897099896, guid: 49d51d588a3dbd649b00ef754276e98b,
+    type: 3}
+  type: 0
+  allowedSockets: 00000000
+  maxSupportDistance: 3
+  costItems:
+  - {fileID: 11400000, guid: d959e2e8034fa7a499bf256acfc590e2, type: 2}
+  costAmounts: 05000000
+  rotationOffset: {x: 0, y: 0, z: 0}
+  positionOffset: {x: 0, y: 0, z: 0}
+  allowTerrainPlacement: 1
