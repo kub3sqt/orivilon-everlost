@@ -67,6 +67,9 @@ namespace Orivilon.Player
         /// <summary>Image komponenta baru žízně (fillAmount = water/maxWater).</summary>
         public Image waterBar;
 
+        /// <summary>Image komponenta baru staminy (fillAmount = stamina/100).</summary>
+        public Image staminaBar;
+
         /// <summary>Text aktuálního zdraví.</summary>
         [Header("UI Text")]
         public TextMeshProUGUI healthValueText;
@@ -232,6 +235,9 @@ namespace Orivilon.Player
 
             if (waterBar != null && waterBar.gameObject != null)
                 waterBar.fillAmount = Mathf.Lerp(waterBar.fillAmount, water / maxWater, Time.deltaTime * 5f);
+
+            if (staminaBar != null && staminaBar.gameObject != null && playerMovement != null)
+                staminaBar.fillAmount = Mathf.Lerp(staminaBar.fillAmount, playerMovement.CurrentStamina / 100f, Time.deltaTime * 5f);
 
             if (healthValueText != null)
                 healthValueText.text = Mathf.RoundToInt(health).ToString();

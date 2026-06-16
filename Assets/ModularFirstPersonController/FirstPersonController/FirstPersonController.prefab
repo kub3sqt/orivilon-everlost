@@ -168,10 +168,15 @@ MonoBehaviour:
   walkSpeed: 15
   maxVelocityChange: 10
   enableSprint: 1
-  unlimitedSprint: 1
+  unlimitedSprint: 0
   sprintKey: 304
   sprintSpeed: 20
   sprintDuration: 5
+  staminaDrainPerSecond: 1
+  staminaRegenPerSecond: 1
+  walkingStaminaRegenMultiplier: 0.5
+  staminaRecoveryNeedsThreshold: 50
+  staminaRecoveryHealthThreshold: 1
   sprintCooldown: 0.5
   sprintFOV: 100
   sprintFOVStepTime: 10
@@ -181,6 +186,7 @@ MonoBehaviour:
   sprintBar: {fileID: 0}
   sprintBarWidthPercent: 0.3
   sprintBarHeightPercent: 0.02
+  playerNeeds: {fileID: 0}
   enableJump: 1
   jumpKey: 32
   jumpPower: 5

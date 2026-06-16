@@ -128,6 +128,21 @@ namespace Orivilon.Player
         /// <summary>Jak dlouho (v sekundách) může hráč sprintovat před vyčerpáním.</summary>
         public float sprintDuration = 5f;
 
+        /// <summary>Kolik sekund staminy ubude za sekundu sprintu.</summary>
+        public float staminaDrainPerSecond = 1f;
+
+        /// <summary>Kolik sekund staminy se obnoví za sekundu při stání.</summary>
+        public float staminaRegenPerSecond = 1f;
+
+        /// <summary>Násobitel obnovy staminy při chůzi.</summary>
+        public float walkingStaminaRegenMultiplier = 0.5f;
+
+        /// <summary>Minimální jídlo a voda potřebné pro obnovu staminy.</summary>
+        public float staminaRecoveryNeedsThreshold = 50f;
+
+        /// <summary>Minimální zdraví potřebné pro obnovu staminy.</summary>
+        public float staminaRecoveryHealthThreshold = 1f;
+
         /// <summary>Čas (v sekundách) cooldownu po vyčerpání sprintu.</summary>
         public float sprintCooldown = .5f;
 
@@ -175,6 +190,9 @@ namespace Orivilon.Player
 
         /// <summary>Výchozí hodnota cooldownu (pro reset po obnovení sprintu).</summary>
         private float sprintCooldownReset;
+
+        /// <summary>Reference na potřeby hráče používané pro podmínky obnovy staminy.</summary>
+        public PlayerNeeds playerNeeds;
 
         #endregion
 
@@ -272,6 +290,11 @@ namespace Orivilon.Player
             originalScale = transform.localScale;
             jointOriginalPos = joint.localPosition;
 
+            if (playerNeeds == null)
+            {
+                playerNeeds = GetComponent<PlayerNeeds>();
+            }
+
             if (!unlimitedSprint)
             {
                 sprintRemaining = sprintDuration;
@@ -293,7 +316,7 @@ namespace Orivilon.Player
 
             sprintBarCG = GetComponentInChildren<CanvasGroup>();
 
-            if (useSprintBar)
+            if (useSprintBar && sprintBarBG != null && sprintBar != null)
             {
                 sprintBarBG.gameObject.SetActive(true);
                 sprintBar.gameObject.SetActive(true);
@@ -403,9 +426,10 @@ namespace Orivilon.Player
 
                     if (!unlimitedSprint)
                     {
-                        sprintRemaining -= 1 * Time.deltaTime;
+                        sprintRemaining -= staminaDrainPerSecond * Time.deltaTime;
                         if (sprintRemaining <= 0)
                         {
+                            sprintRemaining = 0;
                             isSprinting = false;
                             isSprintCooldown = true;
                         }
@@ -413,7 +437,7 @@ namespace Orivilon.Player
                 }
                 else
                 {
-                    sprintRemaining = Mathf.Clamp(sprintRemaining += 1 * Time.deltaTime, 0, sprintDuration);
+                    RegenerateStamina();
                 }
 
                 if (isSprintCooldown)
@@ -429,7 +453,7 @@ namespace Orivilon.Player
                     sprintCooldown = sprintCooldownReset;
                 }
 
-                if (useSprintBar && !unlimitedSprint)
+                if (useSprintBar && !unlimitedSprint && sprintBar != null)
                 {
                     float sprintRemainingPercent = sprintRemaining / sprintDuration;
                     sprintBar.transform.localScale = new Vector3(sprintRemainingPercent, 1f, 1f);
@@ -545,7 +569,7 @@ namespace Orivilon.Player
             {
                 Vector3 targetVelocity = new Vector3(Input.GetAxis("Horizontal"), 0, Input.GetAxis("Vertical"));
 
-                if (targetVelocity.x != 0 || targetVelocity.z != 0 && isGrounded)
+                if ((targetVelocity.x != 0 || targetVelocity.z != 0) && isGrounded)
                 {
                     isWalking = true;
                 }
@@ -578,7 +602,7 @@ namespace Orivilon.Player
                             Crouch();
                         }
 
-                        if (hideBarWhenFull && !unlimitedSprint)
+                        if (hideBarWhenFull && !unlimitedSprint && sprintBarCG != null)
                         {
                             sprintBarCG.alpha += 5 * Time.deltaTime;
                         }
@@ -687,6 +711,32 @@ namespace Orivilon.Player
 
                 return (sprintRemaining / sprintDuration) * 100f;
             }
+        }
+
+        /// <summary>
+        /// Obnovuje staminu pouze při dostatku jídla, vody a zdraví.
+        /// Ve stoji se obnovuje plnou rychlostí, při chůzi polovičním tempem.
+        /// </summary>
+        private void RegenerateStamina()
+        {
+            if (unlimitedSprint || sprintRemaining >= sprintDuration || !CanRegenerateStamina())
+                return;
+
+            float regenMultiplier = isWalking ? walkingStaminaRegenMultiplier : 1f;
+            sprintRemaining = Mathf.Clamp(sprintRemaining + staminaRegenPerSecond * regenMultiplier * Time.deltaTime, 0f, sprintDuration);
+        }
+
+        private bool CanRegenerateStamina()
+        {
+            if (!isGrounded || isSprinting)
+                return false;
+
+            if (playerNeeds == null)
+                return true;
+
+            return playerNeeds.food >= staminaRecoveryNeedsThreshold
+                && playerNeeds.water >= staminaRecoveryNeedsThreshold
+                && playerNeeds.health >= staminaRecoveryHealthThreshold;
         }
 
         /// <summary>
@@ -850,6 +900,11 @@ namespace Orivilon.Player
             fpc.sprintSpeed = EditorGUILayout.Slider(new GUIContent("Sprint Speed", "Determines how fast the player will move while sprinting."), fpc.sprintSpeed, fpc.walkSpeed, 50f);
 
             fpc.sprintDuration = EditorGUILayout.Slider(new GUIContent("Sprint Duration", "Determines how long the player can sprint while unlimited sprint is disabled."), fpc.sprintDuration, 1f, 20f);
+            fpc.staminaDrainPerSecond = EditorGUILayout.Slider(new GUIContent("Stamina Drain", "How many stamina seconds are drained per second while sprinting."), fpc.staminaDrainPerSecond, .1f, 10f);
+            fpc.staminaRegenPerSecond = EditorGUILayout.Slider(new GUIContent("Stamina Regen", "How many stamina seconds are restored per second while standing still."), fpc.staminaRegenPerSecond, .1f, 10f);
+            fpc.walkingStaminaRegenMultiplier = EditorGUILayout.Slider(new GUIContent("Walking Regen Multiplier", "Multiplier applied to stamina regeneration while walking."), fpc.walkingStaminaRegenMultiplier, 0f, 1f);
+            fpc.staminaRecoveryNeedsThreshold = EditorGUILayout.Slider(new GUIContent("Recovery Needs Threshold", "Minimum food and water required before stamina can regenerate."), fpc.staminaRecoveryNeedsThreshold, 0f, 100f);
+            fpc.staminaRecoveryHealthThreshold = EditorGUILayout.Slider(new GUIContent("Recovery Health Threshold", "Minimum health required before stamina can regenerate."), fpc.staminaRecoveryHealthThreshold, 0f, 100f);
             fpc.sprintCooldown = EditorGUILayout.Slider(new GUIContent("Sprint Cooldown", "Determines how long the recovery time is when the player runs out of sprint."), fpc.sprintCooldown, .1f, fpc.sprintDuration);
 
             fpc.sprintFOV = EditorGUILayout.Slider(new GUIContent("Sprint FOV", "Determines the field of view the camera changes to while sprinting."), fpc.sprintFOV, fpc.fov, 179f);

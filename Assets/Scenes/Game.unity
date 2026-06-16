@@ -24966,10 +24966,15 @@ MonoBehaviour:
   stepHeight: 10
   stepSmooth: 1
   enableSprint: 1
-  unlimitedSprint: 1
+  unlimitedSprint: 0
   sprintKey: 306
   sprintSpeed: 40
   sprintDuration: 5
+  staminaDrainPerSecond: 1
+  staminaRegenPerSecond: 1
+  walkingStaminaRegenMultiplier: 0.5
+  staminaRecoveryNeedsThreshold: 50
+  staminaRecoveryHealthThreshold: 1
   sprintCooldown: 0.5
   sprintFOV: 90
   sprintFOVStepTime: 10
@@ -24980,6 +24985,7 @@ MonoBehaviour:
   sprintBarWidthPercent: 0.3
   sprintBarHeightPercent: 0.015
   isSprinting: 0
+  playerNeeds: {fileID: 1515133348}
   enableJump: 1
   jumpKey: 32
   jumpPower: 50
@@ -25023,6 +25029,7 @@ MonoBehaviour:
   healthBar: {fileID: 1806224676}
   foodBar: {fileID: 581716601}
   waterBar: {fileID: 372317950}
+  staminaBar: {fileID: 1084082232}
   healthValueText: {fileID: 1135751620}
   foodValueText: {fileID: 1620398830}
   waterValueText: {fileID: 1876076337}
