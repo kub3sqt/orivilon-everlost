@@ -113,7 +113,7 @@ namespace Orivilon.World.Spawning
         public int maxObjectsPerChunk = 100;
 
         /// <summary>Maximální počet travních objektů na jeden chunk.</summary>
-        public int maxGrassPerChunk = 650;
+        public int maxGrassPerChunk = 2500;
 
         /// <summary>Minimální výška noise mapy pro jakýkoliv spawn (simuluje hladinu moře).</summary>
         public float seaLevel = 0f;
@@ -123,20 +123,14 @@ namespace Orivilon.World.Spawning
         public float forestNoiseScale = 0.008f;
 
         [Tooltip("Práh lesní noise mapy. Vyšší číslo = méně lesa, nižší číslo = více lesa.")]
-        [Range(0f, 1f)] public float forestThreshold = 0.48f;
+        [Range(0f, 1f)] public float forestThreshold = 0.42f;
 
         [Tooltip("Násobitel hustoty trávy v biomech, kde je povolená.")]
         [Range(0f, 2f)] public float grassDensityMultiplier = 1f;
 
-        [Tooltip("Základní šance trávy na testovaný bod. Drží trávu všude, ale bez zahlcení chunku.")]
-        [Range(0f, 1f)] public float grassBaseChance = 0.16f;
-
         /// <summary>Layer maska pro kontrolu kolizí při spawnu (zabraňuje překrývání objektů).</summary>
         [Header("Collision Settings")]
         public LayerMask spawnCollisionMask;
-
-        [Tooltip("Násobitel hustoty stromů uvnitř lesní noise mapy.")]
-        [Range(0f, 2f)] public float treeDensityMultiplier = 0.22f;
 
         /// <summary>Předalokovaný buffer pro OverlapSphere (zabraňuje GC alokacím v hlavní smyčce).</summary>
         private readonly Collider[] overlapBuffer = new Collider[4];
@@ -693,7 +687,7 @@ namespace Orivilon.World.Spawning
             switch (category)
             {
                 case SpawnCategory.Trees:
-                    return 8f;
+                    return 7f;
                 case SpawnCategory.Stones:
                     return 5f;
                 case SpawnCategory.SmallObjects:

@@ -52,7 +52,7 @@ MonoBehaviour:
     prefab: {fileID: 2936802640360279824, guid: e06747faf71f23245abbce36aa57e68c,
       type: 3}
     category: 0
-    spawnChance: 100
+    spawnChance: 0.2
     minHeight: 0
     maxHeight: 1
     minSlope: 0
@@ -510,10 +510,8 @@ MonoBehaviour:
   maxGrassPerChunk: 2500
   seaLevel: -9999
   forestNoiseScale: 0.008
-  forestThreshold: 0.48
-  grassDensityMultiplier: 0.7
-  grassBaseChance: 0.08
+  forestThreshold: 0.42
+  grassDensityMultiplier: 1
   spawnCollisionMask:
     serializedVersion: 2
     m_Bits: 64
-  treeDensityMultiplier: 0.22

@@ -61,7 +61,21 @@ namespace Orivilon.Inventory.Crafting
         /// </summary>
         public void Refresh()
         {
+            Debug.Log($"Refresh slot {index}");
+
+            Debug.Log($"CraftingData.Instance = {CraftingData.Instance}");
+
+            if (CraftingData.Instance == null)
+                return;
+
+            Debug.Log($"gridSlots = {CraftingData.Instance.gridSlots}");
+
             var slot = CraftingData.Instance.gridSlots[index];
+
+            Debug.Log($"slot = {slot}");
+
+            Debug.Log($"iconImage = {iconImage}");
+            Debug.Log($"stackAmountText = {stackAmountText}");
 
             if (slot != null && !slot.IsEmpty)
             {
@@ -138,7 +152,7 @@ namespace Orivilon.Inventory.Crafting
                 slot.Clear();
                 Refresh();
                 CraftingController.Instance.Recalculate();
-                ItemDescriptionUI.Instance.LockToCursor(cursor.HeldSlot.item);
+                ItemDescriptionUI.Instance?.LockToCursor(cursor.HeldSlot.item);
             }
             else
             {
@@ -148,7 +162,7 @@ namespace Orivilon.Inventory.Crafting
                     slot.amount = cursor.HeldSlot.amount;
 
                     cursor.ClearHeldSlot();
-                    ItemDescriptionUI.Instance.UnlockFromCursor();
+                    ItemDescriptionUI.Instance?.UnlockFromCursor();
                 }
                 else if (
                     slot.item == cursor.HeldSlot.item &&
@@ -165,7 +179,7 @@ namespace Orivilon.Inventory.Crafting
                     if (cursor.HeldSlot.amount <= 0)
                     {
                         cursor.ClearHeldSlot();
-                        ItemDescriptionUI.Instance.UnlockFromCursor();
+                        ItemDescriptionUI.Instance?.UnlockFromCursor();
                     }
                 }
                 else
@@ -210,7 +224,7 @@ namespace Orivilon.Inventory.Crafting
 
             var slot = CraftingData.Instance.gridSlots[index];
             if (!slot.IsEmpty)
-                ItemDescriptionUI.Instance.ShowFromSlot(slot.item);
+                ItemDescriptionUI.Instance?.ShowFromSlot(slot.item);
         }
 
         /// <summary>
@@ -219,7 +233,7 @@ namespace Orivilon.Inventory.Crafting
         public void OnPointerExit(PointerEventData eventData)
         {
             if (InventoryCursor.Instance.HeldSlot != null) return;
-            ItemDescriptionUI.Instance.ClearFromSlot();
+            ItemDescriptionUI.Instance?.ClearFromSlot();
         }
 
         /// <summary>

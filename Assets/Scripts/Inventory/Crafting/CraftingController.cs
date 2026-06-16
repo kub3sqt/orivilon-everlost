@@ -240,6 +240,8 @@ namespace Orivilon.Inventory.Crafting
         /// </summary>
         public void ConsumeIngredients()
         {
+            Debug.Log("CONSUME INGREDIENTS");
+
             foreach (var slot in CraftingData.Instance.gridSlots)
             {
                 if (slot == null || slot.IsEmpty)

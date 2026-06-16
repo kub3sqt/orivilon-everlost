@@ -36,6 +36,8 @@ namespace Orivilon.Inventory.Crafting
                 if (gridSlots[i] == null)
                     gridSlots[i] = new InventorySlotData();
             }
+
+            CraftingController.Instance?.RefreshAllSlots();
         }
 
         /// <summary>

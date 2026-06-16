@@ -1,5 +1,4 @@
-﻿// HotbarSlotUI.cs
-using UnityEngine;
+﻿using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 

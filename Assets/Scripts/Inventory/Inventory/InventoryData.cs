@@ -6,7 +6,7 @@ namespace Orivilon.Inventory.Inventory
 {
     /// <summary>
     /// Singleton – centrální datový model inventáře hráče.
-    /// Uchovává pole slotů (výchozí velikost 36: hotbar 0–8 + inventář 9–35).
+    /// Uchovává pole slotů (výchozí velikost 63: hotbar 0–7 + inventář 8–62).
     /// Poskytuje metody pro přidávání itemů se stackováním a prioritou umístění.
     /// Vyvolává událost OnInventoryChanged po každé změně dat.
     /// </summary>
@@ -17,7 +17,7 @@ namespace Orivilon.Inventory.Inventory
 
         /// <summary>Celkový počet slotů inventáře (hotbar + hlavní inventář).</summary>
         [Header("Inventory Settings")]
-        [SerializeField] private int inventorySize = 36;
+        [SerializeField] private int inventorySize = 63;
 
         /// <summary>Pole dat všech inventářních slotů.</summary>
         [Header("Inventory Slots")]

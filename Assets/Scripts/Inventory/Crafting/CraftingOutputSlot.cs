@@ -97,7 +97,7 @@ namespace Orivilon.Inventory.Crafting
 
                 CraftingController.Instance.Recalculate();
                 InventoryUI.RefreshAll();
-                ItemDescriptionUI.Instance.ClearFromSlot();
+                ItemDescriptionUI.Instance?.ClearFromSlot();
                 return;
             }
 
@@ -112,7 +112,7 @@ namespace Orivilon.Inventory.Crafting
                     amount = CraftingController.Instance.ResultAmount
                 });
 
-                ItemDescriptionUI.Instance.LockToCursor(item);
+                ItemDescriptionUI.Instance?.LockToCursor(item);
                 CraftingController.Instance.ConsumeIngredients();
                 CraftingController.Instance.Recalculate();
             }
@@ -132,7 +132,7 @@ namespace Orivilon.Inventory.Crafting
 
             var item = CraftingData.Instance.resultItem;
             if (item != null)
-                ItemDescriptionUI.Instance.ShowFromSlot(item);
+                ItemDescriptionUI.Instance?.ShowFromSlot(item);
         }
 
         /// <summary>
@@ -141,7 +141,7 @@ namespace Orivilon.Inventory.Crafting
         public void OnPointerExit(PointerEventData eventData)
         {
             if (InventoryCursor.Instance.HeldSlot != null) return;
-            ItemDescriptionUI.Instance.ClearFromSlot();
+            ItemDescriptionUI.Instance?.ClearFromSlot();
         }
     }
 }

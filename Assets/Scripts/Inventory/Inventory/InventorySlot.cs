@@ -181,12 +181,12 @@ namespace Orivilon.Inventory.Inventory
                     return;
 
                 cursor.TakeFromSlot(slotIndex);
-                ItemDescriptionUI.Instance.LockToCursor(slot.item);
+                ItemDescriptionUI.Instance?.LockToCursor(slot.item);
             }
             else
             {
                 cursor.PlaceIntoSlot(slotIndex);
-                ItemDescriptionUI.Instance.UnlockFromCursor();
+                ItemDescriptionUI.Instance?.UnlockFromCursor();
             }
 
             if (eventData.button == PointerEventData.InputButton.Left)
@@ -227,7 +227,7 @@ namespace Orivilon.Inventory.Inventory
 
             var slot = InventoryData.Instance.Slots[slotIndex];
             if (!slot.IsEmpty)
-                ItemDescriptionUI.Instance.ShowFromSlot(slot.item);
+                ItemDescriptionUI.Instance?.ShowFromSlot(slot.item);
         }
 
         /// <summary>
@@ -238,7 +238,7 @@ namespace Orivilon.Inventory.Inventory
             if (InventoryCursor.Instance.HeldSlot != null)
                 return;
 
-            ItemDescriptionUI.Instance.ClearFromSlot();
+            ItemDescriptionUI.Instance?.ClearFromSlot();
         }
 
         /// <summary>

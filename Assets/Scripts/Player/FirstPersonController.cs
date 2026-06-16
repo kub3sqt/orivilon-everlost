@@ -676,6 +676,20 @@ namespace Orivilon.Player
         }
 
         /// <summary>
+        /// Aktuální stamina hráče v procentech (0-100).
+        /// </summary>
+        public float CurrentStamina
+        {
+            get
+            {
+                if (unlimitedSprint)
+                    return 100f;
+
+                return (sprintRemaining / sprintDuration) * 100f;
+            }
+        }
+
+        /// <summary>
         /// Detekuje schod před hráčem pomocí dvou raycastů (spodní a horní).
         /// Pokud spodní ray zasáhne překážku a horní ray projde volně (nízká překážka),
         /// a sklon překážky je menší než 60°, aplikuje sílu nahoru pro plynulé přelezení.

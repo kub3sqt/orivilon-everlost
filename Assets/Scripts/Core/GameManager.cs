@@ -1,11 +1,13 @@
-﻿using Orivilon.Inventory.Hotbar;
+﻿using Orivilon.Building;
+using Orivilon.Inventory;
+using Orivilon.Inventory.Hotbar;
 using Orivilon.Inventory.Inventory;
 using Orivilon.SaveSystem;
 using Orivilon.UI.HUD;
 using Orivilon.UI.Menu;
 using Orivilon.World.Spawning;
-using Orivilon.Building;
 using System.Collections;
+using System.Linq;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -29,15 +31,11 @@ namespace Orivilon.Core
         /// Reference na GameObject pause menu. Přiřazuje se automaticky v FindUIElements()
         /// po načtení Game scény – v Inspektoru ponechte prázdné.
         /// </summary>
-        [Header("UI – DO NOT ASSIGN")]
+        [Header("UI")]
         public GameObject pauseMenu;
 
         /// <summary>Reference na GameObject crosshairu. Přiřazuje se automaticky.</summary>
         public GameObject crosshair;
-
-        /// <summary>Kořenový GameObject inventáře (celý panel). Přiřazuje se automaticky.</summary>
-        [Header("UI")]
-        public GameObject inventoryRoot;
 
         /// <summary>GameObject hotbaru (panel s 9 sloty). Přiřazuje se automaticky.</summary>
         public GameObject hotbar;
@@ -47,6 +45,50 @@ namespace Orivilon.Core
 
         /// <summary>Kořenový GameObject stavebního menu. Přiřazuje se automaticky z BuildingTool.</summary>
         public GameObject buildMenuRoot;
+
+        /// <summary>
+        /// Kořenový objekt všech herních UI prvků (inventář, hotbar, status bar).
+        /// Při otevření pauzy se celý skryje.
+        /// </summary>
+        [SerializeField] private GameObject Inventory;
+
+        [Header("Animations")]
+        /// <summary>
+        /// Animátor pozadí mapy a inventáře.
+        /// Obsahuje animace Open a Close.
+        /// </summary>
+        [Header("Inventory Animation")]
+        [SerializeField] private Animator mapInventoryBackgroundAnimator;
+
+        /// <summary>
+        /// Animátor panelu inventářových slotů.
+        /// </summary>
+        [SerializeField] private Animator inventorySlotsAnimator;
+
+        /// <summary>
+        /// Animátor pozadí statistik.
+        /// </summary>
+        [SerializeField] private Animator statsBackgroundAnimator;
+
+        /// <summary>
+        /// Animátor rohu.
+        /// </summary>
+        [SerializeField] private Animator cornerPieceAnimator;
+
+        /// <summary>
+        /// Animátor popisu statistik.
+        /// </summary>
+        [SerializeField] private Animator statsDescriptionAnimator;
+
+        /// <summary>
+        /// Animátor craftovacího panelu.
+        /// </summary>
+        [SerializeField] private Animator craftingAnimator;
+
+        /// <summary>
+        /// Animátor craftovacích slotů.
+        /// </summary>
+        [SerializeField] private Animator craftingSlotsAnimator;
 
         /// <summary>Tag hráčského objektu ve scéně.</summary>
         [Header("Player Settings")]
@@ -94,9 +136,6 @@ namespace Orivilon.Core
 
         /// <summary>Veřejná read-only property vracející stav pauzy.</summary>
         public bool IsPaused => isPaused;
-
-        /// <summary>Cache reference na InventoryUIController pro volání OpenInventory().</summary>
-        private InventoryUIController inventoryUI;
 
         /// <summary>Chrání inicializaci Game scény před dvojím spuštěním ze sceneLoaded a přímého Play v editoru.</summary>
         private bool gameSceneInitializationStarted = false;
@@ -194,11 +233,16 @@ namespace Orivilon.Core
 
             pauseMenu = null;
             crosshair = null;
-            inventoryRoot = null;
-            inventoryUI = null;
-            hotbar = null;
-            statusBar = null;
             buildMenuRoot = null;
+            Inventory = null;
+
+            mapInventoryBackgroundAnimator = null;
+            inventorySlotsAnimator = null;
+            cornerPieceAnimator = null;
+            statsBackgroundAnimator = null;
+            statsDescriptionAnimator = null;
+            craftingAnimator = null;
+            craftingSlotsAnimator = null;
 
             player = null;
             playerController = null;
@@ -303,14 +347,6 @@ namespace Orivilon.Core
                 Debug.LogWarning("CrosshairUI nebyl nalezen!");
             }
 
-            var inv = FindFirstObjectByType<InventoryUIController>(FindObjectsInactive.Include);
-            if (inv != null)
-            {
-                inventoryRoot = inv.gameObject;
-                inventoryUI = inv;
-                inventoryRoot.SetActive(false);
-            }
-
             var hb = FindFirstObjectByType<HotbarController>(FindObjectsInactive.Include);
             if (hb != null)
             {
@@ -332,6 +368,38 @@ namespace Orivilon.Core
                 if (buildMenuRoot != null)
                     buildMenuRoot.SetActive(false);
             }
+
+            var inventoryRootComponent = FindFirstObjectByType<InventoryRoot>(FindObjectsInactive.Include);
+            if (inventoryRootComponent != null)
+                Inventory = inventoryRootComponent.gameObject;
+
+            mapInventoryBackgroundAnimator =
+                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .FirstOrDefault(a => a.name == "Map/InventoryBackground");
+
+            inventorySlotsAnimator =
+                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .FirstOrDefault(a => a.name == "InventorySlots");
+
+            cornerPieceAnimator =
+                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .FirstOrDefault(a => a.name == "CornerPiece");
+
+            statsBackgroundAnimator =
+                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .FirstOrDefault(a => a.name == "StatsBackground");
+
+            statsDescriptionAnimator =
+                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .FirstOrDefault(a => a.name == "StatsDescription");
+
+            craftingAnimator =
+                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .FirstOrDefault(a => a.name == "CraftingBackground");
+
+            craftingSlotsAnimator =
+                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
+                .FirstOrDefault(a => a.name == "Crafting");
         }
 
         /// <summary>
@@ -352,42 +420,54 @@ namespace Orivilon.Core
         }
 
         /// <summary>
-        /// Otevře inventář: aktivuje panel, skryje HUD, odemkne kurzor a zablokuje pohyb hráče.
+        /// Otevře inventář.
+        /// Spustí animaci otevření všech inventářových panelů,
+        /// odemkne kurzor a zablokuje pohyb hráče.
+        /// Hotbar zůstává viditelný.
         /// </summary>
         private void OpenInventory()
         {
             isInventoryOpen = true;
             isMenuOpen = true;
 
-            if (inventoryRoot != null)
-                inventoryRoot.SetActive(true);
+            mapInventoryBackgroundAnimator.SetTrigger("Open");
+            inventorySlotsAnimator.SetTrigger("Open");
+            cornerPieceAnimator.SetTrigger("Open");
+            statsBackgroundAnimator.SetTrigger("Open");
+            statsDescriptionAnimator.SetTrigger("Open");
+            craftingAnimator.SetTrigger("Open");
+            craftingSlotsAnimator.SetTrigger("Open");
 
-            inventoryUI?.OpenInventory();
-
-            if (crosshair != null) crosshair.SetActive(false);
-            if (hotbar != null) hotbar.SetActive(false);
-            if (statusBar != null) statusBar.SetActive(false);
+            if (crosshair != null)
+                crosshair.SetActive(false);
 
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
+
             SetPlayerControl(false);
         }
 
         /// <summary>
-        /// Zavře inventář: skryje panel, obnoví HUD a vrátí pohyb hráče.
-        /// Kurzor se zamkne se zpožděním jednoho snímku přes coroutinu, aby nevznikaly problémy s UI.
+        /// Zavře inventář.
+        /// Spustí animaci zavření všech inventářových panelů,
+        /// obnoví ovládání hráče a vrátí herní kurzor.
+        /// Hotbar zůstává viditelný.
         /// </summary>
         private void CloseInventory()
         {
             isInventoryOpen = false;
             isMenuOpen = false;
 
-            if (inventoryRoot != null)
-                inventoryRoot.SetActive(false);
+            mapInventoryBackgroundAnimator.SetTrigger("Close");
+            inventorySlotsAnimator.SetTrigger("Close");
+            cornerPieceAnimator.SetTrigger("Close");
+            statsBackgroundAnimator.SetTrigger("Close");
+            statsDescriptionAnimator.SetTrigger("Close");
+            craftingAnimator.SetTrigger("Close");
+            craftingSlotsAnimator.SetTrigger("Close");
 
-            if (crosshair != null) crosshair.SetActive(true);
-            if (hotbar != null) hotbar.SetActive(true);
-            if (statusBar != null) statusBar.SetActive(true);
+            if (crosshair != null)
+                crosshair.SetActive(true);
 
             SetPlayerControl(true);
             ApplyGameplayCursor();
@@ -454,9 +534,11 @@ namespace Orivilon.Core
             if (pauseMenu != null)
                 pauseMenu.SetActive(newState);
 
-            if (crosshair != null) crosshair.SetActive(!newState);
-            if (hotbar != null) hotbar.SetActive(!newState);
-            if (statusBar != null) statusBar.SetActive(!newState);
+            if (Inventory != null)
+                Inventory.SetActive(!newState);
+
+            if (crosshair != null) 
+                crosshair.SetActive(!newState);
         }
 
         /// <summary>
@@ -700,6 +782,7 @@ namespace Orivilon.Core
             if (crosshair != null) crosshair.SetActive(true);
             if (hotbar != null) hotbar.SetActive(true);
             if (statusBar != null) statusBar.SetActive(true);
+            if (Inventory != null) Inventory.SetActive(true);
 
             isLoadingComplete = true;
             Debug.Log($"GameManager: Player spawned at {groundPosition} - LOADING COMPLETE");

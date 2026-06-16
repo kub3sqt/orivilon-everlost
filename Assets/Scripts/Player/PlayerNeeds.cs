@@ -1,4 +1,5 @@
-﻿using UnityEngine;
+﻿using TMPro;
+using UnityEngine;
 using UnityEngine.UI;
 
 namespace Orivilon.Player
@@ -65,6 +66,19 @@ namespace Orivilon.Player
 
         /// <summary>Image komponenta baru žízně (fillAmount = water/maxWater).</summary>
         public Image waterBar;
+
+        /// <summary>Text aktuálního zdraví.</summary>
+        [Header("UI Text")]
+        public TextMeshProUGUI healthValueText;
+
+        /// <summary>Text aktuálního hladu.</summary>
+        public TextMeshProUGUI foodValueText;
+
+        /// <summary>Text aktuální žízně.</summary>
+        public TextMeshProUGUI waterValueText;
+
+        /// <summary>Text aktuální staminy.</summary>
+        public TextMeshProUGUI staminaValueText;
 
         private float preciseHealth;
         private float preciseFood;
@@ -218,6 +232,18 @@ namespace Orivilon.Player
 
             if (waterBar != null && waterBar.gameObject != null)
                 waterBar.fillAmount = Mathf.Lerp(waterBar.fillAmount, water / maxWater, Time.deltaTime * 5f);
+
+            if (healthValueText != null)
+                healthValueText.text = Mathf.RoundToInt(health).ToString();
+
+            if (foodValueText != null)
+                foodValueText.text = Mathf.RoundToInt(food).ToString();
+
+            if (waterValueText != null)
+                waterValueText.text = Mathf.RoundToInt(water).ToString();
+
+            if (staminaValueText != null && playerMovement != null)
+                staminaValueText.text = Mathf.RoundToInt(playerMovement.CurrentStamina).ToString();
         }
     }
 }
