@@ -43,6 +43,9 @@ namespace Orivilon.Core
         /// <summary>GameObject statusbaru (zdraví, hlad, žízeň). Přiřazuje se automaticky.</summary>
         public GameObject statusBar;
 
+        /// <summary>GameObject minimapy. Přiřazuje se automaticky.</summary>
+        public GameObject minimap;
+
         /// <summary>Kořenový GameObject stavebního menu. Přiřazuje se automaticky z BuildingTool.</summary>
         public GameObject buildMenuRoot;
 
@@ -233,6 +236,7 @@ namespace Orivilon.Core
 
             pauseMenu = null;
             crosshair = null;
+            minimap = null;
             buildMenuRoot = null;
             Inventory = null;
 
@@ -361,6 +365,13 @@ namespace Orivilon.Core
                 statusBar.SetActive(false);
             }
 
+            var mm = FindFirstObjectByType<MinimapUI>(FindObjectsInactive.Include);
+            if (mm != null)
+            {
+                minimap = mm.gameObject;
+                minimap.SetActive(false);
+            }
+
             var bt = FindFirstObjectByType<BuildingTool>(FindObjectsInactive.Include);
             if (bt != null)
             {
@@ -441,6 +452,9 @@ namespace Orivilon.Core
             if (crosshair != null)
                 crosshair.SetActive(false);
 
+            if (minimap != null)
+                minimap.SetActive(false);
+
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
@@ -469,6 +483,9 @@ namespace Orivilon.Core
             if (crosshair != null)
                 crosshair.SetActive(true);
 
+            if (minimap != null)
+                minimap.SetActive(true);
+
             SetPlayerControl(true);
             ApplyGameplayCursor();
         }
@@ -493,6 +510,7 @@ namespace Orivilon.Core
             if (crosshair != null) crosshair.SetActive(false);
             if (hotbar != null) hotbar.SetActive(false);
             if (statusBar != null) statusBar.SetActive(false);
+            if (minimap != null) minimap.SetActive(false);
 
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -516,6 +534,7 @@ namespace Orivilon.Core
             if (crosshair != null) crosshair.SetActive(true);
             if (hotbar != null) hotbar.SetActive(true);
             if (statusBar != null) statusBar.SetActive(true);
+            if (minimap != null) minimap.SetActive(true);
 
             SetPlayerControl(true);
             ApplyGameplayCursor();
@@ -539,6 +558,9 @@ namespace Orivilon.Core
 
             if (crosshair != null) 
                 crosshair.SetActive(!newState);
+
+            if (minimap != null)
+                minimap.SetActive(!newState);
         }
 
         /// <summary>
@@ -779,9 +801,14 @@ namespace Orivilon.Core
             yield return new WaitForSeconds(0.5f);
             SceneLoader.CompleteGameLoading();
 
+            MinimapUI minimapUI = minimap != null ? minimap.GetComponent<MinimapUI>() : null;
+            if (minimapUI != null)
+                minimapUI.Initialize(player.transform, cam);
+
             if (crosshair != null) crosshair.SetActive(true);
             if (hotbar != null) hotbar.SetActive(true);
             if (statusBar != null) statusBar.SetActive(true);
+            if (minimap != null) minimap.SetActive(true);
             if (Inventory != null) Inventory.SetActive(true);
 
             isLoadingComplete = true;
