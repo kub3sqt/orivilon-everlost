@@ -127,7 +127,17 @@ namespace Orivilon.UI.Settings
             QualitySettings.SetQualityLevel(Current.qualityLevel, true);
             QualitySettings.vSyncCount = Current.vSync;
             Application.targetFrameRate = Current.targetFrameRate;
-            QualitySettings.shadowDistance = Current.shadowDistance;
+            // URP čte vzdálenost stínů z aktivního pipeline assetu – QualitySettings.shadowDistance je v URP ignorováno.
+            // Musí běžet až po SetQualityLevel výše, aby se zapsalo do správného (aktivního) assetu.
+            if (UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline
+                is UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset urpAsset)
+            {
+                urpAsset.shadowDistance = Current.shadowDistance;
+            }
+            else
+            {
+                QualitySettings.shadowDistance = Current.shadowDistance;
+            }
             QualitySettings.lodBias = Current.lodBias;
             QualitySettings.antiAliasing = Current.antiAliasing;
             QualitySettings.anisotropicFiltering =

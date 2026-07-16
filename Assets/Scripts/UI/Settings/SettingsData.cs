@@ -34,7 +34,7 @@ namespace Orivilon.UI.Settings
         public int targetFrameRate = -1;
 
         /// <summary>Vzdálenost vykreslování stínů.</summary>
-        public float shadowDistance = 150f;
+        public float shadowDistance = 300f;
 
         /// <summary>Kvalita stínů (0=vypnuto, 1=Hard, 2=Soft).</summary>
         public int shadowQuality = 2;

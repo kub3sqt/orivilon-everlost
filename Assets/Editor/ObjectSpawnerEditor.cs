@@ -1,453 +1,607 @@
-﻿using UnityEditor;
-using UnityEngine;
+using System;
 using System.Collections.Generic;
+using UnityEditor;
+using UnityEngine;
 using Orivilon.World.Spawning;
 
+/// <summary>
+/// Custom inspector pro ObjectSpawner.
+/// Cíle: přehled o tom, co spawnuje v jakém biomu (matice biom × kategorie),
+/// rychlé filtrování záznamů podle biomu/kategorie/jména a pohodlná editace
+/// biomů přes zaškrtávací mřížku místo rozklikávacího seznamu.
+///
+/// DŮLEŽITÉ: Pořadí záznamů v seznamu spawnables je součást determinismu světa
+/// (index záznamu vstupuje do hashe objektů a do pořadí vyhodnocování).
+/// Proto editor nové/duplikované záznamy přidává VÝHRADNĚ na konec seznamu
+/// a neumožňuje přesouvání. Mazání záznamů posune indexy všech následujících –
+/// v existujících světech se tím změní rozmístění objektů.
+/// </summary>
 [CustomEditor(typeof(ObjectSpawner))]
 public class ObjectSpawnerEditor : Editor
 {
-    private ObjectSpawner spawner;
-
-    private SerializedProperty spawnablesProp;
+    // ---- serializované properties ----
+    private SerializedProperty useDebugSeedProp;
+    private SerializedProperty debugSeedValueProp;
     private SerializedProperty globalScaleMultiplierProp;
+    private SerializedProperty spawnablesProp;
     private SerializedProperty maxObjectsPerChunkProp;
-    private SerializedProperty maxGrassPerChunkProp; // ← NOVÉ
+    private SerializedProperty maxGrassPerChunkProp;
     private SerializedProperty seaLevelProp;
+    private SerializedProperty forestNoiseScaleProp;
+    private SerializedProperty forestThresholdProp;
+    private SerializedProperty grassDensityMultiplierProp;
     private SerializedProperty spawnCollisionMaskProp;
-    private SerializedProperty autoApplyGrassDefaultsProp;
 
-    private int selectedTab
+    // ---- stav UI (přežije přepnutí inspektoru v rámci session) ----
+    private static bool showSettings = false;
+    private static bool showMatrix = true;
+    private static bool showValidation = true;
+    private static string searchText = "";
+    private static int categoryFilter = -1;   // -1 = vše
+    private static int biomeFilter = 0;       // 0 (None) = vše
+
+    // Odložené strukturální operace – provádí se až po vykreslení celého GUI,
+    // protože změna počtu prvků uprostřed vykreslování rozbije IMGUI layout.
+    private int pendingDeleteIndex = -1;
+    private int pendingDuplicateIndex = -1;
+
+    private const float ThumbSize = 40f;
+
+    /// <summary>Biomy, ve kterých se reálně spawnuje (bez None a oceánů).</summary>
+    private static readonly BiomeType[] LandBiomes =
     {
-        get { return EditorPrefs.GetInt("ObjectSpawner_SelectedTab", 0); }
-        set { EditorPrefs.SetInt("ObjectSpawner_SelectedTab", value); }
-    }
+        BiomeType.Grasslands, BiomeType.Hills, BiomeType.RainyFields,
+        BiomeType.Coldlands, BiomeType.SnowyLands, BiomeType.IceLands,
+        BiomeType.Desert, BiomeType.Savanna, BiomeType.Badlands,
+        BiomeType.Swamps, BiomeType.ColdOcean, BiomeType.TemperateOcean,
+    };
 
-    private int selectedIndex
+    private static readonly Color[] CategoryColors =
     {
-        get { return EditorPrefs.GetInt("ObjectSpawner_SelectedIndex", -1); }
-        set { EditorPrefs.SetInt("ObjectSpawner_SelectedIndex", value); }
-    }
-
-    private Vector2 scrollPos;
-
-    private readonly string[] tabs = { "Trees", "Stones", "Grass", "Small Objects" };
-    private const float thumbSize = 70f;
-
-    private Dictionary<int, List<int>> categoryMap;
-    private bool categoryIndexNeedsRebuild = true;
+        new Color(0.45f, 0.75f, 0.40f), // Trees
+        new Color(0.65f, 0.65f, 0.70f), // Stones
+        new Color(0.55f, 0.85f, 0.55f), // Grass
+        new Color(0.85f, 0.70f, 0.45f), // SmallObjects
+    };
 
     private void OnEnable()
     {
-        spawner = (ObjectSpawner)target;
-
-        spawnablesProp = serializedObject.FindProperty("spawnables");
+        useDebugSeedProp = serializedObject.FindProperty("useDebugSeed");
+        debugSeedValueProp = serializedObject.FindProperty("debugSeedValue");
         globalScaleMultiplierProp = serializedObject.FindProperty("globalScaleMultiplier");
+        spawnablesProp = serializedObject.FindProperty("spawnables");
         maxObjectsPerChunkProp = serializedObject.FindProperty("maxObjectsPerChunk");
-        maxGrassPerChunkProp = serializedObject.FindProperty("maxGrassPerChunk"); // ← NOVÉ
+        maxGrassPerChunkProp = serializedObject.FindProperty("maxGrassPerChunk");
         seaLevelProp = serializedObject.FindProperty("seaLevel");
+        forestNoiseScaleProp = serializedObject.FindProperty("forestNoiseScale");
+        forestThresholdProp = serializedObject.FindProperty("forestThreshold");
+        grassDensityMultiplierProp = serializedObject.FindProperty("grassDensityMultiplier");
         spawnCollisionMaskProp = serializedObject.FindProperty("spawnCollisionMask");
-
-        // Bezpečné načítání autoApplyGrassDefaultsProp - může být null pokud property neexistuje
-        autoApplyGrassDefaultsProp = serializedObject.FindProperty("autoApplyGrassDefaults");
-
-        // Inicializace categoryMap
-        InitializeCategoryMap();
-    }
-
-    private void InitializeCategoryMap()
-    {
-        categoryMap = new Dictionary<int, List<int>>()
-        {
-            { (int)SpawnCategory.Trees, new List<int>() },
-            { (int)SpawnCategory.Stones, new List<int>() },
-            { (int)SpawnCategory.Grass, new List<int>() },
-            { (int)SpawnCategory.SmallObjects, new List<int>() },
-        };
-        categoryIndexNeedsRebuild = true;
-    }
-
-    private void BuildCategoryIndex()
-    {
-        if (!categoryIndexNeedsRebuild && categoryMap != null) return;
-
-        // Zajistíme, že categoryMap je inicializovaná
-        if (categoryMap == null)
-        {
-            InitializeCategoryMap();
-        }
-
-        // Vyčistíme všechny seznamy
-        foreach (var list in categoryMap.Values)
-        {
-            list.Clear();
-        }
-
-        // Naplníme indexy
-        for (int i = 0; i < spawnablesProp.arraySize; i++)
-        {
-            SerializedProperty element = spawnablesProp.GetArrayElementAtIndex(i);
-            if (element != null)
-            {
-                SerializedProperty categoryProp = element.FindPropertyRelative("category");
-                if (categoryProp != null)
-                {
-                    int cat = categoryProp.enumValueIndex;
-                    if (categoryMap.ContainsKey(cat))
-                    {
-                        categoryMap[cat].Add(i);
-                    }
-                }
-            }
-        }
-
-        categoryIndexNeedsRebuild = false;
     }
 
     public override void OnInspectorGUI()
     {
         serializedObject.Update();
 
-        EditorGUILayout.LabelField("Object Spawner", EditorStyles.boldLabel);
+        DrawSettings();
+        EditorGUILayout.Space(6);
+        DrawMatrix();
+        EditorGUILayout.Space(6);
+        DrawValidation();
+        EditorGUILayout.Space(6);
+        DrawSpawnablesList();
 
-        // Bezpečné zobrazení properties - kontrola null
-        if (globalScaleMultiplierProp != null)
-            EditorGUILayout.PropertyField(globalScaleMultiplierProp);
-
-        GUILayout.Space(5);
-        EditorGUILayout.LabelField("Object Limits", EditorStyles.boldLabel);
-
-        if (maxObjectsPerChunkProp != null)
-            EditorGUILayout.PropertyField(maxObjectsPerChunkProp);
-
-        if (maxGrassPerChunkProp != null) // ← NOVÉ
-            EditorGUILayout.PropertyField(maxGrassPerChunkProp);
-
-        GUILayout.Space(5);
-        EditorGUILayout.LabelField("General Settings", EditorStyles.boldLabel);
-
-        if (seaLevelProp != null)
-            EditorGUILayout.PropertyField(seaLevelProp);
-
-        if (spawnCollisionMaskProp != null)
-            EditorGUILayout.PropertyField(spawnCollisionMaskProp);
-
-        // Bezpečné zobrazení autoApplyGrassDefaultsProp
-        if (autoApplyGrassDefaultsProp != null)
+        // Odložené mazání/duplikace – až po vykreslení, jinak IMGUI vyhodí
+        // layout výjimku a změny by se neaplikovaly.
+        if (pendingDeleteIndex >= 0)
         {
-            EditorGUILayout.PropertyField(autoApplyGrassDefaultsProp);
+            if (pendingDeleteIndex < spawnablesProp.arraySize)
+                spawnablesProp.DeleteArrayElementAtIndex(pendingDeleteIndex);
+            pendingDeleteIndex = -1;
+        }
+        if (pendingDuplicateIndex >= 0)
+        {
+            if (pendingDuplicateIndex < spawnablesProp.arraySize)
+                DuplicateToEnd(pendingDuplicateIndex);
+            pendingDuplicateIndex = -1;
         }
 
-        GUILayout.Space(10);
-
-        int previousTab = selectedTab;
-        selectedTab = GUILayout.Toolbar(selectedTab, tabs, GUILayout.Height(25));
-
-        // Pokud se změnila kategorie, zkontroluj jestli vybraná položka patří do nové kategorie
-        if (selectedTab != previousTab)
-        {
-            BuildCategoryIndex();
-            if (categoryMap.ContainsKey(selectedTab))
-            {
-                List<int> newCategoryList = categoryMap[selectedTab];
-
-                // Pokud vybraná položka nepatří do nové kategorie, zruš výběr
-                if (selectedIndex != -1 && !newCategoryList.Contains(selectedIndex))
-                {
-                    selectedIndex = -1;
-                }
-            }
-        }
-
-        GUILayout.Space(10);
-
-        DrawCategory(selectedTab);
-
-        // Aplikuj změny
-        if (serializedObject.ApplyModifiedProperties())
-        {
-            categoryIndexNeedsRebuild = true;
-
-            // Zkontroluj, jestli vybraná položka stále existuje
-            if (selectedIndex >= spawnablesProp.arraySize)
-            {
-                selectedIndex = -1;
-            }
-        }
+        serializedObject.ApplyModifiedProperties();
     }
 
-    private void DrawCategory(int tab)
+    // =====================================================================
+    // Globální nastavení
+    // =====================================================================
+    private void DrawSettings()
     {
-        BuildCategoryIndex();
-
-        // Bezpečná kontrola existence kategorie
-        if (!categoryMap.ContainsKey(tab))
+        showSettings = EditorGUILayout.BeginFoldoutHeaderGroup(showSettings, "Nastavení spawneru");
+        if (showSettings)
         {
-            EditorGUILayout.HelpBox($"Category {tab} not found!", MessageType.Error);
+            EditorGUILayout.LabelField("Debug", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(useDebugSeedProp);
+            if (useDebugSeedProp.boolValue)
+            {
+                EditorGUILayout.PropertyField(debugSeedValueProp);
+                EditorGUILayout.HelpBox("Debug seed je zapnutý – ignoruje se seed ze save souboru!", MessageType.Warning);
+            }
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Měřítko a limity", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(globalScaleMultiplierProp);
+            EditorGUILayout.PropertyField(maxObjectsPerChunkProp);
+            EditorGUILayout.PropertyField(maxGrassPerChunkProp);
+            EditorGUILayout.PropertyField(seaLevelProp);
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Rozložení vegetace", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(forestNoiseScaleProp);
+            EditorGUILayout.PropertyField(forestThresholdProp);
+            EditorGUILayout.PropertyField(grassDensityMultiplierProp);
+
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Kolize", EditorStyles.boldLabel);
+            EditorGUILayout.PropertyField(spawnCollisionMaskProp);
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    // =====================================================================
+    // Matice biom × kategorie
+    // =====================================================================
+    private void DrawMatrix()
+    {
+        showMatrix = EditorGUILayout.BeginFoldoutHeaderGroup(showMatrix, "Přehled: biom × kategorie");
+        if (!showMatrix)
+        {
+            EditorGUILayout.EndFoldoutHeaderGroup();
             return;
         }
 
-        List<int> list = categoryMap[tab];
+        string[] catNames = Enum.GetNames(typeof(SpawnCategory));
+        int catCount = catNames.Length;
 
-        // Výška pro jednu řadu
-        float viewHeight = thumbSize + 35f;
+        // spočítat matici
+        var counts = new Dictionary<BiomeType, int[]>();
+        foreach (BiomeType b in LandBiomes) counts[b] = new int[catCount];
 
-        EditorGUILayout.BeginVertical(GUI.skin.box);
-        EditorGUILayout.LabelField($"{(SpawnCategory)tab} - {list.Count} items", EditorStyles.boldLabel);
-
-        scrollPos = EditorGUILayout.BeginScrollView(
-            scrollPos,
-            GUILayout.Height(viewHeight)
-        );
-
-        EditorGUILayout.BeginHorizontal();
-
-        if (list.Count == 0)
+        for (int i = 0; i < spawnablesProp.arraySize; i++)
         {
-            EditorGUILayout.LabelField("No items in this category", EditorStyles.centeredGreyMiniLabel, GUILayout.Height(thumbSize));
-        }
-        else
-        {
-            foreach (int index in list)
+            SerializedProperty el = spawnablesProp.GetArrayElementAtIndex(i);
+            int cat = el.FindPropertyRelative("category").enumValueIndex;
+            SerializedProperty biomes = el.FindPropertyRelative("allowedBiomes");
+            for (int bi = 0; bi < biomes.arraySize; bi++)
             {
-                DrawItemThumbnail(index);
+                var b = (BiomeType)biomes.GetArrayElementAtIndex(bi).intValue;
+                if (counts.TryGetValue(b, out int[] row) && cat >= 0 && cat < catCount)
+                    row[cat]++;
             }
         }
 
+        EditorGUILayout.BeginVertical(GUI.skin.box);
+
+        // hlavička
+        EditorGUILayout.BeginHorizontal();
+        GUILayout.Label("Biom", EditorStyles.miniBoldLabel, GUILayout.Width(110));
+        for (int c = 0; c < catCount; c++)
+            GUILayout.Label(catNames[c], EditorStyles.miniBoldLabel, GUILayout.Width(62));
+        GUILayout.Label("Σ", EditorStyles.miniBoldLabel, GUILayout.Width(36));
         EditorGUILayout.EndHorizontal();
-        EditorGUILayout.EndScrollView();
+
+        foreach (BiomeType b in LandBiomes)
+        {
+            int[] row = counts[b];
+            int total = 0;
+            foreach (int v in row) total += v;
+
+            bool isOcean = b == BiomeType.ColdOcean || b == BiomeType.TemperateOcean;
+
+            EditorGUILayout.BeginHorizontal();
+
+            // kliknutím na název biomu se nastaví filtr seznamu
+            GUIStyle nameStyle = new GUIStyle(EditorStyles.miniLabel);
+            if ((int)b == biomeFilter) nameStyle.fontStyle = FontStyle.Bold;
+            if (GUILayout.Button(b.ToString(), nameStyle, GUILayout.Width(110)))
+                biomeFilter = (biomeFilter == (int)b) ? 0 : (int)b;
+
+            for (int c = 0; c < catCount; c++)
+            {
+                GUI.color = row[c] > 0 ? Color.white : new Color(1f, 1f, 1f, 0.35f);
+                GUILayout.Label(row[c].ToString(), EditorStyles.miniLabel, GUILayout.Width(62));
+            }
+            GUI.color = (total == 0 && !isOcean) ? new Color(1f, 0.45f, 0.45f) : Color.white;
+            GUILayout.Label(total.ToString(), EditorStyles.miniBoldLabel, GUILayout.Width(36));
+            GUI.color = Color.white;
+
+            EditorGUILayout.EndHorizontal();
+        }
+
+        EditorGUILayout.LabelField("Tip: kliknutím na název biomu vyfiltruješ seznam níže.", EditorStyles.centeredGreyMiniLabel);
         EditorGUILayout.EndVertical();
+        EditorGUILayout.EndFoldoutHeaderGroup();
+    }
 
-        GUILayout.Space(10);
+    // =====================================================================
+    // Validace
+    // =====================================================================
+    private void DrawValidation()
+    {
+        var problems = new List<string>();
+        for (int i = 0; i < spawnablesProp.arraySize; i++)
+        {
+            SerializedProperty el = spawnablesProp.GetArrayElementAtIndex(i);
+            string nm = el.FindPropertyRelative("name").stringValue;
+            string label = string.IsNullOrEmpty(nm) ? $"[{i}]" : $"[{i}] {nm}";
 
-        // Tlačítko pro přidání nové položky
-        if (GUILayout.Button($"Add new {(SpawnCategory)tab} item"))
+            if (el.FindPropertyRelative("prefab").objectReferenceValue == null)
+                problems.Add($"{label}: chybí prefab");
+            if (el.FindPropertyRelative("allowedBiomes").arraySize == 0)
+                problems.Add($"{label}: žádný povolený biom (nikdy se nespawne)");
+            if (el.FindPropertyRelative("minHeight").floatValue > el.FindPropertyRelative("maxHeight").floatValue)
+                problems.Add($"{label}: minHeight > maxHeight");
+            if (el.FindPropertyRelative("minSlope").floatValue > el.FindPropertyRelative("maxSlope").floatValue)
+                problems.Add($"{label}: minSlope > maxSlope");
+            if (el.FindPropertyRelative("spawnChance").floatValue <= 0f)
+                problems.Add($"{label}: spawnChance je 0");
+        }
+
+        if (problems.Count == 0) return;
+
+        showValidation = EditorGUILayout.BeginFoldoutHeaderGroup(showValidation, $"Problémy ({problems.Count})");
+        if (showValidation)
+        {
+            int shown = Mathf.Min(problems.Count, 20);
+            EditorGUILayout.HelpBox(string.Join("\n", problems.GetRange(0, shown))
+                + (problems.Count > shown ? $"\n… a dalších {problems.Count - shown}" : ""), MessageType.Warning);
+        }
+        EditorGUILayout.EndFoldoutHeaderGroup();
+    }
+
+    // =====================================================================
+    // Seznam spawnovatelných objektů
+    // =====================================================================
+    private void DrawSpawnablesList()
+    {
+        EditorGUILayout.LabelField($"Spawnovatelné objekty ({spawnablesProp.arraySize})", EditorStyles.boldLabel);
+
+        // ---- filtry ----
+        EditorGUILayout.BeginHorizontal();
+        searchText = EditorGUILayout.TextField(GUIContent.none, searchText, EditorStyles.toolbarSearchField);
+        if (GUILayout.Button("×", EditorStyles.miniButton, GUILayout.Width(20))) searchText = "";
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.BeginHorizontal();
+        string[] catNames = Enum.GetNames(typeof(SpawnCategory));
+        var catOptions = new string[catNames.Length + 1];
+        catOptions[0] = "Všechny kategorie";
+        Array.Copy(catNames, 0, catOptions, 1, catNames.Length);
+        int catSel = EditorGUILayout.Popup(categoryFilter + 1, catOptions);
+        categoryFilter = catSel - 1;
+
+        var biomeOptions = new string[LandBiomes.Length + 1];
+        biomeOptions[0] = "Všechny biomy";
+        for (int i = 0; i < LandBiomes.Length; i++) biomeOptions[i + 1] = LandBiomes[i].ToString();
+        int currentBiomeSel = 0;
+        for (int i = 0; i < LandBiomes.Length; i++)
+            if ((int)LandBiomes[i] == biomeFilter) { currentBiomeSel = i + 1; break; }
+        int biomeSel = EditorGUILayout.Popup(currentBiomeSel, biomeOptions);
+        biomeFilter = biomeSel == 0 ? 0 : (int)LandBiomes[biomeSel - 1];
+        EditorGUILayout.EndHorizontal();
+
+        EditorGUILayout.Space(2);
+
+        // ---- položky ----
+        int visible = 0;
+        for (int i = 0; i < spawnablesProp.arraySize; i++)
+        {
+            if (!PassesFilter(i)) continue;
+            visible++;
+            DrawItemRow(i);
+        }
+
+        if (visible == 0)
+            EditorGUILayout.LabelField("Filtru neodpovídá žádný záznam.", EditorStyles.centeredGreyMiniLabel);
+
+        EditorGUILayout.Space(4);
+
+        if (GUILayout.Button("+ Přidat nový záznam (na konec seznamu)"))
         {
             int newIndex = spawnablesProp.arraySize;
             spawnablesProp.InsertArrayElementAtIndex(newIndex);
-
-            SerializedProperty obj = spawnablesProp.GetArrayElementAtIndex(newIndex);
-
-            // Bezpečné nastavení properties
-            SerializedProperty nameProp = obj.FindPropertyRelative("name");
-            SerializedProperty categoryProp = obj.FindPropertyRelative("category");
-            SerializedProperty spawnChanceProp = obj.FindPropertyRelative("spawnChance");
-
-            if (nameProp != null) nameProp.stringValue = $"New {(SpawnCategory)tab}";
-            if (categoryProp != null) categoryProp.enumValueIndex = tab;
-            if (spawnChanceProp != null) spawnChanceProp.floatValue = 1f;
-
-            selectedIndex = newIndex;
-            categoryIndexNeedsRebuild = true;
-            serializedObject.ApplyModifiedProperties();
-            return;
+            SerializedProperty el = spawnablesProp.GetArrayElementAtIndex(newIndex);
+            ApplyDefaults(el, categoryFilter >= 0 ? categoryFilter : 0);
+            el.isExpanded = true;
         }
 
-        GUILayout.Space(10);
-
-        // Zobraz detaily pouze pokud je vybraná položka z aktuální kategorie
-        if (selectedIndex != -1 && list.Contains(selectedIndex))
-        {
-            DrawSelectedItem(selectedIndex);
-        }
-        else if (selectedIndex != -1)
-        {
-            // Pokud je vybraná položka z jiné kategorie, zruš výběr
-            selectedIndex = -1;
-        }
+        EditorGUILayout.HelpBox(
+            "Pořadí záznamů ovlivňuje determinismus existujících světů – nové záznamy se proto přidávají na konec. "
+            + "Smazání záznamu posune indexy všech následujících (v uložených světech se přeskládají objekty).",
+            MessageType.Info);
     }
 
-    private void DrawItemThumbnail(int index)
+    private bool PassesFilter(int index)
     {
-        if (index < 0 || index >= spawnablesProp.arraySize) return;
+        SerializedProperty el = spawnablesProp.GetArrayElementAtIndex(index);
 
-        SerializedProperty element = spawnablesProp.GetArrayElementAtIndex(index);
-        if (element == null) return;
+        if (categoryFilter >= 0 && el.FindPropertyRelative("category").enumValueIndex != categoryFilter)
+            return false;
 
-        SerializedProperty prefab = element.FindPropertyRelative("prefab");
-        SerializedProperty name = element.FindPropertyRelative("name");
-
-        Texture2D preview = Texture2D.grayTexture;
-        string tooltip = "No name";
-        string displayName = "No name";
-
-        if (name != null && !string.IsNullOrEmpty(name.stringValue))
+        if (biomeFilter != 0)
         {
-            tooltip = name.stringValue;
-            displayName = name.stringValue;
+            SerializedProperty biomes = el.FindPropertyRelative("allowedBiomes");
+            bool found = false;
+            for (int bi = 0; bi < biomes.arraySize; bi++)
+                if (biomes.GetArrayElementAtIndex(bi).intValue == biomeFilter) { found = true; break; }
+            if (!found) return false;
         }
 
-        if (prefab != null && prefab.objectReferenceValue != null)
+        if (!string.IsNullOrEmpty(searchText))
         {
-            preview = AssetPreview.GetAssetPreview(prefab.objectReferenceValue);
-            if (preview == null)
-                preview = AssetPreview.GetMiniThumbnail(prefab.objectReferenceValue);
-
-            tooltip = $"{displayName}\n({prefab.objectReferenceValue.name})";
+            string nm = el.FindPropertyRelative("name").stringValue ?? "";
+            var prefab = el.FindPropertyRelative("prefab").objectReferenceValue;
+            string pf = prefab != null ? prefab.name : "";
+            if (nm.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) < 0
+                && pf.IndexOf(searchText, StringComparison.OrdinalIgnoreCase) < 0)
+                return false;
         }
 
-        GUILayout.BeginVertical(GUILayout.Width(thumbSize));
-
-        // Označení vybrané položky
-        GUI.color = (selectedIndex == index) ? Color.green : Color.white;
-
-        GUIContent buttonContent = new GUIContent("", tooltip);
-        if (GUILayout.Button(buttonContent, GUILayout.Width(thumbSize), GUILayout.Height(thumbSize)))
-        {
-            selectedIndex = index;
-            categoryIndexNeedsRebuild = true;
-        }
-
-        // Ruční vykreslení preview textury
-        Rect buttonRect = GUILayoutUtility.GetLastRect();
-        if (preview != null)
-        {
-            GUI.DrawTexture(buttonRect, preview);
-        }
-
-        GUI.color = Color.white;
-
-        GUILayout.Label(displayName, EditorStyles.miniLabel, GUILayout.Width(thumbSize));
-
-        GUILayout.EndVertical();
+        return true;
     }
 
-    private void DrawSelectedItem(int index)
+    private void DrawItemRow(int index)
     {
-        if (index < 0 || index >= spawnablesProp.arraySize)
-        {
-            selectedIndex = -1;
-            return;
-        }
-
-        SerializedProperty element = spawnablesProp.GetArrayElementAtIndex(index);
-        if (element == null)
-        {
-            selectedIndex = -1;
-            return;
-        }
+        SerializedProperty el = spawnablesProp.GetArrayElementAtIndex(index);
+        SerializedProperty nameProp = el.FindPropertyRelative("name");
+        SerializedProperty prefabProp = el.FindPropertyRelative("prefab");
+        SerializedProperty categoryProp = el.FindPropertyRelative("category");
+        SerializedProperty biomesProp = el.FindPropertyRelative("allowedBiomes");
 
         EditorGUILayout.BeginVertical(GUI.skin.box);
-        GUILayout.Space(5);
-        EditorGUILayout.LabelField("Item Settings", EditorStyles.boldLabel);
 
-        // Ulož aktuální stav před změnami
-        EditorGUI.BeginChangeCheck();
+        // ---- hlavička řádku ----
+        EditorGUILayout.BeginHorizontal();
 
-        // Bezpečné zobrazení properties
-        SerializedProperty nameProp = element.FindPropertyRelative("name");
-        SerializedProperty prefabProp = element.FindPropertyRelative("prefab");
-        SerializedProperty categoryProp = element.FindPropertyRelative("category");
-        SerializedProperty spawnChanceProp = element.FindPropertyRelative("spawnChance");
-        SerializedProperty minHeightProp = element.FindPropertyRelative("minHeight");
-        SerializedProperty maxHeightProp = element.FindPropertyRelative("maxHeight");
-        SerializedProperty minSlopeProp = element.FindPropertyRelative("minSlope");
-        SerializedProperty maxSlopeProp = element.FindPropertyRelative("maxSlope");
-        SerializedProperty scaleRangeProp = element.FindPropertyRelative("scaleRange");
-        SerializedProperty allowedBiomesProp = element.FindPropertyRelative("allowedBiomes");
-        SerializedProperty rotateToTerrainProp = element.FindPropertyRelative("rotateToTerrain");
-        SerializedProperty usePerlinDensityProp = element.FindPropertyRelative("usePerlinDensity");
-        SerializedProperty densityScaleProp = element.FindPropertyRelative("densityScale");
-        SerializedProperty densityThresholdProp = element.FindPropertyRelative("densityThreshold");
-
-        if (nameProp != null) EditorGUILayout.PropertyField(nameProp);
-        if (prefabProp != null) EditorGUILayout.PropertyField(prefabProp);
-
-        // Ulož aktuální kategorii pro kontrolu změn
-        int oldCategory = -1;
-        int newCategory = -1;
-        if (categoryProp != null)
+        // náhled
+        Texture2D preview = null;
+        if (prefabProp.objectReferenceValue != null)
         {
-            oldCategory = categoryProp.enumValueIndex;
+            preview = AssetPreview.GetAssetPreview(prefabProp.objectReferenceValue)
+                      ?? AssetPreview.GetMiniThumbnail(prefabProp.objectReferenceValue) as Texture2D;
+        }
+        Rect thumbRect = GUILayoutUtility.GetRect(ThumbSize, ThumbSize, GUILayout.Width(ThumbSize));
+        if (preview != null) GUI.DrawTexture(thumbRect, preview, ScaleMode.ScaleToFit);
+        else EditorGUI.DrawRect(thumbRect, new Color(0, 0, 0, 0.2f));
+
+        EditorGUILayout.BeginVertical();
+
+        EditorGUILayout.BeginHorizontal();
+        string displayName = string.IsNullOrEmpty(nameProp.stringValue) ? "(bez názvu)" : nameProp.stringValue;
+        el.isExpanded = EditorGUILayout.Foldout(el.isExpanded, $"[{index}] {displayName}", true);
+        GUILayout.FlexibleSpace();
+
+        int cat = categoryProp.enumValueIndex;
+        if (cat >= 0 && cat < CategoryColors.Length)
+        {
+            GUI.color = CategoryColors[cat];
+            GUILayout.Label(((SpawnCategory)cat).ToString(), EditorStyles.miniButton, GUILayout.Width(84));
+            GUI.color = Color.white;
+        }
+        EditorGUILayout.EndHorizontal();
+
+        // souhrn: šance + biomy
+        float chance = el.FindPropertyRelative("spawnChance").floatValue;
+        string biomeSummary = BiomeSummary(biomesProp);
+        EditorGUILayout.LabelField($"{EffectiveChance(chance) * 100f:0.##} % / buňka   •   {biomeSummary}",
+            EditorStyles.miniLabel);
+
+        EditorGUILayout.EndVertical();
+        EditorGUILayout.EndHorizontal();
+
+        // ---- detail ----
+        if (el.isExpanded)
+        {
+            EditorGUILayout.Space(2);
+            EditorGUI.indentLevel++;
+
+            EditorGUILayout.PropertyField(nameProp);
+            EditorGUILayout.PropertyField(prefabProp);
             EditorGUILayout.PropertyField(categoryProp);
-            newCategory = categoryProp.enumValueIndex;
-        }
 
-        if (spawnChanceProp != null)
-            EditorGUILayout.Slider(spawnChanceProp, 0f, 100f, "Spawn Chance");
+            SerializedProperty chanceProp = el.FindPropertyRelative("spawnChance");
+            EditorGUILayout.Slider(chanceProp, 0f, 100f, "Spawn Chance");
+            EditorGUILayout.LabelField(" ",
+                $"efektivně {EffectiveChance(chanceProp.floatValue) * 100f:0.###} % na testovaný bod (hodnoty ≤ 1 jsou zlomek, > 1 procenta)",
+                EditorStyles.miniLabel);
 
-        GUILayout.Space(5);
+            DrawMinMax(el, "minHeight", "maxHeight", "Výška (noise 0–1)", 0f, 1f);
+            DrawMinMax(el, "minSlope", "maxSlope", "Sklon (°)", 0f, 90f);
 
-        // HEIGHT RANGE
-        if (minHeightProp != null && maxHeightProp != null)
-        {
-            float minH = minHeightProp.floatValue;
-            float maxH = maxHeightProp.floatValue;
-            EditorGUILayout.LabelField("Height Range");
-            EditorGUILayout.MinMaxSlider(ref minH, ref maxH, 0f, 1f);
-            minHeightProp.floatValue = minH;
-            maxHeightProp.floatValue = maxH;
-        }
+            EditorGUILayout.PropertyField(el.FindPropertyRelative("scaleRange"),
+                new GUIContent("Scale Range (min/max)"));
+            EditorGUILayout.PropertyField(el.FindPropertyRelative("rotateToTerrain"));
 
-        GUILayout.Space(5);
-
-        // SLOPE RANGE
-        if (minSlopeProp != null && maxSlopeProp != null)
-        {
-            float minS = minSlopeProp.floatValue;
-            float maxS = maxSlopeProp.floatValue;
-            EditorGUILayout.LabelField("Slope Range");
-            EditorGUILayout.MinMaxSlider(ref minS, ref maxS, 0f, 90f);
-            minSlopeProp.floatValue = minS;
-            maxSlopeProp.floatValue = maxS;
-        }
-
-        GUILayout.Space(5);
-
-        if (scaleRangeProp != null) EditorGUILayout.PropertyField(scaleRangeProp);
-        if (allowedBiomesProp != null) EditorGUILayout.PropertyField(allowedBiomesProp, true);
-
-        GUILayout.Space(10);
-
-        if (rotateToTerrainProp != null)
-        {
-            EditorGUILayout.LabelField("Rotation Settings", EditorStyles.boldLabel);
-            EditorGUILayout.PropertyField(rotateToTerrainProp);
-        }
-
-        GUILayout.Space(10);
-
-        EditorGUILayout.LabelField("Noise Settings", EditorStyles.boldLabel);
-        if (usePerlinDensityProp != null) EditorGUILayout.PropertyField(usePerlinDensityProp);
-
-        if (usePerlinDensityProp != null && usePerlinDensityProp.boolValue)
-        {
-            if (densityScaleProp != null) EditorGUILayout.PropertyField(densityScaleProp);
-            if (densityThresholdProp != null) EditorGUILayout.PropertyField(densityThresholdProp);
-        }
-
-        GUILayout.Space(10);
-
-        GUI.color = Color.red;
-        if (GUILayout.Button("Delete this item"))
-        {
-            string itemName = "this item";
-            if (nameProp != null && !string.IsNullOrEmpty(nameProp.stringValue))
+            SerializedProperty perlinProp = el.FindPropertyRelative("usePerlinDensity");
+            EditorGUILayout.PropertyField(perlinProp, new GUIContent("Use Perlin Density",
+                "Shlukování podle Perlin noise. Platí jen pro kategorie Stones a SmallObjects – Trees řídí lesní noise, Grass hustotní násobitel."));
+            if (perlinProp.boolValue)
             {
-                itemName = $"'{nameProp.stringValue}'";
+                EditorGUI.indentLevel++;
+                EditorGUILayout.PropertyField(el.FindPropertyRelative("densityScale"));
+                EditorGUILayout.PropertyField(el.FindPropertyRelative("densityThreshold"));
+                EditorGUI.indentLevel--;
             }
 
-            if (EditorUtility.DisplayDialog("Delete Item",
-                $"Are you sure you want to delete {itemName}?",
-                "Delete", "Cancel"))
-            {
-                spawnablesProp.DeleteArrayElementAtIndex(index);
-                selectedIndex = -1;
-                categoryIndexNeedsRebuild = true;
-                serializedObject.ApplyModifiedProperties();
-                return;
-            }
-        }
-        GUI.color = Color.white;
+            EditorGUILayout.Space(4);
+            EditorGUILayout.LabelField("Povolené biomy", EditorStyles.boldLabel);
+            DrawBiomeGrid(biomesProp);
 
-        // Pokud došlo ke změně kategorie, přebuduj index
-        if (EditorGUI.EndChangeCheck())
-        {
-            if (oldCategory != newCategory)
+            EditorGUILayout.Space(4);
+            EditorGUILayout.BeginHorizontal();
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Duplikovat (na konec)", GUILayout.Width(150)))
             {
-                categoryIndexNeedsRebuild = true;
+                pendingDuplicateIndex = index;
             }
+            GUI.color = new Color(1f, 0.55f, 0.55f);
+            if (GUILayout.Button("Smazat", GUILayout.Width(80)))
+            {
+                if (EditorUtility.DisplayDialog("Smazat záznam",
+                    $"Opravdu smazat '{displayName}'?\n\nPozor: posunou se indexy následujících záznamů, "
+                    + "což v existujících světech přeskládá spawnuté objekty.",
+                    "Smazat", "Zrušit"))
+                {
+                    pendingDeleteIndex = index;
+                }
+            }
+            GUI.color = Color.white;
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUI.indentLevel--;
+            EditorGUILayout.Space(2);
         }
 
         EditorGUILayout.EndVertical();
+    }
+
+    // =====================================================================
+    // Pomocné kreslení
+    // =====================================================================
+    private static void DrawMinMax(SerializedProperty el, string minField, string maxField,
+        string label, float rangeMin, float rangeMax)
+    {
+        SerializedProperty minProp = el.FindPropertyRelative(minField);
+        SerializedProperty maxProp = el.FindPropertyRelative(maxField);
+        float minV = minProp.floatValue;
+        float maxV = maxProp.floatValue;
+
+        EditorGUILayout.BeginHorizontal();
+        EditorGUILayout.PrefixLabel(label);
+        minV = EditorGUILayout.FloatField(minV, GUILayout.Width(52));
+        EditorGUILayout.MinMaxSlider(ref minV, ref maxV, rangeMin, rangeMax);
+        maxV = EditorGUILayout.FloatField(maxV, GUILayout.Width(52));
+        EditorGUILayout.EndHorizontal();
+
+        minProp.floatValue = Mathf.Clamp(minV, rangeMin, rangeMax);
+        maxProp.floatValue = Mathf.Clamp(maxV, minProp.floatValue, rangeMax);
+    }
+
+    /// <summary>Mřížka toggle tlačítek pro výběr biomů (místo výchozího seznamu).</summary>
+    private void DrawBiomeGrid(SerializedProperty biomesProp)
+    {
+        var current = new HashSet<int>();
+        for (int i = 0; i < biomesProp.arraySize; i++)
+            current.Add(biomesProp.GetArrayElementAtIndex(i).intValue);
+
+        bool changed = false;
+        const int perRow = 3;
+        for (int start = 0; start < LandBiomes.Length; start += perRow)
+        {
+            EditorGUILayout.BeginHorizontal();
+            for (int j = start; j < Mathf.Min(start + perRow, LandBiomes.Length); j++)
+            {
+                int val = (int)LandBiomes[j];
+                bool on = current.Contains(val);
+                bool newOn = GUILayout.Toggle(on, LandBiomes[j].ToString(), EditorStyles.miniButton);
+                if (newOn != on)
+                {
+                    changed = true;
+                    if (newOn) current.Add(val);
+                    else current.Remove(val);
+                }
+            }
+            EditorGUILayout.EndHorizontal();
+        }
+
+        EditorGUILayout.BeginHorizontal();
+        if (GUILayout.Button("Žádný", EditorStyles.miniButton, GUILayout.Width(70)))
+        {
+            current.Clear();
+            changed = true;
+        }
+        EditorGUILayout.EndHorizontal();
+
+        if (changed)
+        {
+            // zápis zpět se zachováním pořadí podle LandBiomes
+            biomesProp.ClearArray();
+            int idx = 0;
+            foreach (BiomeType b in LandBiomes)
+            {
+                if (!current.Contains((int)b)) continue;
+                biomesProp.InsertArrayElementAtIndex(idx);
+                biomesProp.GetArrayElementAtIndex(idx).intValue = (int)b;
+                idx++;
+            }
+        }
+    }
+
+    private string BiomeSummary(SerializedProperty biomesProp)
+    {
+        int n = biomesProp.arraySize;
+        if (n == 0) return "⚠ žádný biom";
+        var names = new List<string>();
+        for (int i = 0; i < Mathf.Min(n, 4); i++)
+            names.Add(((BiomeType)biomesProp.GetArrayElementAtIndex(i).intValue).ToString());
+        string s = string.Join(", ", names);
+        if (n > 4) s += $" +{n - 4}";
+        return s;
+    }
+
+    /// <summary>Efektivní šance – stejná logika jako ObjectSpawner.GetSpawnChance.</summary>
+    private static float EffectiveChance(float raw)
+    {
+        return raw > 1f ? Mathf.Clamp01(raw / 100f) : Mathf.Clamp01(raw);
+    }
+
+    private void ApplyDefaults(SerializedProperty el, int category)
+    {
+        el.FindPropertyRelative("name").stringValue = $"New {(SpawnCategory)category}";
+        el.FindPropertyRelative("prefab").objectReferenceValue = null;
+        el.FindPropertyRelative("category").enumValueIndex = category;
+        el.FindPropertyRelative("spawnChance").floatValue = 0.05f;
+        el.FindPropertyRelative("minHeight").floatValue = 0f;
+        el.FindPropertyRelative("maxHeight").floatValue = 1f;
+        el.FindPropertyRelative("minSlope").floatValue = 0f;
+        el.FindPropertyRelative("maxSlope").floatValue = category == (int)SpawnCategory.Trees ? 7f : 45f;
+        el.FindPropertyRelative("scaleRange").vector2Value = new Vector2(0.09f, 0.2f);
+        el.FindPropertyRelative("allowedBiomes").ClearArray();
+        el.FindPropertyRelative("usePerlinDensity").boolValue = false;
+        el.FindPropertyRelative("densityScale").floatValue = 0.05f;
+        el.FindPropertyRelative("densityThreshold").floatValue = 0.5f;
+        el.FindPropertyRelative("rotateToTerrain").boolValue = true;
+    }
+
+    /// <summary>Zkopíruje záznam na konec seznamu (bezpečné pro determinismus).</summary>
+    private void DuplicateToEnd(int sourceIndex)
+    {
+        int newIndex = spawnablesProp.arraySize;
+        spawnablesProp.InsertArrayElementAtIndex(newIndex);
+
+        SerializedProperty src = spawnablesProp.GetArrayElementAtIndex(sourceIndex);
+        SerializedProperty dst = spawnablesProp.GetArrayElementAtIndex(newIndex);
+
+        dst.FindPropertyRelative("name").stringValue = src.FindPropertyRelative("name").stringValue + " (kopie)";
+        dst.FindPropertyRelative("prefab").objectReferenceValue = src.FindPropertyRelative("prefab").objectReferenceValue;
+        dst.FindPropertyRelative("category").enumValueIndex = src.FindPropertyRelative("category").enumValueIndex;
+        dst.FindPropertyRelative("spawnChance").floatValue = src.FindPropertyRelative("spawnChance").floatValue;
+        dst.FindPropertyRelative("minHeight").floatValue = src.FindPropertyRelative("minHeight").floatValue;
+        dst.FindPropertyRelative("maxHeight").floatValue = src.FindPropertyRelative("maxHeight").floatValue;
+        dst.FindPropertyRelative("minSlope").floatValue = src.FindPropertyRelative("minSlope").floatValue;
+        dst.FindPropertyRelative("maxSlope").floatValue = src.FindPropertyRelative("maxSlope").floatValue;
+        dst.FindPropertyRelative("scaleRange").vector2Value = src.FindPropertyRelative("scaleRange").vector2Value;
+        dst.FindPropertyRelative("usePerlinDensity").boolValue = src.FindPropertyRelative("usePerlinDensity").boolValue;
+        dst.FindPropertyRelative("densityScale").floatValue = src.FindPropertyRelative("densityScale").floatValue;
+        dst.FindPropertyRelative("densityThreshold").floatValue = src.FindPropertyRelative("densityThreshold").floatValue;
+        dst.FindPropertyRelative("rotateToTerrain").boolValue = src.FindPropertyRelative("rotateToTerrain").boolValue;
+
+        SerializedProperty srcBiomes = src.FindPropertyRelative("allowedBiomes");
+        SerializedProperty dstBiomes = dst.FindPropertyRelative("allowedBiomes");
+        dstBiomes.ClearArray();
+        for (int i = 0; i < srcBiomes.arraySize; i++)
+        {
+            dstBiomes.InsertArrayElementAtIndex(i);
+            dstBiomes.GetArrayElementAtIndex(i).intValue = srcBiomes.GetArrayElementAtIndex(i).intValue;
+        }
+
+        dst.isExpanded = true;
     }
 }

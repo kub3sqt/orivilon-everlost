@@ -8,14 +8,14 @@ Shader "UNP/Water"
         [NoScaleOffset] _Normal1 ("Normal Map 1", 2D) = "bump" { }
         [NoScaleOffset] _Normal2 ("Normal Map 2", 2D) = "bump" { }
         [NoScaleOffset] _RefractionTex ("Refraction Mask", 2D) = "white" { }
-        
+
         // General surface properties
         [Header(Surface Properties)]
         [Space(5)]
         _Color ("Color", Color) = (0.0, 0.5, 1.0, 1.0)
         _Smoothness ("Smoothness", Range(0.0, 1.0)) = 0.5
         _Transparency ("Transparency", Range(0.0, 1.0)) = 0.7
-        
+
         // Settings for water wave behavior
         [Header(Waves Settings)]
         [Space(5)]
@@ -29,7 +29,7 @@ Shader "UNP/Water"
         _NormalWavesSpeed ("Speed", Range(0.0, 1.0)) = 0.05
         _TilingSize ("Tiling", Range(0.0, 10.0)) = 1.0
         _NormalIntensity ("Intensity", Range(0.0, 2.0)) = 1.0
-        
+
         // Reflection settings
         [Header(Reflection)]
         [Space(5)]
@@ -39,115 +39,148 @@ Shader "UNP/Water"
 
     SubShader
     {
-        Tags { "Queue" = "Transparent" "RenderType" = "Transparent" }
+        Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" }
         LOD 200
+
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+        // SRP Batcher kompatibilni material buffer (sdileny vsemi passy)
+        CBUFFER_START(UnityPerMaterial)
+            float4 _Color;
+            float _Smoothness;
+            float _Transparency;
+            float _WavesSpeed;
+            float _WavesHeight;
+            float _WavesFrequency;
+            float _NormalWavesSpeed;
+            float _TilingSize;
+            float _NormalIntensity;
+            float _ReflectionIntensity;
+        CBUFFER_END
+
+        TEXTURE2D(_Normal1);        SAMPLER(sampler_Normal1);
+        TEXTURE2D(_Normal2);        SAMPLER(sampler_Normal2);
+        TEXTURE2D(_RefractionTex);  SAMPLER(sampler_RefractionTex);
+        TEXTURECUBE(_ReflectionCube); SAMPLER(sampler_ReflectionCube);
+
+        // Vypocet vlny - stejna matematika jako puvodni HDRP/built-in verze
+        float3 ApplyWaves(float3 localPos)
+        {
+            float wave = sin(_Time.y * _WavesSpeed + localPos.x * _WavesFrequency) +
+                         cos(_Time.y * _WavesSpeed + localPos.z * _WavesFrequency);
+            localPos.y += wave * _WavesHeight;
+            return localPos;
+        }
+        ENDHLSL
 
         // Shadow caster pass for rendering shadows
         Pass
         {
             Name "ShadowCaster"
             Tags { "LightMode" = "ShadowCaster" }
-            
+
             ZWrite On
+            ZTest LEqual
             ColorMask 0
             Cull Back
-            
-            CGPROGRAM
+
+            HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #include "UnityCG.cginc"
-            
-            struct appdata
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+
+            float3 _LightDirection;
+            float3 _LightPosition;
+
+            struct Attributes
             {
-                float4 vertex : POSITION;
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
             };
 
-            struct v2f
+            struct Varyings
             {
-                float4 pos : SV_POSITION;
+                float4 positionCS : SV_POSITION;
             };
 
-            // Basic vertex shader for shadow pass
-            v2f vert(appdata v)
+            Varyings vert(Attributes v)
             {
-                v2f o;
-                o.pos = UnityObjectToClipPos(v.vertex);
+                Varyings o;
+                float3 positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
+
+            #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
+                float3 lightDirectionWS = normalize(_LightPosition - positionWS);
+            #else
+                float3 lightDirectionWS = _LightDirection;
+            #endif
+
+                o.positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+            #if UNITY_REVERSED_Z
+                o.positionCS.z = min(o.positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            #else
+                o.positionCS.z = max(o.positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            #endif
                 return o;
             }
 
-            // Basic fragment shader for shadow pass
-            float4 frag(v2f i) : SV_Target
+            half4 frag(Varyings i) : SV_Target
             {
                 return 0;
             }
-            ENDCG
+            ENDHLSL
         }
 
         // Main rendering pass for water
         Pass
         {
+            Name "ForwardUnlit"
+            Tags { "LightMode" = "UniversalForward" }
+
             Blend SrcAlpha OneMinusSrcAlpha // Enable transparency
             Cull Back
             ZWrite Off
 
-            CGPROGRAM
+            HLSLPROGRAM
             #pragma vertex vert
             #pragma fragment frag
-            #include "UnityCG.cginc"
-            
-            struct appdata
+            #pragma multi_compile_fog
+
+            struct Attributes
             {
-                float4 vertex : POSITION;    // Vertex position
-                float2 uv : TEXCOORD0;      // UV coordinates
-                float3 normal : NORMAL;     // Vertex normal
+                float4 positionOS : POSITION;   // Vertex position
+                float2 uv : TEXCOORD0;          // UV coordinates
+                float3 normalOS : NORMAL;       // Vertex normal
             };
 
-            struct v2f
+            struct Varyings
             {
-                float4 pos : SV_POSITION;   // Screen position
-                float2 uv : TEXCOORD0;     // UV coordinates
-                float3 worldPos : TEXCOORD1; // World position
-                float3 worldNormal : TEXCOORD2; // World normal
+                float4 positionCS : SV_POSITION;    // Screen position
+                float2 uv : TEXCOORD0;              // UV coordinates
+                float3 positionWS : TEXCOORD1;      // World position
+                float3 normalWS : TEXCOORD2;        // World normal
+                half fogFactor : TEXCOORD3;         // Fog
             };
-
-            // Shader properties
-            float _WavesSpeed;
-            float _WavesHeight;
-            float _WavesFrequency;
-            float4 _Color;
-            float _Smoothness;
-            sampler2D _Normal1;
-            sampler2D _Normal2;
-            float _NormalIntensity;
-            float _NormalWavesSpeed;
-            float _Transparency;
-            float _TilingSize;
-            samplerCUBE _ReflectionCube;
-            float _ReflectionIntensity;
-            sampler2D _RefractionTex;
 
             // Vertex shader: Adds wave motion and passes data to fragment shader
-            v2f vert(appdata v)
+            Varyings vert(Attributes v)
             {
-                v2f o;
-                float3 localPos = v.vertex.xyz;
+                Varyings o;
+                float3 localPos = ApplyWaves(v.positionOS.xyz);
 
-                // Calculate wave height using sine and cosine
-                float wave = sin(_Time.y * _WavesSpeed + localPos.x * _WavesFrequency) +
-                             cos(_Time.y * _WavesSpeed + localPos.z * _WavesFrequency);
-                localPos.y += wave * _WavesHeight;
-
-                // Transform to screen space and calculate normals
-                o.pos = UnityObjectToClipPos(float4(localPos, 1.0));
-                o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
-                o.worldNormal = mul((float3x3)unity_WorldToObject, v.normal);
-
+                o.positionCS = TransformObjectToHClip(localPos);
+                o.positionWS = TransformObjectToWorld(v.positionOS.xyz);
+                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
                 o.uv = v.uv;
+                o.fogFactor = ComputeFogFactor(o.positionCS.z);
                 return o;
             }
 
             // Fragment shader: Combines refraction, reflection, and normal effects
-            half4 frag(v2f i) : SV_Target
+            half4 frag(Varyings i) : SV_Target
             {
                 // Scroll normal maps for dynamic water appearance
                 float2 scrollUV1 = i.uv + float2(_Time.y * _NormalWavesSpeed, 0.0);
@@ -158,8 +191,8 @@ Shader "UNP/Water"
                 float2 tiledUV2 = scrollUV2 * pow(_TilingSize, 2.0);
 
                 // Sample and unpack normal maps
-                float3 normalTex1 = UnpackNormal(tex2D(_Normal1, tiledUV1));
-                float3 normalTex2 = UnpackNormal(tex2D(_Normal2, tiledUV2));
+                float3 normalTex1 = UnpackNormal(SAMPLE_TEXTURE2D(_Normal1, sampler_Normal1, tiledUV1));
+                float3 normalTex2 = UnpackNormal(SAMPLE_TEXTURE2D(_Normal2, sampler_Normal2, tiledUV2));
 
                 // Invert and scale normals
                 normalTex1.xy = -normalTex1.xy;
@@ -168,22 +201,22 @@ Shader "UNP/Water"
                 normalTex2.xy *= _NormalIntensity;
 
                 // Combine normals with world normal
-                float3 finalNormal = normalize(i.worldNormal + normalTex1 + normalTex2);
+                float3 finalNormal = normalize(i.normalWS + normalTex1 + normalTex2);
 
                 // Calculate refraction
-                float3 I = normalize(i.worldPos - _WorldSpaceCameraPos);
+                float3 I = normalize(i.positionWS - _WorldSpaceCameraPos);
                 float eta = 1.33;
                 float3 refracted = refract(I, finalNormal, eta);
 
                 // Sample refraction texture
-                float3 refractedColor = tex2Dproj(_RefractionTex, float4(i.uv + refracted.xy * 0.05, 0.0, 1.0)).rgb;
+                float3 refractedColor = SAMPLE_TEXTURE2D(_RefractionTex, sampler_RefractionTex, i.uv + refracted.xy * 0.05).rgb;
 
-                // Calculate specular highlight
-                float specular = pow(max(0.0, dot(reflect(finalNormal, finalNormal), normalize(_WorldSpaceCameraPos - i.worldPos))), 16.0 * (max(0.1, _Smoothness)));
+                // Calculate specular highlight (zachovana puvodni matematika)
+                float specular = pow(max(0.0, dot(reflect(finalNormal, finalNormal), normalize(_WorldSpaceCameraPos - i.positionWS))), 16.0 * (max(0.1, _Smoothness)));
                 specular = max(specular, 0.0);
 
-                // Sample reflection texture
-                float3 reflection = texCUBE(_ReflectionCube, finalNormal).rgb;
+                // Sample reflection cubemap
+                float3 reflection = SAMPLE_TEXTURECUBE(_ReflectionCube, sampler_ReflectionCube, finalNormal).rgb;
                 reflection *= _ReflectionIntensity;
 
                 // Combine effects with base color
@@ -193,11 +226,12 @@ Shader "UNP/Water"
                 color.rgb += refractedColor * 0.5;
                 color.a = _Transparency;
 
+                color.rgb = MixFog(color.rgb, i.fogFactor);
                 return color;
             }
-            ENDCG
+            ENDHLSL
         }
     }
 
-    FallBack "Transparent/Diffuse"
+    FallBack Off
 }

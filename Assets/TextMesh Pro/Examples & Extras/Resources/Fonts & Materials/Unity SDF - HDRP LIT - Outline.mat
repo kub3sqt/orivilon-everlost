@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: Unity SDF - HDRP LIT - Outline
-  m_Shader: {fileID: -6465566751694194690, guid: ca2ed216f98028c4dae6c5224a952b3c,
+  m_Shader: {fileID: -6465566751694194690, guid: a3d800b099a06e0478fb790c5e79057a,
     type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -155,19 +155,3 @@ Material:
     - _UnderlayOffset: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
   m_AllowLocking: 1
---- !u!114 &3286349241373283790
-MonoBehaviour:
-  m_ObjectHideFlags: 11
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 0}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: da692e001514ec24dbc4cca1949ff7e8, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  version: 13
-  hdPluginSubTargetMaterialVersions:
-    m_Keys: []
-    m_Values: 

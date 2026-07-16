@@ -155,15 +155,27 @@ namespace Orivilon.Data
         /// <returns>Dvourozměrné pole typů biomů pro každý bod chunku.</returns>
         public BiomeType[,] GenerateBiomeMap(float[,] heightMap, Vector3 chunkOrigin, int seed)
         {
-            int sizeX = heightMap.GetLength(0);
-            int sizeZ = heightMap.GetLength(1);
-            BiomeType[,] biomeMap = new BiomeType[sizeX, sizeZ];
-
             Vector2Int chunkCoord;
             if (MapGenerator.instance != null) chunkCoord = MapGenerator.instance.GetCoord(chunkOrigin);
             else chunkCoord = new Vector2Int(Mathf.FloorToInt(chunkOrigin.x / chunkSize), Mathf.FloorToInt(chunkOrigin.z / chunkSize));
 
             float seaLvl = (MapGenerator.instance != null) ? MapGenerator.instance.seaLevel : 0f;
+
+            return GenerateBiomeMap(heightMap, chunkCoord, seaLvl);
+        }
+
+        /// <summary>
+        /// Varianta GenerateBiomeMap bez závislosti na MapGenerator.GetCoord –
+        /// bezpečná pro volání z vedlejšího vlákna (žádné FindAnyObjectByType).
+        /// </summary>
+        /// <param name="heightMap">Výšková mapa chunku.</param>
+        /// <param name="chunkCoord">Souřadnice chunku v mřížce světa.</param>
+        /// <param name="seaLvl">Úroveň moře v noise hodnotách (0–1).</param>
+        public BiomeType[,] GenerateBiomeMap(float[,] heightMap, Vector2Int chunkCoord, float seaLvl)
+        {
+            int sizeX = heightMap.GetLength(0);
+            int sizeZ = heightMap.GetLength(1);
+            BiomeType[,] biomeMap = new BiomeType[sizeX, sizeZ];
 
             for (int x = 0; x < sizeX; x++)
             {

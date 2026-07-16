@@ -25,6 +25,18 @@ namespace Orivilon.World.Terrain
         public static MeshData CreateMeshData(MapData mapData, BiomeCollection biomes, int lod = 0)
         {
             float[,] data = mapData.heightMap;
+            var altitudeAndColorMap = biomes.GetAltitudeAndColorMap(mapData.chunkCoords, ref data);
+            return CreateMeshData(mapData, lod, altitudeAndColorMap.Item1, altitudeAndColorMap.Item2);
+        }
+
+        /// <summary>
+        /// Vytvoří MeshData z předpočítané altitude/color mapy.
+        /// Mapy se počítají jednou pro celý chunk a sdílí se mezi všemi LOD úrovněmi
+        /// (výpočet map je nejdražší část generování – dříve se počítal pro každou LOD znovu).
+        /// </summary>
+        public static MeshData CreateMeshData(MapData mapData, int lod, float[,] altitudeMap, Color[,] colorMap)
+        {
+            float[,] data = mapData.heightMap;
             int dataSize = data.GetLength(0);
 
             int step = 1 << lod;
@@ -33,12 +45,11 @@ namespace Orivilon.World.Terrain
             int sqrVertices = verticesPerLine * verticesPerLine;
             Vector3[] vertices = new Vector3[sqrVertices];
             Vector2[] uvs = new Vector2[sqrVertices];
-            Color[] colors = new Color[sqrVertices];
+            Color32[] colors = new Color32[sqrVertices];
             int[] triangles = new int[(sqrVertices - 2 * verticesPerLine + 1) * 6];
 
-            var altitudeAndColorMap = biomes.GetAltitudeAndColorMap(mapData.chunkCoords, ref data);
-            float[,] altitudeMap = altitudeAndColorMap.Item1;
-            Color[,] colorMap = altitudeAndColorMap.Item2;
+            float minHeight = float.MaxValue;
+            float maxHeight = float.MinValue;
 
             int vPerLineMinus1 = verticesPerLine - 1;
             for (int y = 0; y < verticesPerLine; y++)
@@ -48,9 +59,13 @@ namespace Orivilon.World.Terrain
                     int heightIndex = y * verticesPerLine + x;
                     int xStep = x * step;
                     int yStep = y * step;
-                    vertices[heightIndex] = new Vector3(xStep, altitudeMap[xStep, yStep], yStep);
+                    float altitude = altitudeMap[xStep, yStep];
+                    vertices[heightIndex] = new Vector3(xStep, altitude, yStep);
                     uvs[heightIndex] = new Vector2((float)x / vPerLineMinus1, (float)y / vPerLineMinus1);
                     colors[heightIndex] = colorMap[xStep, yStep];
+
+                    if (altitude < minHeight) minHeight = altitude;
+                    if (altitude > maxHeight) maxHeight = altitude;
                 }
             }
 
@@ -76,7 +91,9 @@ namespace Orivilon.World.Terrain
                 triangles = triangles,
                 uvs = uvs,
                 colors = colors,
-                lod = lod
+                lod = lod,
+                minHeight = minHeight,
+                maxHeight = maxHeight
             };
         }
 
@@ -90,12 +107,27 @@ namespace Orivilon.World.Terrain
         /// <returns>Pole MeshData pro každou LOD úroveň, nebo null při chybě.</returns>
         public static MeshData[] CreateMeshDataWithLOD(MapData mapData, BiomeCollection biomes, int lodCount)
         {
+            return CreateMeshDataWithLOD(mapData, biomes, lodCount, out _);
+        }
+
+        /// <summary>
+        /// Varianta vracející i altitude mapu (světové výšky LOD0 vrcholů).
+        /// Altitude mapa se dále používá pro spawn dekorací bez raycastů.
+        /// Altitude/color mapa se počítá pouze JEDNOU a sdílí mezi všemi LOD úrovněmi.
+        /// </summary>
+        public static MeshData[] CreateMeshDataWithLOD(MapData mapData, BiomeCollection biomes, int lodCount, out float[,] altitudeMap)
+        {
+            altitudeMap = null;
             try
             {
+                float[,] data = mapData.heightMap;
+                var maps = biomes.GetAltitudeAndColorMap(mapData.chunkCoords, ref data);
+                altitudeMap = maps.Item1;
+
                 MeshData[] meshData = new MeshData[lodCount];
                 for (int i = 0; i < lodCount; i++)
                 {
-                    meshData[i] = CreateMeshData(mapData, biomes, i);
+                    meshData[i] = CreateMeshData(mapData, i, maps.Item1, maps.Item2);
                 }
                 return meshData;
             }

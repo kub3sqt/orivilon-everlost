@@ -147,6 +147,32 @@ namespace Orivilon.World.Spawning
         /// <summary>Slovník uchovávající stav spawnutých chunků (koordináty → stav).</summary>
         private Dictionary<Vector2Int, ChunkSpawnState> spawnedChunks = new Dictionary<Vector2Int, ChunkSpawnState>();
 
+        /// <summary>
+        /// Tráva připravená ke spawnutí (deterministicky vypočtená v SpawnObjects).
+        /// Fyzicky se instancuje až přes SetGrassVisible, když je chunk blízko hráče.
+        /// </summary>
+        [System.NonSerialized] private readonly List<PendingGrassData> pendingGrass = new List<PendingGrassData>();
+
+        /// <summary>Aktuálně instancované objekty trávy (pro despawn při vzdálení hráče).</summary>
+        [System.NonSerialized] private readonly List<GameObject> spawnedGrassObjects = new List<GameObject>();
+
+        /// <summary>True pokud má být tráva tohoto chunku fyzicky ve scéně.</summary>
+        private bool grassVisible = false;
+
+        /// <summary>
+        /// Kompletní deterministická data jednoho stébla trávy –
+        /// transform je vypočtený předem, instancování je pak jen Instantiate.
+        /// </summary>
+        private struct PendingGrassData
+        {
+            public int spawnableIndex;
+            public Vector3 position;
+            public Quaternion rotation;
+            public Vector3 scale;
+            public long objectHash;
+            public Vector2Int chunkCoord;
+        }
+
         /// <summary>Numerický seed světa pro deterministickou generaci objektů.</summary>
         private int worldSeed = 0;
 
@@ -344,6 +370,37 @@ namespace Orivilon.World.Spawning
         }
 
         /// <summary>
+        /// Předpočítá indexy spawnovatelných objektů podle biomu.
+        /// Nahrazuje lineární allowedBiomes.Contains(biome) v hlavní spawn smyčce –
+        /// při velkém počtu spawnables se pro každou buňku prochází jen relevantní podmnožina.
+        /// Indexy v seznamech zůstávají vzestupně seřazené, takže pořadí vyhodnocování
+        /// (a tedy determinismus spawnu) je stejné jako u původního plného průchodu.
+        /// </summary>
+        private Dictionary<BiomeType, List<int>> BuildBiomeCandidates()
+        {
+            var map = new Dictionary<BiomeType, List<int>>();
+            for (int si = 0; si < spawnables.Count; si++)
+            {
+                var s = spawnables[si];
+                if (s == null || s.prefab == null || s.allowedBiomes == null) continue;
+
+                for (int bi = 0; bi < s.allowedBiomes.Count; bi++)
+                {
+                    BiomeType biome = s.allowedBiomes[bi];
+                    if (!map.TryGetValue(biome, out List<int> list))
+                    {
+                        list = new List<int>();
+                        map[biome] = list;
+                    }
+                    // ochrana proti duplicitnímu biomu v jednom záznamu
+                    if (list.Count == 0 || list[list.Count - 1] != si)
+                        list.Add(si);
+                }
+            }
+            return map;
+        }
+
+        /// <summary>
         /// Vrátí deterministický Random pro konkrétní buňku v chunku.
         /// Každá kombinace (chunk, x, z) dá vždy stejný výsledek.
         /// </summary>
@@ -370,6 +427,7 @@ namespace Orivilon.World.Spawning
             Vector3 chunkOrigin,
             float[,] heightMap,
             BiomeType[,] biomeMap,
+            float[,] altitudeMap,
             float vertexSpacing,
             int chunkSize)
         {
@@ -377,14 +435,18 @@ namespace Orivilon.World.Spawning
             int chunkZ = Mathf.FloorToInt(chunkOrigin.z / (chunkSize * vertexSpacing));
             Vector2Int coord = new Vector2Int(chunkX, chunkZ);
 
-            SpawnObjects(parent, chunkOrigin, heightMap, biomeMap, vertexSpacing, chunkSize, coord);
+            SpawnObjects(parent, chunkOrigin, heightMap, biomeMap, altitudeMap, vertexSpacing, chunkSize, coord);
         }
 
         /// <summary>
         /// Hlavní metoda spawnu objektů pro jeden chunk.
         /// Pro každý bod mřížky chunku (krok 2) vyhodnotí všechny spawnovatelné objekty:
-        /// výšku, biom, Perlin hustotu, pravděpodobnost, raycast na povrch, sklon,
+        /// výšku, biom, Perlin hustotu, pravděpodobnost, povrch a sklon z altitude mapy,
         /// jitter pozice, overlap check a nakonec instantiuje objekt.
+        /// Pozice povrchu se čte z altitude mapy (dříve tisíce Physics.Raycast na hlavním
+        /// vlákně; na mřížkových bodech dává altitude mapa identickou výšku jako raycast).
+        /// Tráva se neinstancuje hned – uloží se jako pending a vytvoří ji SetGrassVisible.
+        /// Pořadí čerpání náhodných čísel je zachováno kvůli determinismu světa.
         /// Stav spawnu se uloží do spawnedChunks slovníku.
         /// Pokud chunk byl jen "načten ze save" (isLoadedFromSave), přegeneruje se fyzicky.
         /// </summary>
@@ -393,10 +455,16 @@ namespace Orivilon.World.Spawning
             Vector3 chunkOrigin,
             float[,] heightMap,
             BiomeType[,] biomeMap,
+            float[,] altitudeMap,
             float vertexSpacing,
             int chunkSize,
             Vector2Int chunkCoord)
         {
+            if (altitudeMap == null)
+            {
+                Debug.LogError($"[SPAWNER] SpawnObjects: altitudeMap je null pro chunk {chunkCoord} – spawn přeskočen.");
+                return;
+            }
             if (spawnedChunks.TryGetValue(chunkCoord, out ChunkSpawnState existingState))
             {
                 if (!existingState.isLoadedFromSave)
@@ -415,11 +483,15 @@ namespace Orivilon.World.Spawning
 
             int grassPlaced = 0;
             int otherObjectsPlaced = 0;
-            int spawnablesCount = spawnables.Count;
+            Dictionary<BiomeType, List<int>> biomeCandidates = BuildBiomeCandidates();
             List<Vector3> reservedSpawnPositions = new List<Vector3>(maxObjectsPerChunk + maxGrassPerChunk);
 
-            RaycastHit hit;
-            Vector3 rayStart = Vector3.zero;
+            // Regenerace chunku (např. po načtení ze save) – vyčistit starou trávu.
+            DespawnGrassObjects();
+            pendingGrass.Clear();
+
+            int altitudeSizeX = altitudeMap.GetLength(0);
+            int altitudeSizeZ = altitudeMap.GetLength(1);
 
             ChunkSpawnState chunkState = new ChunkSpawnState
             {
@@ -438,10 +510,12 @@ namespace Orivilon.World.Spawning
                     if (height < seaLevel) continue;
 
                     BiomeType biome = biomeMap[x, z];
+                    if (!biomeCandidates.TryGetValue(biome, out List<int> cellCandidates)) continue;
                     System.Random cellRandom = GetCellRandom(chunkCoord, x, z);
 
-                    for (int si = 0; si < spawnablesCount; si++)
+                    for (int ci = 0; ci < cellCandidates.Count; ci++)
                     {
+                        int si = cellCandidates[ci];
                         var s = spawnables[si];
                         if (s == null || s.prefab == null) continue;
 
@@ -449,7 +523,6 @@ namespace Orivilon.World.Spawning
                         else if (s.category != SpawnCategory.Grass && otherObjectsPlaced >= maxObjectsPerChunk) continue;
 
                         if (height < s.minHeight || height > s.maxHeight) continue;
-                        if (!s.allowedBiomes.Contains(biome)) continue;
 
                         float worldX = chunkOrigin.x + x * vertexSpacing;
                         float worldZ = chunkOrigin.z + z * vertexSpacing;
@@ -478,22 +551,26 @@ namespace Orivilon.World.Spawning
                             if (cellRandom.NextDouble() > chance) continue;
                         }
 
-                        rayStart.x = worldX;
-                        rayStart.y = raycastHeight;
-                        rayStart.z = worldZ;
+                        // Výška povrchu přímo z altitude mapy – na mřížkových bodech je identická
+                        // s tím, co dřív vracel raycast na terén, ale bez fyziky a bez závislosti
+                        // na existenci collideru (vzdálené chunky už collider nemají).
+                        if (x >= altitudeSizeX || z >= altitudeSizeZ) continue;
+                        float surfaceY = altitudeMap[x, z];
 
-                        if (!Physics.Raycast(rayStart, Vector3.down, out hit, raycastMax)) continue;
+                        // Stejné okno jako původní raycast (start v raycastHeight, délka raycastMax) –
+                        // zachovává chování, kdy se na extrémně vysokém/nízkém terénu nespawnovalo.
+                        if (surfaceY > raycastHeight || surfaceY < raycastHeight - raycastMax) continue;
 
-                        float slope = Vector3.Angle(hit.normal, Vector3.up);
+                        Vector3 surfaceNormal = GetTerrainNormal(altitudeMap, x, z, vertexSpacing, altitudeSizeX, altitudeSizeZ);
+
+                        float slope = Vector3.Angle(surfaceNormal, Vector3.up);
                         if (slope < s.minSlope || slope > s.maxSlope) continue;
 
                         float jitterPower = vertexSpacing * 0.45f;
                         float jitterX = ((float)cellRandom.NextDouble() - 0.5f) * jitterPower;
                         float jitterZ = ((float)cellRandom.NextDouble() - 0.5f) * jitterPower;
 
-                        Vector3 spawnPos = hit.point;
-                        spawnPos.x += jitterX;
-                        spawnPos.z += jitterZ;
+                        Vector3 spawnPos = new Vector3(worldX + jitterX, surfaceY, worldZ + jitterZ);
 
                         long objectHash = GetDeterministicObjectHash(chunkCoord, x, z, si);
                         if (SaveSystem.SaveSystem.IsObjectDestroyed(objectHash))
@@ -514,27 +591,48 @@ namespace Orivilon.World.Spawning
                         float scaleVal = Mathf.Lerp(s.scaleRange.x, s.scaleRange.y, (float)cellRandom.NextDouble()) * globalScaleMultiplier;
                         float rotationY = (float)cellRandom.NextDouble() * 360f;
 
-                        GameObject go = Instantiate(s.prefab, spawnPos, Quaternion.identity, parent);
-                        Transform t = go.transform;
-                        t.localScale = new Vector3(scaleVal, scaleVal * 1.3f, scaleVal);
+                        Vector3 finalScale = new Vector3(scaleVal, scaleVal * 1.3f, scaleVal);
 
-                        if (s.rotateToTerrain) t.rotation = Quaternion.FromToRotation(Vector3.up, hit.normal);
-                        else t.rotation = Quaternion.identity;
+                        // Stejná matematika jako původní: rotation = base * Rotate(up, rotationY, Space.Self)
+                        Quaternion baseRotation = s.rotateToTerrain
+                            ? Quaternion.FromToRotation(Vector3.up, surfaceNormal)
+                            : Quaternion.identity;
+                        Quaternion finalRotation = baseRotation * Quaternion.AngleAxis(rotationY, Vector3.up);
 
-                        t.Rotate(Vector3.up, rotationY, Space.Self);
+                        if (s.category == SpawnCategory.Grass)
+                        {
+                            // Trávu neinstancujeme hned – transform je deterministicky spočtený,
+                            // fyzicky vznikne až přes SetGrassVisible (blízko hráče).
+                            pendingGrass.Add(new PendingGrassData
+                            {
+                                spawnableIndex = si,
+                                position = spawnPos,
+                                rotation = finalRotation,
+                                scale = finalScale,
+                                objectHash = objectHash,
+                                chunkCoord = chunkCoord
+                            });
+                        }
+                        else
+                        {
+                            GameObject go = Instantiate(s.prefab, spawnPos, Quaternion.identity, parent);
+                            Transform t = go.transform;
+                            t.localScale = finalScale;
+                            t.rotation = finalRotation;
 
-                        RemoveLODForSmallObjects(go, s.category);
+                            RemoveLODForSmallObjects(go, s.category);
 
-                        DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
-                        if (id == null) id = go.AddComponent<DeterministicObjectId>();
-                        id.Initialize(objectHash, chunkCoord);
+                            DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
+                            if (id == null) id = go.AddComponent<DeterministicObjectId>();
+                            id.Initialize(objectHash, chunkCoord);
+                        }
 
                         chunkState.spawnedObjects.Add(new SpawnedObjectData
                         {
                             prefabName = s.prefab.name,
                             position = spawnPos,
-                            scale = t.localScale,
-                            rotation = t.rotation,
+                            scale = finalScale,
+                            rotation = finalRotation,
                             category = s.category,
                             spawnableIndex = si
                         });
@@ -553,6 +651,90 @@ namespace Orivilon.World.Spawning
             chunkState.grassCount = grassPlaced;
 
             spawnedChunks[chunkCoord] = chunkState;
+
+            if (grassVisible)
+                SpawnGrassObjects(parent);
+        }
+
+        /// <summary>
+        /// Zapne/vypne fyzickou přítomnost trávy tohoto chunku podle vzdálenosti od hráče.
+        /// Deterministická data trávy (pendingGrass) zůstávají – zapnutí je jen Instantiate
+        /// předpočítaných transformů, vypnutí objekty zničí.
+        /// </summary>
+        /// <param name="visible">True = tráva má být ve scéně.</param>
+        /// <param name="parent">Parent transform pro instancovanou trávu (chunk objekt).</param>
+        public void SetGrassVisible(bool visible, Transform parent)
+        {
+            if (grassVisible == visible) return;
+            grassVisible = visible;
+
+            if (visible)
+                SpawnGrassObjects(parent);
+            else
+                DespawnGrassObjects();
+        }
+
+        /// <summary>
+        /// Instancuje všechnu pending trávu (přeskočí stébla zničená hráčem podle hashe).
+        /// </summary>
+        private void SpawnGrassObjects(Transform parent)
+        {
+            if (spawnedGrassObjects.Count > 0) return;
+
+            for (int i = 0; i < pendingGrass.Count; i++)
+            {
+                PendingGrassData data = pendingGrass[i];
+
+                if (data.spawnableIndex < 0 || data.spawnableIndex >= spawnables.Count) continue;
+                SpawnableObject s = spawnables[data.spawnableIndex];
+                if (s == null || s.prefab == null) continue;
+
+                if (SaveSystem.SaveSystem.IsObjectDestroyed(data.objectHash)) continue;
+
+                GameObject go = Instantiate(s.prefab, data.position, data.rotation, parent);
+                go.transform.localScale = data.scale;
+
+                RemoveLODForSmallObjects(go, s.category);
+
+                DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
+                if (id == null) id = go.AddComponent<DeterministicObjectId>();
+                id.Initialize(data.objectHash, data.chunkCoord);
+
+                spawnedGrassObjects.Add(go);
+            }
+        }
+
+        /// <summary>
+        /// Zničí všechny instancované objekty trávy (pending data zůstávají pro pozdější respawn).
+        /// </summary>
+        private void DespawnGrassObjects()
+        {
+            for (int i = 0; i < spawnedGrassObjects.Count; i++)
+            {
+                if (spawnedGrassObjects[i] != null)
+                    Destroy(spawnedGrassObjects[i]);
+            }
+            spawnedGrassObjects.Clear();
+        }
+
+        /// <summary>
+        /// Vypočítá normálu terénu z altitude mapy centrálními diferencemi.
+        /// Odpovídá normále vizuálního meshe (drobné odchylky od dřívější raycast normály
+        /// konkrétního trojúhelníku jsou možné – ovlivňují jen rotaci objektů, ne pozice).
+        /// </summary>
+        private static Vector3 GetTerrainNormal(float[,] altitudeMap, int x, int z, float vertexSpacing, int sizeX, int sizeZ)
+        {
+            int xPrev = Mathf.Max(x - 1, 0);
+            int xNext = Mathf.Min(x + 1, sizeX - 1);
+            int zPrev = Mathf.Max(z - 1, 0);
+            int zNext = Mathf.Min(z + 1, sizeZ - 1);
+
+            float dX = altitudeMap[xPrev, z] - altitudeMap[xNext, z];
+            float dZ = altitudeMap[x, zPrev] - altitudeMap[x, zNext];
+
+            float horizontalStep = 2f * Mathf.Max(vertexSpacing, 0.0001f);
+
+            return new Vector3(dX, horizontalStep, dZ).normalized;
         }
 
         /// <summary>
@@ -574,6 +756,11 @@ namespace Orivilon.World.Spawning
                 Transform child = transform.GetChild(i);
                 if (child != transform) Destroy(child.gameObject);
             }
+
+            DespawnGrassObjects();
+            pendingGrass.Clear();
+            grassVisible = false;
+
             objectsSpawned = false;
             grassPlaced = 0;
             otherObjectsPlaced = 0;

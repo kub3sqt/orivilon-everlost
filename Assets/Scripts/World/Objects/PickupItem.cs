@@ -40,6 +40,12 @@ namespace Orivilon.World.Objects
             if (added)
             {
                 Orivilon.SaveSystem.SaveSystem.MarkObjectDestroyed(gameObject);
+
+                // Multiplayer: oznam ostatním hráčům sebrání (no-op v single-playeru).
+                var detId = GetComponent<DeterministicObjectId>();
+                if (detId != null)
+                    Orivilon.Multiplayer.NetworkWorldSync.Instance?.BroadcastObjectDestroyed(detId.Hash);
+
                 Destroy(gameObject);
             }
             else

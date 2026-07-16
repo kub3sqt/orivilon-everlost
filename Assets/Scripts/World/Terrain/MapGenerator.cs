@@ -68,8 +68,11 @@ namespace Orivilon.World.Terrain
         /// <summary>True pokud se povedlo převzít velikost chunku a LOD z EndlessTerrain.</summary>
         private bool terrainSettingsInitialized = false;
 
-        /// <summary>Maximální počet hotových dat zpracovaných za jeden snímek (pro stabilní FPS).</summary>
-        private const int MAX_CHUNKS_PROCESSED_PER_FRAME = 1;
+        /// <summary>
+        /// Maximální počet hotových dat zpracovaných za jeden snímek (pro stabilní FPS).
+        /// Zpracování je nyní levné (meshe se vytvářejí líně až při zobrazení), takže 2 za snímek je bezpečné.
+        /// </summary>
+        private const int MAX_CHUNKS_PROCESSED_PER_FRAME = 2;
 
         /// <summary>
         /// Převede světovou pozici na souřadnice chunku.
@@ -93,8 +96,8 @@ namespace Orivilon.World.Terrain
         /// <summary>Fronta hotových MapData z vláken čekající na zpracování hlavním vláknem.</summary>
         Queue<ThreadInfo<MapData>> mapDataThreadInfoQueue = new Queue<ThreadInfo<MapData>>();
 
-        /// <summary>Fronta hotových MeshData[] z vláken čekající na zpracování hlavním vláknem.</summary>
-        public Queue<ThreadInfo<MeshData[]>> meshDataThreadInfoQueue = new Queue<ThreadInfo<MeshData[]>>();
+        /// <summary>Fronta hotových ChunkGenResult z vláken čekající na zpracování hlavním vláknem.</summary>
+        public Queue<ThreadInfo<ChunkGenResult>> meshDataThreadInfoQueue = new Queue<ThreadInfo<ChunkGenResult>>();
 
         /// <summary>
         /// Inicializace singletonu. Nastaví seed ze selectedWorld nebo vygeneruje náhodný.
@@ -198,48 +201,65 @@ namespace Orivilon.World.Terrain
         }
 
         /// <summary>
-        /// Asynchronně požádá o vygenerování MeshData[] pro všechny LOD úrovně.
-        /// Generování a flat shading probíhají ve vedlejším vlákně.
+        /// Asynchronně požádá o vygenerování kompletních dat chunku (MeshData všech LOD,
+        /// altitude mapa a biome mapa). Vše probíhá ve vedlejším vlákně.
         /// </summary>
-        public void RequestMeshData(MapData mapData, Action<MeshData[]> callback)
+        public void RequestMeshData(MapData mapData, Action<ChunkGenResult> callback)
         {
             EnsureTerrainSettings();
             Task.Run(() => MeshDataThread(mapData, callback));
         }
 
         /// <summary>
-        /// Vygeneruje MeshData[] pro všechny LOD úrovně ve vedlejším vlákně.
-        /// Předpočítá flat shading (BakeFlatShadingOnThread) pro každý LOD.
-        /// Loguje chyby pro prázdné nebo neplatné MeshData.
+        /// Vygeneruje ve vedlejším vlákně MeshData[] pro všechny LOD úrovně,
+        /// altitude mapu (světové výšky) a biome mapu chunku.
+        /// Altitude/color mapa se počítá jen jednou pro všechny LOD.
+        /// Biome mapa se dříve počítala znovu na hlavním vlákně při spawnu dekorací –
+        /// teď vzniká zde a hlavní vlákno ji jen převezme.
         /// Výsledek zařadí do meshDataThreadInfoQueue.
         /// </summary>
-        private void MeshDataThread(MapData mapData, Action<MeshData[]> callback)
+        private void MeshDataThread(MapData mapData, Action<ChunkGenResult> callback)
         {
-            MeshData[] meshDataArray = TerrainGenerator.CreateMeshDataWithLOD(mapData, biomeCollection, lodCount);
+            ChunkGenResult result = new ChunkGenResult();
 
-            if (meshDataArray == null || meshDataArray.Length == 0)
+            try
             {
-                Debug.LogError($"[MapGenerator] CreateMeshDataWithLOD vrátil null/empty pro chunk {mapData.chunkCoords}!");
-                meshDataArray = new MeshData[0];
-            }
+                result.lodMeshData = TerrainGenerator.CreateMeshDataWithLOD(mapData, biomeCollection, lodCount, out float[,] altitudeMap);
+                result.altitudeMap = altitudeMap;
+                result.heightMap = mapData.heightMap;
 
-            for (int i = 0; i < meshDataArray.Length; i++)
-            {
-                meshDataArray[i].BakeFlatShadingOnThread();
-            }
-
-            for (int i = 0; i < meshDataArray.Length; i++)
-            {
-                var md = meshDataArray[i];
-                if (md.vertices == null || md.vertices.Length == 0 || md.triangles == null || md.triangles.Length == 0)
+                if (result.lodMeshData == null || result.lodMeshData.Length == 0)
                 {
-                    Debug.LogError($"[MapGenerator] EMPTY MeshData for chunk {mapData.chunkCoords} LOD={md.lod} (index={i}). vertices={(md.vertices == null ? 0 : md.vertices.Length)} triangles={(md.triangles == null ? 0 : md.triangles.Length)}");
+                    Debug.LogError($"[MapGenerator] CreateMeshDataWithLOD vrátil null/empty pro chunk {mapData.chunkCoords}!");
+                    result.lodMeshData = new MeshData[0];
                 }
+
+                for (int i = 0; i < result.lodMeshData.Length; i++)
+                {
+                    result.lodMeshData[i].BakeFlatShadingOnThread();
+
+                    var md = result.lodMeshData[i];
+                    if (md.vertices == null || md.vertices.Length == 0 || md.triangles == null || md.triangles.Length == 0)
+                    {
+                        Debug.LogError($"[MapGenerator] EMPTY MeshData for chunk {mapData.chunkCoords} LOD={md.lod} (index={i}). vertices={(md.vertices == null ? 0 : md.vertices.Length)} triangles={(md.triangles == null ? 0 : md.triangles.Length)}");
+                    }
+                }
+
+                if (biomeCollection != null)
+                {
+                    result.biomeMap = biomeCollection.GenerateBiomeMap(mapData.heightMap, mapData.chunkCoords, seaLevel);
+                }
+            }
+            catch (Exception e)
+            {
+                // Task.Run výjimky tiše spolkne – bez catch by chunk zůstal viset a loader by čekal navždy.
+                Debug.LogError($"[MapGenerator] MeshDataThread selhal pro chunk {mapData.chunkCoords}: {e}");
+                if (result.lodMeshData == null) result.lodMeshData = new MeshData[0];
             }
 
             lock (meshDataThreadInfoQueue)
             {
-                meshDataThreadInfoQueue.Enqueue(new ThreadInfo<MeshData[]>(callback, meshDataArray));
+                meshDataThreadInfoQueue.Enqueue(new ThreadInfo<ChunkGenResult>(callback, result));
             }
         }
 
@@ -264,7 +284,7 @@ namespace Orivilon.World.Terrain
         }
 
         /// <summary>
-        /// Coroutina zpracovávající frontu MeshData[] na hlavním vlákně.
+        /// Coroutina zpracovávající frontu ChunkGenResult na hlavním vlákně.
         /// Zpracuje max MAX_CHUNKS_PROCESSED_PER_FRAME položek za snímek pro stabilní FPS.
         /// </summary>
         IEnumerator MeshDataRoutine()
@@ -274,7 +294,7 @@ namespace Orivilon.World.Terrain
                 int processed = 0;
                 while (meshDataThreadInfoQueue.Count > 0 && processed < MAX_CHUNKS_PROCESSED_PER_FRAME)
                 {
-                    ThreadInfo<MeshData[]> threadInfo;
+                    ThreadInfo<ChunkGenResult> threadInfo;
                     lock (meshDataThreadInfoQueue) threadInfo = meshDataThreadInfoQueue.Dequeue();
                     threadInfo.callback(threadInfo.parameter);
                     processed++;
@@ -282,6 +302,27 @@ namespace Orivilon.World.Terrain
                 yield return null;
             }
         }
+    }
+
+    /// <summary>
+    /// Kompletní výsledek generování jednoho chunku z vedlejšího vlákna.
+    /// Obsahuje MeshData pro všechny LOD, altitude mapu (světové výšky LOD0 vrcholů),
+    /// biome mapu a odkaz na výškovou (noise) mapu.
+    /// TerrainChunk si data uloží a použije pro líné vytváření meshů a spawn dekorací bez raycastů.
+    /// </summary>
+    public struct ChunkGenResult
+    {
+        /// <summary>MeshData pro každou LOD úroveň (0 = plný detail).</summary>
+        public MeshData[] lodMeshData;
+
+        /// <summary>Světové výšky vrcholů LOD0 mřížky (chunkSize+1)². Indexováno [x, z].</summary>
+        public float[,] altitudeMap;
+
+        /// <summary>Typ biomu pro každý bod mřížky.</summary>
+        public BiomeType[,] biomeMap;
+
+        /// <summary>Surová noise mapa (0–1) předaná z MapData.</summary>
+        public float[,] heightMap;
     }
 
     /// <summary>
@@ -320,11 +361,17 @@ namespace Orivilon.World.Terrain
         /// <summary>Pole UV souřadnic.</summary>
         public Vector2[] uvs;
 
-        /// <summary>Pole barev vrcholů (z biom color mapy).</summary>
-        public Color[] colors;
+        /// <summary>Pole barev vrcholů (z biom color mapy). Color32 = 4 B na vrchol místo 16 B.</summary>
+        public Color32[] colors;
 
         /// <summary>LOD úroveň tohoto meshe (0 = nejvyšší detail).</summary>
         public int lod;
+
+        /// <summary>Nejnižší výška vrcholu (pro bounds a detekci vody).</summary>
+        public float minHeight;
+
+        /// <summary>Nejvyšší výška vrcholu (pro bounds).</summary>
+        public float maxHeight;
 
         /// <summary>Předpočítané vrcholy pro flat shading (každý trojúhelník má vlastní vrcholy).</summary>
         public Vector3[] bakedVertices;
@@ -333,7 +380,7 @@ namespace Orivilon.World.Terrain
         public Vector2[] bakedUVs;
 
         /// <summary>Předpočítané barvy pro flat shading.</summary>
-        public Color[] bakedColors;
+        public Color32[] bakedColors;
 
         /// <summary>Předpočítané indexy trojúhelníků pro flat shading.</summary>
         public int[] bakedTriangles;
@@ -347,13 +394,15 @@ namespace Orivilon.World.Terrain
         /// <summary>
         /// Vytvoří MeshData se surovými daty. Baked pole jsou null dokud se nezavolá BakeFlatShadingOnThread().
         /// </summary>
-        public MeshData(Vector3[] vertices, int[] triangles, Vector2[] uvs, Color[] colors, int lod)
+        public MeshData(Vector3[] vertices, int[] triangles, Vector2[] uvs, Color32[] colors, int lod)
         {
             this.vertices = vertices;
             this.triangles = triangles;
             this.uvs = uvs;
             this.colors = colors;
             this.lod = lod;
+            this.minHeight = 0f;
+            this.maxHeight = 0f;
 
             this.bakedVertices = null;
             this.bakedUVs = null;
@@ -375,7 +424,7 @@ namespace Orivilon.World.Terrain
 
             bakedVertices = new Vector3[triangles.Length];
             bakedUVs = new Vector2[triangles.Length];
-            bakedColors = new Color[triangles.Length];
+            bakedColors = new Color32[triangles.Length];
             bakedTriangles = new int[triangles.Length];
             bakedNormals = new Vector3[triangles.Length];
 
@@ -388,7 +437,7 @@ namespace Orivilon.World.Terrain
                 if (colors != null && triIndex >= 0 && triIndex < colors.Length)
                     bakedColors[i] = colors[triIndex];
                 else
-                    bakedColors[i] = Color.white;
+                    bakedColors[i] = new Color32(255, 255, 255, 255);
 
                 bakedTriangles[i] = i;
             }
@@ -417,9 +466,12 @@ namespace Orivilon.World.Terrain
         /// Jinak použije surová data s RecalculateNormals() – pomalejší záložní varianta.
         /// Vždy zavolá RecalculateBounds() pro správné frustum culling.
         /// </summary>
-        /// <param name="v">Parametr zachován pro zpětnou kompatibilitu (nevyužit).</param>
+        /// <param name="markNoLongerReadable">
+        /// Pokud true, mesh se po nahrání na GPU označí jako non-readable a uvolní se jeho CPU kopie
+        /// (poloviční spotřeba RAM). Používat pro čistě vizuální meshe – NE pro mesh collideru.
+        /// </param>
         /// <returns>Nový Unity Mesh objekt.</returns>
-        public Mesh CreateMesh(bool v)
+        public Mesh CreateMesh(bool markNoLongerReadable)
         {
             Mesh mesh = new Mesh();
 
@@ -431,10 +483,14 @@ namespace Orivilon.World.Terrain
                     return mesh;
                 }
 
+                // Flat shading duplikuje vrcholy (3 na trojúhelník) – u velkých chunků může přesáhnout 65k.
+                if (bakedVertices.Length > 65000)
+                    mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+
                 mesh.vertices = bakedVertices;
                 mesh.triangles = bakedTriangles;
                 mesh.uv = bakedUVs ?? new Vector2[bakedVertices.Length];
-                mesh.colors = bakedColors ?? new Color[bakedVertices.Length];
+                mesh.colors32 = bakedColors ?? new Color32[bakedVertices.Length];
                 mesh.normals = bakedNormals;
             }
             else
@@ -448,10 +504,43 @@ namespace Orivilon.World.Terrain
                 mesh.vertices = vertices;
                 mesh.triangles = triangles;
                 mesh.uv = uvs ?? new Vector2[vertices.Length];
-                mesh.colors = colors ?? new Color[vertices.Length];
+                mesh.colors32 = colors ?? new Color32[vertices.Length];
                 mesh.RecalculateNormals();
             }
 
+            mesh.RecalculateBounds();
+
+            if (markNoLongerReadable)
+                mesh.UploadMeshData(true);
+
+            return mesh;
+        }
+
+        /// <summary>
+        /// Vytvoří mesh pro MeshCollider ze SUROVÝCH indexovaných dat (sdílené vrcholy).
+        /// Oproti flat-shaded meshi má ~6× méně vrcholů (žádná duplikace na trojúhelník),
+        /// takže PhysX cooking je výrazně levnější. Hlavně ale PhysX díky sdíleným hranám
+        /// zná sousednost trojúhelníků a vyhlazuje kontaktní normály přes hrany –
+        /// hráč se přestane zasekávat o hrany terénních trojúhelníků.
+        /// Geometrie povrchu je naprosto identická s vizuálním LOD0 meshem.
+        /// Mesh musí zůstat readable (nutné pro runtime cooking).
+        /// </summary>
+        /// <returns>Mesh pro collider, nebo null při neplatných datech.</returns>
+        public Mesh CreateColliderMesh()
+        {
+            if (vertices == null || triangles == null || vertices.Length == 0 || triangles.Length == 0)
+            {
+                Debug.LogError($"[MeshData] CreateColliderMesh: raw data invalid (lod={lod}).");
+                return null;
+            }
+
+            Mesh mesh = new Mesh { name = "TerrainColliderMesh" };
+
+            if (vertices.Length > 65000)
+                mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+
+            mesh.vertices = vertices;
+            mesh.triangles = triangles;
             mesh.RecalculateBounds();
             return mesh;
         }

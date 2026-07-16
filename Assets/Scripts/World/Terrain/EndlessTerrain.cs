@@ -30,14 +30,45 @@ namespace Orivilon.World.Terrain
         /// <summary>Krok změny LOD – každých lodStep chunků od středu se LOD zvýší o 1.</summary>
         public int lodStep = 3;
 
+        /// <summary>
+        /// Vzdálenost (v chuncích) od hráče, do které mají chunky aktivní MeshCollider.
+        /// Vzdálenější chunky fyziku nepotřebují – PhysX cooking všech chunků byl velký žrout CPU.
+        /// </summary>
+        [Range(1, 10)]
+        public int colliderDistance = 3;
+
+        /// <summary>
+        /// Vzdálenost (v chuncích) od hráče, do které se instancuje tráva.
+        /// Tráva dál od hráče není okem rozlišitelná, ale stála CPU/GPU výkon.
+        /// </summary>
+        [Range(1, 10)]
+        public int grassDistance = 2;
+
         /// <summary>Transform sledovaného objektu (hráče/kamery) pro výpočet aktivních chunků.</summary>
         public Transform viewer;
 
         /// <summary>Velikost jednoho chunku v jednotkách (musí souhlasit s MapGenerator).</summary>
         public int chunkSize = 100;
 
-        /// <summary>Celkový počet LOD úrovní odvozený z renderDistance a lodStep.</summary>
-        public int LODCount => Mathf.Max(1, renderDistance / lodStep);
+        /// <summary>
+        /// Celkový počet LOD úrovní. Pokrývá celou render distance (dříve při malé
+        /// renderDistance vycházela 1 úroveň a vše se kreslilo v plném detailu).
+        /// Zároveň je omezen dělitelností chunkSize krokem 2^lod – krok, který chunkSize
+        /// nedělí beze zbytku, by vytvořil mezery na okrajích chunků.
+        /// </summary>
+        public int LODCount
+        {
+            get
+            {
+                int wanted = Mathf.Max(1, (renderDistance + 1) / Mathf.Max(1, lodStep) + 1);
+
+                int maxByChunkSize = 1;
+                while (maxByChunkSize < wanted && chunkSize % (1 << maxByChunkSize) == 0)
+                    maxByChunkSize++;
+
+                return Mathf.Min(wanted, maxByChunkSize);
+            }
+        }
 
         /// <summary>Vzdálenost mezi vrcholy meshe (1 = každý vrchol na 1 jednotku).</summary>
         public float vertexSpacing = 1f;
@@ -112,7 +143,7 @@ namespace Orivilon.World.Terrain
             if (terrainMaterial == null)
             {
                 Debug.LogError("TerrainMaterial není přiřazený!");
-                terrainMaterial = new Material(Shader.Find("Standard"));
+                terrainMaterial = new Material(Shader.Find("Universal Render Pipeline/Lit"));
             }
 
             viewerPosition = new Vector2(viewer.position.x, viewer.position.z);
@@ -187,8 +218,6 @@ namespace Orivilon.World.Terrain
             int currentChunkCoordX = Mathf.FloorToInt(viewerPosition.x / chunkSize);
             int currentChunkCoordY = Mathf.FloorToInt(viewerPosition.y / chunkSize);
 
-            Debug.Log($"[DEBUG] Player at chunk: ({currentChunkCoordX}, {currentChunkCoordY}), World pos: {viewer.position}");
-
             ReturnDistantChunksToPool(currentChunkCoordX, currentChunkCoordY);
 
             for (int i = 0; i < terrainChunksVisibleLastUpdate.Count; i++)
@@ -222,14 +251,18 @@ namespace Orivilon.World.Terrain
 
             foreach (Vector2Int coord in tempChunkList)
             {
-                int manhattanDistance = Mathf.Max(Mathf.Abs(coord.x - currentChunkCoordX), Mathf.Abs(coord.y - currentChunkCoordY));
-                int lod = Mathf.Max(0, manhattanDistance / lodStep);
+                int chunkDistance = Mathf.Max(Mathf.Abs(coord.x - currentChunkCoordX), Mathf.Abs(coord.y - currentChunkCoordY));
+                int lod = Mathf.Max(0, chunkDistance / lodStep);
 
                 if (terrainChunks.ContainsKey(coord))
                 {
                     var chunk = terrainChunks[coord];
-                    chunk?.SetVisible(true, lod);
-                    terrainChunksVisibleLastUpdate.Add(chunk);
+                    if (chunk != null)
+                    {
+                        chunk.SetVisible(true, lod);
+                        ApplyDetailFlags(chunk, chunkDistance);
+                        terrainChunksVisibleLastUpdate.Add(chunk);
+                    }
                 }
                 else
                 {
@@ -238,13 +271,29 @@ namespace Orivilon.World.Terrain
 
                     if (newChunk.chunkObject != null)
                     {
+                        ApplyDetailFlags(newChunk, chunkDistance);
                         terrainChunks.Add(coord, newChunk);
                         terrainChunksVisibleLastUpdate.Add(newChunk);
                     }
                 }
             }
+        }
 
-            Debug.Log($"[EndlessTerrain] Načteno chunků: {tempChunkList.Count}");
+        /// <summary>
+        /// Zapne/vypne collider a trávu chunku podle vzdálenosti od hráče.
+        /// Hystereze +1 chunk brání přeblikávání (spawn/despawn) na hranici vzdálenosti.
+        /// </summary>
+        private void ApplyDetailFlags(TerrainChunk chunk, int chunkDistance)
+        {
+            if (chunkDistance <= colliderDistance)
+                chunk.SetColliderActive(true);
+            else if (chunkDistance > colliderDistance + 1)
+                chunk.SetColliderActive(false);
+
+            if (chunkDistance <= grassDistance)
+                chunk.SetGrassActive(true);
+            else if (chunkDistance > grassDistance + 1)
+                chunk.SetGrassActive(false);
         }
 
         /// <summary>
@@ -290,8 +339,12 @@ namespace Orivilon.World.Terrain
                         if (terrainChunks.ContainsKey(coord))
                         {
                             var chunk = terrainChunks[coord];
-                            chunk?.SetVisible(true, lod);
-                            terrainChunksVisibleLastUpdate.Add(chunk);
+                            if (chunk != null)
+                            {
+                                chunk.SetVisible(true, lod);
+                                ApplyDetailFlags(chunk, distance);
+                                terrainChunksVisibleLastUpdate.Add(chunk);
+                            }
                         }
                         else
                         {
@@ -300,6 +353,7 @@ namespace Orivilon.World.Terrain
 
                             if (newChunk.chunkObject != null)
                             {
+                                ApplyDetailFlags(newChunk, distance);
                                 terrainChunks.Add(coord, newChunk);
                                 terrainChunksVisibleLastUpdate.Add(newChunk);
                             }
@@ -341,11 +395,6 @@ namespace Orivilon.World.Terrain
             foreach (Vector2Int coord in chunksToRemove)
             {
                 terrainChunks.Remove(coord);
-            }
-
-            if (chunksToRemove.Count > 0)
-            {
-                Debug.Log($"[EndlessTerrain] Vráceno {chunksToRemove.Count} chunků do poolu");
             }
         }
 
@@ -466,6 +515,7 @@ namespace Orivilon.World.Terrain
 
                 terrainChunks[coord] = chunk;
                 chunk.SetVisible(true, lod);
+                ApplyDetailFlags(chunk, distance);
 
                 currentChunkLoadedCallback?.Invoke();
 

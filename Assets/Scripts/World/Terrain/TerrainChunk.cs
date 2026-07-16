@@ -10,8 +10,9 @@ namespace Orivilon.World.Terrain
     /// <summary>
     /// Třída (ne MonoBehaviour) reprezentující jeden terénní chunk v systému nekonečného světa.
     /// Při vytvoření si vyžádá TerrainChunkObject z PoolManageru (nebo vytvoří nový GameObject),
-    /// asynchronně požádá MapGenerator o data a po jejich obdržení aplikuje mesh, collider a dekorace.
-    /// LOD se přepíná metodou UpdateLOD – collider vždy používá LOD0 pro přesnou fyziku.
+    /// asynchronně požádá MapGenerator o data a po jejich obdržení líně vytváří meshe a dekorace.
+    /// LOD se přepíná metodou UpdateLOD. Collider (indexovaný LOD0, svařené vrcholy) mají
+    /// jen chunky blízko hráče – řídí EndlessTerrain přes SetColliderActive.
     /// Při uvolnění (Dispose) se chunk vrátí do poolu pro recyklaci.
     /// </summary>
     public class TerrainChunk
@@ -28,11 +29,20 @@ namespace Orivilon.World.Terrain
         /// <summary>MeshRenderer komponenta pro renderování meshe.</summary>
         public MeshRenderer meshRenderer;
 
-        /// <summary>MeshCollider komponenta pro fyziku (vždy LOD0).</summary>
+        /// <summary>MeshCollider komponenta pro fyziku (indexovaný LOD0 mesh, jen blízko hráče).</summary>
         public MeshCollider meshCollider;
 
-        /// <summary>Pole předgenerovaných meshů pro každou LOD úroveň.</summary>
+        /// <summary>
+        /// Pole meshů pro každou LOD úroveň. Vytvářejí se LÍNĚ – mesh vznikne
+        /// až když chunk danou LOD skutečně zobrazuje (šetří hlavní vlákno i VRAM).
+        /// </summary>
         public Mesh[] lodMeshes;
+
+        /// <summary>Surová MeshData pro každou LOD (zdroj pro líné vytváření meshů).</summary>
+        private MeshData[] lodMeshData;
+
+        /// <summary>Mesh collideru ze sdílených (svařených) vrcholů – viz MeshData.CreateColliderMesh.</summary>
+        private Mesh colliderMesh;
 
         /// <summary>Aktuálně zobrazovaná LOD úroveň.</summary>
         public int currentLOD;
@@ -42,6 +52,33 @@ namespace Orivilon.World.Terrain
 
         /// <summary>True pokud je chunk aktuálně viditelný (MeshRenderer enabled).</summary>
         private bool visible = false;
+
+        /// <summary>True pokud má chunk mít aktivní collider (nastavuje EndlessTerrain podle vzdálenosti).</summary>
+        private bool colliderActive = false;
+
+        /// <summary>True pokud má chunk zobrazovat trávu (nastavuje EndlessTerrain podle vzdálenosti).</summary>
+        private bool grassActive = false;
+
+        /// <summary>True po úspěšném spawnu dekorací (stromy/kameny; tráva se řídí zvlášť).</summary>
+        private bool decorationsSpawned = false;
+
+        /// <summary>True po Dispose – pozdní callbacky z vláken se ignorují.</summary>
+        private bool disposed = false;
+
+        /// <summary>Cache surové noise mapy chunku (pro výškové limity spawnu).</summary>
+        private float[,] cachedHeightMap;
+
+        /// <summary>Cache světových výšek LOD0 vrcholů (pro spawn dekorací bez raycastů).</summary>
+        private float[,] cachedAltitudeMap;
+
+        /// <summary>Cache biome mapy (spočtená ve vedlejším vlákně).</summary>
+        private BiomeType[,] cachedBiomeMap;
+
+        /// <summary>ObjectSpawner instance tohoto chunku (child objekt).</summary>
+        private ObjectSpawner chunkSpawner;
+
+        /// <summary>Nejnižší bod terénu chunku (pro ChunkWater). float.MaxValue dokud není inicializován.</summary>
+        public float MinTerrainHeight { get; private set; } = float.MaxValue;
 
         /// <summary>Cache prefabu SpawnableObjects z Resources pro spawner komponentu.</summary>
         private static GameObject cachedSpawnerPrefabResource;
@@ -102,8 +139,10 @@ namespace Orivilon.World.Terrain
             currentLOD = lod;
             visible = true;
 
+            // sharedMaterial: dřívější .material vytvářelo kopii materiálu pro každý chunk
+            // (stovky instancí, rozbitý SRP batching). Všechny chunky sdílí jeden materiál.
             if (material != null && meshRenderer != null)
-                meshRenderer.material = material;
+                meshRenderer.sharedMaterial = material;
 
             if (MapGenerator.instance != null)
             {
@@ -131,6 +170,8 @@ namespace Orivilon.World.Terrain
         /// </summary>
         void OnMapDataReceived(MapData mapData)
         {
+            if (disposed) return;
+
             if (MapGenerator.instance != null)
                 MapGenerator.instance.RequestMeshData(mapData, OnMeshDataReceived);
             else
@@ -141,13 +182,22 @@ namespace Orivilon.World.Terrain
         }
 
         /// <summary>
-        /// Callback volaný po obdržení MeshData[] z vlákna.
-        /// Vytvoří Mesh objekty pro každý LOD, aplikuje LOD0 na collider,
-        /// nastaví viditelný mesh a spustí spawn dekorací.
+        /// Callback volaný po obdržení ChunkGenResult z vlákna.
+        /// Uloží MeshData, altitude a biome mapy. Unity Mesh objekty se NEvytvářejí
+        /// předem pro všechny LOD – vznikají líně až při zobrazení dané úrovně.
+        /// Collider se vytvoří jen pokud je chunk blízko hráče (colliderActive).
         /// Při prázdných nebo neplatných datech zavolá callback i tak (aby loader pokračoval).
         /// </summary>
-        void OnMeshDataReceived(MeshData[] meshData)
+        void OnMeshDataReceived(ChunkGenResult result)
         {
+            if (disposed)
+            {
+                onInitializedCallback?.Invoke();
+                return;
+            }
+
+            MeshData[] meshData = result.lodMeshData;
+
             if (meshData == null || meshData.Length == 0)
             {
                 initialized = false;
@@ -155,19 +205,13 @@ namespace Orivilon.World.Terrain
                 return;
             }
 
-            lodMeshes = new Mesh[meshData.Length];
             bool hasValidMesh = false;
-
             for (int i = 0; i < meshData.Length; i++)
             {
                 if (meshData[i].vertices != null && meshData[i].vertices.Length > 0)
                 {
-                    lodMeshes[i] = meshData[i].CreateMesh(true);
                     hasValidMesh = true;
-                }
-                else
-                {
-                    lodMeshes[i] = new Mesh();
+                    break;
                 }
             }
 
@@ -178,33 +222,122 @@ namespace Orivilon.World.Terrain
                 return;
             }
 
+            lodMeshData = meshData;
+            lodMeshes = new Mesh[meshData.Length];
+            cachedHeightMap = result.heightMap;
+            cachedAltitudeMap = result.altitudeMap;
+            cachedBiomeMap = result.biomeMap;
+
+            if (meshData[0].vertices != null && meshData[0].vertices.Length > 0)
+                MinTerrainHeight = meshData[0].minHeight;
+
             initialized = true;
 
-            if (lodMeshes != null && lodMeshes.Length > 0 && lodMeshes[0] != null && meshCollider != null)
-            {
-                meshCollider.sharedMesh = lodMeshes[0];
-                meshCollider.enabled = true;
-            }
+            ApplyColliderState();
 
             if (meshFilter != null)
                 SetVisible(visible, currentLOD);
 
             if (visible)
-                SpawnDecorations();
+                EnsureDecorations();
 
             onInitializedCallback?.Invoke();
         }
 
         /// <summary>
-        /// Spustí spawn dekorací (stromy, kameny, tráva) na tomto chunku.
-        /// Nejprve zkusí najít ObjectSpawner na chunkObject, pak načte ze Resources.
-        /// Generuje výškovou a biom mapu a předá je ObjectSpawneru.
+        /// Vrátí (a při prvním použití vytvoří) Unity Mesh pro danou LOD úroveň.
+        /// Vizuální meshe se po nahrání na GPU označí jako non-readable (úspora RAM).
         /// </summary>
-        private void SpawnDecorations()
+        private Mesh GetOrCreateLODMesh(int lod)
         {
-            if (chunkObject == null) return;
+            if (lodMeshes == null || lodMeshData == null) return null;
+            if (lod < 0 || lod >= lodMeshes.Length) return null;
 
-            ObjectSpawner spawner = chunkObject.GetComponent<ObjectSpawner>();
+            if (lodMeshes[lod] == null)
+            {
+                if (lodMeshData[lod].vertices == null || lodMeshData[lod].vertices.Length == 0)
+                    return null;
+
+                lodMeshes[lod] = lodMeshData[lod].CreateMesh(true);
+            }
+
+            return lodMeshes[lod];
+        }
+
+        /// <summary>
+        /// Zapne/vypne collider podle vzdálenosti od hráče. Volá EndlessTerrain.
+        /// Vzdálené chunky collider nepotřebují – nic tam nesimuluje fyziku,
+        /// a PhysX cooking stovek chunků byl hlavní žrout CPU.
+        /// </summary>
+        public void SetColliderActive(bool active)
+        {
+            colliderActive = active;
+
+            if (!initialized) return;
+
+            ApplyColliderState();
+        }
+
+        /// <summary>
+        /// Aplikuje požadovaný stav collideru. Mesh collideru se vytváří jen jednou
+        /// (cooking proběhne při prvním přiřazení sharedMesh); enable/disable je pak levné.
+        /// </summary>
+        private void ApplyColliderState()
+        {
+            if (meshCollider == null) return;
+
+            if (colliderActive)
+            {
+                if (colliderMesh == null && lodMeshData != null && lodMeshData.Length > 0)
+                    colliderMesh = lodMeshData[0].CreateColliderMesh();
+
+                if (colliderMesh != null)
+                {
+                    // Guard: opakované přiřazení stejného meshe by vynutilo zbytečný re-cooking.
+                    if (meshCollider.sharedMesh != colliderMesh)
+                        meshCollider.sharedMesh = colliderMesh;
+
+                    meshCollider.enabled = true;
+                }
+            }
+            else
+            {
+                meshCollider.enabled = false;
+            }
+        }
+
+        /// <summary>
+        /// Zapne/vypne trávu podle vzdálenosti od hráče. Volá EndlessTerrain.
+        /// Tráva v dálce není vidět, ale jako GameObjecty stála CPU (transformy, culling).
+        /// </summary>
+        public void SetGrassActive(bool active)
+        {
+            grassActive = active;
+
+            if (!initialized || !decorationsSpawned) return;
+
+            if (chunkSpawner != null && chunkObject != null)
+                chunkSpawner.SetGrassVisible(active, chunkObject.transform);
+        }
+
+        /// <summary>
+        /// Spustí spawn dekorací (stromy, kameny, tráva) na tomto chunku – jen jednou.
+        /// Používá výškovou, altitude a biome mapu nacachovanou z vedlejšího vlákna –
+        /// dřívější verze je znovu počítala na hlavním vlákně (tisíce Perlin vzorků na chunk).
+        /// Tráva se neinstancuje hned: spawner si ji uloží jako "pending" a fyzicky
+        /// ji vytvoří až podle SetGrassActive (vzdálenost od hráče).
+        /// </summary>
+        private void EnsureDecorations()
+        {
+            if (decorationsSpawned || disposed) return;
+            if (chunkObject == null) return;
+            if (cachedHeightMap == null || cachedBiomeMap == null || cachedAltitudeMap == null) return;
+            if (EndlessTerrain.instance == null || MapGenerator.instance == null) return;
+            if (MapGenerator.instance.biomeCollection == null) return;
+
+            // GetComponentInChildren: spawner je child objekt chunku
+            // (dřívější GetComponent na root ho nikdy nenašel a instancoval nový).
+            ObjectSpawner spawner = chunkObject.GetComponentInChildren<ObjectSpawner>();
 
             if (spawner == null)
             {
@@ -221,34 +354,34 @@ namespace Orivilon.World.Terrain
                 else return;
             }
 
-            if (spawner.IsInitializedForChunk(coord)) return;
-            if (EndlessTerrain.instance == null || MapGenerator.instance == null) return;
-            if (MapGenerator.instance.biomeCollection == null) return;
+            if (spawner == null) return;
+            chunkSpawner = spawner;
 
             spawner.Initialize(MapGenerator.instance.seed, coord);
 
-            float[,] heightMap = MapGenerator.instance.GetHeightMap(coord);
             Vector3 chunkOrigin = chunkObject.transform.position;
-
-            BiomeType[,] biomeMap = MapGenerator.instance.biomeCollection.GenerateBiomeMap(
-                heightMap,
-                chunkOrigin,
-                MapGenerator.instance.seed
-            );
 
             spawner.SpawnObjects(
                 chunkObject.transform,
                 chunkOrigin,
-                heightMap,
-                biomeMap,
+                cachedHeightMap,
+                cachedBiomeMap,
+                cachedAltitudeMap,
                 EndlessTerrain.instance.vertexSpacing,
-                EndlessTerrain.instance.chunkSize
+                EndlessTerrain.instance.chunkSize,
+                coord
             );
+
+            decorationsSpawned = true;
+
+            spawner.SetGrassVisible(grassActive, chunkObject.transform);
         }
 
         /// <summary>
         /// Nastaví viditelnost chunku (MeshRenderer enabled/disabled) a přepne LOD.
         /// Pokud chunk ještě není inicializován, pouze uloží požadovaný stav pro pozdější aplikaci.
+        /// Dekorace se spawnou při prvním zviditelnění (dříve se u chunku
+        /// inicializovaného jako skrytý nespawnuly nikdy).
         /// </summary>
         public void SetVisible(bool visible, int lod = 0)
         {
@@ -261,12 +394,18 @@ namespace Orivilon.World.Terrain
                 meshRenderer.enabled = visible;
 
             if (visible)
+            {
                 UpdateLOD(lod);
+                if (!decorationsSpawned)
+                    EnsureDecorations();
+            }
         }
 
         /// <summary>
-        /// Přepne vizuální mesh na danou LOD úroveň.
-        /// Collider vždy zůstává na LOD0 pro přesnou fyziku bez ohledu na vizuální LOD.
+        /// Přepne vizuální mesh na danou LOD úroveň (mesh se případně líně vytvoří).
+        /// Collider se zde NEřeší – řídí ho SetColliderActive podle vzdálenosti;
+        /// dřívější přiřazování sharedMesh při každém přepnutí LOD vynucovalo
+        /// opakovaný PhysX cooking plného meshe.
         /// </summary>
         public void UpdateLOD(int lod)
         {
@@ -274,14 +413,9 @@ namespace Orivilon.World.Terrain
 
             currentLOD = Mathf.Clamp(lod, 0, lodMeshes.Length - 1);
 
-            if (lodMeshes[currentLOD] != null)
-                meshFilter.mesh = lodMeshes[currentLOD];
-
-            if (meshCollider != null && lodMeshes != null && lodMeshes.Length > 0 && lodMeshes[0] != null)
-            {
-                meshCollider.sharedMesh = lodMeshes[0];
-                meshCollider.enabled = true;
-            }
+            Mesh lodMesh = GetOrCreateLODMesh(currentLOD);
+            if (lodMesh != null && meshFilter.sharedMesh != lodMesh)
+                meshFilter.sharedMesh = lodMesh;
         }
 
         /// <summary>
@@ -319,7 +453,21 @@ namespace Orivilon.World.Terrain
                 }
             }
 
+            if (colliderMesh != null)
+            {
+                GameObject.Destroy(colliderMesh);
+                colliderMesh = null;
+            }
+
             lodMeshes = null;
+            lodMeshData = null;
+            cachedHeightMap = null;
+            cachedAltitudeMap = null;
+            cachedBiomeMap = null;
+            chunkSpawner = null;
+            decorationsSpawned = false;
+            MinTerrainHeight = float.MaxValue;
+            disposed = true;
             initialized = false;
             onInitializedCallback = null;
         }

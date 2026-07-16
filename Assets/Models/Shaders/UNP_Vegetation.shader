@@ -4,20 +4,23 @@ Shader "UNP/Vegetation"
     {
         // Texture properties: Main texture and snow mask
         [Header(Maps)]
-        [Space(5)]  
+        [Space(5)]
         [NoScaleOffset] _Texture("Texture", 2D) = "white" {}  // Main texture for vegetation
         [NoScaleOffset] _SnowMask("Snow Mask", 2D) = "white" {}  // Texture for snow effect mask
 
         // Material properties: Color, smoothness, and transparency settings
         [Header(Material)]
-        [Space(5)]  
+        [Space(5)]
         _MainColor("Color", Color) = (1,1,1,1)  // Base color of the vegetation
         _Smoothness("Smoothness", Range(0, 1)) = 0.5  // Surface smoothness
         _AlphaCutoff("Alpha Cutoff", Range(0, 1)) = 0.5  // Transparency cutoff for material
+        _Translucency("Translucency", Range(0, 2)) = 0.6  // Prosvítání listů/stébel proti světlu (backlight)
+        _ColorVariation("Color Variation", Range(0, 0.5)) = 0.14  // Nízkofrekvenční variace barvy trávy podle pozice ve světě
+        _Desaturate("Desaturate", Range(0, 1)) = 0.12  // Lehké odsycení trávy (méně přepálená zeleň)
 
         // Second color blending settings: Allows blending of a secondary color based on height
         [Header(Second Color)]
-        [Space(5)]  
+        [Space(5)]
         [Toggle] _UseSecondColor("Enable", Float) = 0.0  // Toggle to enable second color blending
         _SecondColor("Color", Color) = (0,1,0,1)  // The secondary color used when blending
         _HeightLevel("Height", Float) = 1.0  // Height at which the second color starts blending
@@ -27,7 +30,7 @@ Shader "UNP/Vegetation"
 
         // Wind settings: Controls wind effects on the vegetation
         [Header(Wind)]
-        [Space(5)]  
+        [Space(5)]
         [Toggle] _EnableWind("Enable", Float) = 1.0  // Toggle to enable wind effect
         [Toggle] _SecureFoliageBase("Secure Base", Float) = 1.0  // Toggle to secure base of foliage
         _Force("Force", Float) = 1.0  // Wind force multiplier
@@ -36,7 +39,7 @@ Shader "UNP/Vegetation"
 
         // Snow settings: Controls snow effects on the vegetation
         [Header(Snow)]
-        [Space(5)]  
+        [Space(5)]
         [Toggle] _EnableSnow("Enable", Float) = 0.0  // Toggle to enable snow effect
         _SnowColor("Color", Color) = (1,1,1,1)  // Color of the snow effect
         _SnowCoverage("Coverage", Range(0, 1)) = 0.5  // Percentage of vegetation covered by snow
@@ -47,235 +50,382 @@ Shader "UNP/Vegetation"
 
     SubShader
     {
-        // Tags and settings for rendering
-        Tags { "RenderType" = "TransparentCutout" "Queue" = "AlphaTest+0" }  // Transparent cutout rendering with alpha testing
+        Tags { "RenderType" = "TransparentCutout" "Queue" = "AlphaTest" "RenderPipeline" = "UniversalPipeline" }
         Cull Off  // Disable culling to render both sides of the geometry
-        CGINCLUDE
-        #include "UnityShaderVariables.cginc"  // Include Unity shader variables for standard functionality
-        #include "UnityPBSLighting.cginc"  // Include physically-based lighting model
-        #include "Lighting.cginc"  // Include standard lighting functions
-        #pragma target 3.0  // Shader target version (3.0 or higher)
-        #pragma multi_compile_instancing  // Enable multi-instance support for rendering multiple objects
 
-        // Structure to pass vertex data between shaders
-        struct Input
+        HLSLINCLUDE
+        #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
+
+        // SRP Batcher kompatibilni material buffer (sdileny vsemi passy)
+        CBUFFER_START(UnityPerMaterial)
+            float4 _MainColor;
+            float4 _SecondColor;
+            float4 _SnowColor;
+            float _Smoothness;
+            float _AlphaCutoff;
+            float _Translucency;
+            float _ColorVariation;
+            float _Desaturate;
+            float _UseSecondColor;
+            float _HeightLevel;
+            float _FadeRange;
+            float _EnableWind;
+            float _SecureFoliageBase;
+            float _Force;
+            float _Speed;
+            float _WavesScale;
+            float _EnableSnow;
+            float _SnowCoverage;
+            float _SnowHeightLevel;
+            float _SnowFadeRange;
+            float _SnowMaskTiling;
+        CBUFFER_END
+
+        TEXTURE2D(_Texture);   SAMPLER(sampler_Texture);
+        TEXTURE2D(_SnowMask);  SAMPLER(sampler_SnowMask);
+
+        // Vitr - dve vetve podle typu vegetace.
+        // Trava (SecureFoliageBase=1): puvodni chovani - baze drzi, spicky se vlni.
+        // Listy stromu (SecureFoliageBase=0): pomale ohybani + rychle trepetani s vetsi amplitudou,
+        // aby byl pohyb listi na velkych stromech viditelny (na rozdil od puvodniho drobneho posunu).
+        float3 ApplyWind(float3 positionOS)
         {
-            float3 localPos;  // Local position of the vertex
-            float3 worldPos;  // World position of the vertex
-            float2 uv_texcoord;  // UV coordinates for texture mapping
-        };
+            if (_EnableWind > 0.5)
+            {
+                float t = _Time.y * _Speed;
 
-        // Uniform variables for passing properties from the material editor to the shader
-        uniform float4 _MainColor;  // Main color
-        uniform float4 _SecondColor;  // Second color for blending
-        uniform sampler2D _Texture;  // Main texture
-        uniform float _AlphaCutoff;  // Alpha cutoff value for transparency
-        uniform float _Force;  // Wind force multiplier
-        uniform float _Speed;  // Wind speed multiplier
-        uniform float _WavesScale;  // Wind wave scale multiplier
-        uniform float _SecureFoliageBase;  // Whether to secure the foliage base
-        uniform float _HeightLevel;  // Height level for color blending
-        uniform float _FadeRange;  // Range for color fading
-        uniform float _Smoothness;  // Smoothness of the material surface
-        uniform float _UseSecondColor;  // Whether to use the second color for blending
-        uniform float _EnableWind;  // Whether wind effect is enabled
-
-        uniform float _EnableSnow;  // Whether snow effect is enabled
-        uniform float4 _SnowColor;  // Color of the snow
-        uniform float _SnowCoverage;  // Coverage of snow
-        uniform float _SnowHeightLevel;  // Height level where snow appears
-        uniform float _SnowFadeRange;  // Snow fade range
-        uniform sampler2D _SnowMask;  // Snow mask texture for controlling where snow appears
-        uniform float _SnowMaskTiling;  // Tiling factor for snow mask texture
-
-        void vertexDataFunc(inout appdata_full v, out Input o)
-{
-    // Initialize the output structure for the vertex shader
-    UNITY_INITIALIZE_OUTPUT(Input, o);
-    // Get the local position of the vertex
-    float3 localPosition = v.vertex.xyz;
-
-    // Check if wind effect is enabled
-    if (_EnableWind > 0.5)
-    {
-        // Calculate wind force based on time, position, and wind settings
-        float wind = sin(_Time.y * _Speed * 7.0 + dot(localPosition, float3(1.0, 1.0, 0.0) * _WavesScale * 10.0)) * _Force * 0.5;
-        float3 windOffset = float3(wind, wind, wind);
-        // Scale the wind offset for more subtle movement
-        windOffset *= 0.05;
-
-        // Apply wind effect to the vertex position, based on whether foliage is secured
-        if (_SecureFoliageBase > 0.5)
-        {
-            // Adjust the wind offset based on the vertex height
-            float heightFactor = saturate(localPosition.y);
-            v.vertex.xyz += mul(unity_WorldToObject, float4(windOffset * heightFactor, 0.0)).xyz;
+                if (_SecureFoliageBase > 0.5)
+                {
+                    // TRAVA - beze zmeny oproti puvodni verzi
+                    float wind = sin(t * 7.0 + dot(positionOS, float3(1.0, 1.0, 0.0) * _WavesScale * 10.0)) * _Force * 0.5;
+                    float3 windOffset = float3(wind, wind, wind) * 0.05;
+                    positionOS += mul((float3x3)GetWorldToObjectMatrix(), windOffset * saturate(positionOS.y));
+                }
+                else
+                {
+                    // LISTY STROMU - kombinace pomaleho ohybani a rychleho trepetani jednotlivych listu
+                    float sway = sin(t * 2.2 + dot(positionOS.xz, float2(0.7, 0.5) * _WavesScale * 3.0));
+                    float flutter = sin(t * 8.5 + dot(positionOS, float3(2.7, 1.3, 2.1)))
+                                  + 0.6 * sin(t * 12.0 + positionOS.y * 4.0);
+                    float amp = _Force * 0.5;
+                    float3 windOffset = float3(sway * 1.2 + flutter * 0.5,
+                                               flutter * 0.35,
+                                               sway * 0.9 + flutter * 0.5) * amp * 0.12;
+                    positionOS += mul((float3x3)GetWorldToObjectMatrix(), windOffset);
+                }
+            }
+            return positionOS;
         }
-        else
+
+        // Povrch - barva podle vysky, snih, alpha z textury (stejna logika jako puvodni surf())
+        void GetSurfaceColor(float2 uv, float3 localPos, out half3 albedo, out half alpha)
         {
-            // Apply wind effect uniformly
-            v.vertex.xyz += mul(unity_WorldToObject, float4(windOffset, 0.0)).xyz;
+            float4 texColor = SAMPLE_TEXTURE2D(_Texture, sampler_Texture, uv);
+
+            float blendFactor = saturate((localPos.y - _HeightLevel) / _FadeRange);
+            float4 blendedColor = (_UseSecondColor > 0.5) ? lerp(_MainColor, _SecondColor, blendFactor) : _MainColor;
+
+            float2 snowUV = uv * _SnowMaskTiling;
+            float4 snowColor = float4(0, 0, 0, 0);
+            if (_EnableSnow > 0.5)
+            {
+                float snowMaskValue = SAMPLE_TEXTURE2D(_SnowMask, sampler_SnowMask, snowUV).r;
+                float snowFactor = saturate((localPos.y - _SnowHeightLevel) / _SnowFadeRange);
+                snowColor = lerp(float4(0, 0, 0, 0), _SnowColor, snowFactor * (_SnowCoverage * 2.0) * snowMaskValue);
+            }
+
+            albedo = saturate(blendedColor * texColor).rgb + snowColor.rgb;
+            alpha = texColor.a;
         }
-    }
+        ENDHLSL
 
-    // Store the local and world positions for use in the fragment shader
-    o.localPos = localPosition;
-    o.worldPos = mul(unity_ObjectToWorld, v.vertex).xyz;
-}
-
-void surf(Input i, inout SurfaceOutputStandard o)
-{
-    // Sample the texture at the given UV coordinates
-    float4 tex2DNode97 = tex2D(_Texture, i.uv_texcoord);
-    
-    // Calculate blend factor for the second color based on vertex height
-    float blendFactor = saturate((i.localPos.y - _HeightLevel) / _FadeRange);
-    float4 blendedColor;
-
-    // If the second color is enabled, blend it with the main color based on the height
-    if (_UseSecondColor > 0.5)
-    {
-        blendedColor = lerp(_MainColor, _SecondColor, blendFactor);
-    }
-    else
-    {
-        // Otherwise, just use the main color
-        blendedColor = _MainColor;
-    }
-
-    // Adjust snow UV coordinates based on snow mask tiling
-    float2 snowUV = i.uv_texcoord * _SnowMaskTiling;
-
-    // Initialize snow color to transparent (no snow)
-    float4 snowColor = float4(0, 0, 0, 0);
-
-    // If snow effect is enabled, calculate snow coverage and apply the effect
-    if (_EnableSnow > 0.5)
-    {
-        // Sample the snow mask to get snow coverage
-        float snowMaskValue = tex2D(_SnowMask, snowUV).r;
-        // Calculate snow effect based on height and snow parameters
-        float snowFactor = saturate((i.localPos.y - _SnowHeightLevel) / _SnowFadeRange);
-        // Apply the snow color effect, blended with snow coverage
-        snowColor = lerp(float4(0, 0, 0, 0), _SnowColor, snowFactor * (_SnowCoverage * 2.0) * snowMaskValue);
-    }
-
-    // Combine the blended color, texture color, and snow effect
-    o.Albedo = saturate((blendedColor * tex2DNode97)).rgb + snowColor.rgb;
-    
-    // Use texture's alpha for transparency
-    o.Alpha = tex2DNode97.a;
-    // Set smoothness for the material's appearance
-    o.Smoothness = _Smoothness;
-    // Set metallic property to 0 for a non-metallic surface
-    o.Metallic = 0.0;
-    
-    // Discard fragments with alpha below the cutoff value (for transparency handling)
-    clip(o.Alpha - _AlphaCutoff);
-}
-        ENDCG  // End of current CG shader program block
-
-        CGPROGRAM  // Start of new CG shader program block
-
-        #pragma exclude_renderers vulkan xbox360 psp2 n3ds wiiu  // Exclude specific renderers for compatibility
-
-         #pragma surface surf Standard keepalpha fullforwardshadows nolightmap nodirlightmap dithercrossfade vertex:vertexDataFunc  
-         // Surface shader settings:
-         // - surf: Function to handle surface properties (color, lighting, etc.)
-         // - Standard: Use standard shader model
-         // - keepalpha: Preserve transparency (alpha channel)
-         // - fullforwardshadows: Enable full forward rendering for shadows
-         // - nolightmap: Disable lightmap calculations
-         // - nodirlightmap: Disable directional lightmap
-         // - dithercrossfade: Enable smooth cross-fading
-         // - vertexDataFunc: Custom vertex function for data processing
-
-
-        ENDCG
+        // Hlavni osvetleny pass
         Pass
-     {
-          Name "ShadowCaster"  // Name of the pass, used for rendering shadows
-          Tags { "LightMode" = "ShadowCaster" }  // Set the light mode to 'ShadowCaster' for this pass
-          ZWrite On  // Enables writing to the depth buffer, which is necessary for shadow casting
+        {
+            Name "ForwardLit"
+            Tags { "LightMode" = "UniversalForward" }
 
-          CGPROGRAM
-          #pragma vertex vert  // Specifies the vertex shader function
-          #pragma fragment frag  // Specifies the fragment shader function
-          #pragma target 3.0  // Sets the shader target to model 3.0
-          #pragma multi_compile_shadowcaster  // Compiles variants needed for shadow casting
-          #pragma multi_compile UNITY_PASS_SHADOWCASTER  // Enables shadow caster pass variants
-          #pragma skip_variants FOG_LINEAR FOG_EXP FOG_EXP2  // Skip certain fog variants for this pass
-          #include "HLSLSupport.cginc"  // Includes helper functions for HLSL
-          #if ( SHADER_API_D3D11 || SHADER_API_GLCORE || SHADER_API_GLES || SHADER_API_GLES3 || SHADER_API_METAL || SHADER_API_VULKAN )
-               #define CAN_SKIP_VPOS  // Defines CAN_SKIP_VPOS for certain platforms, which may optimize processing
-          #endif
-          #include "UnityCG.cginc"  // Includes common Unity functions
-          #include "Lighting.cginc"  // Includes lighting functions to calculate lighting for the fragment
-          #include "UnityPBSLighting.cginc"  // Includes PBR (Physically Based Rendering) lighting functions
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex vert
+            #pragma fragment frag
 
-          // Vertex structure that holds data passed from the vertex shader to the fragment shader
-          struct v2f
-          {
-               V2F_SHADOW_CASTER;  // Shadow caster specific vertex data
-               float2 customPack1 : TEXCOORD1;  // Custom texture coordinates (used for mapping textures in the shader)
-               float3 worldPos : TEXCOORD2;  // World position of the vertex
-               float3 worldNormal : TEXCOORD3;  // World normal of the vertex
-               half4 color : COLOR0;  // Color information (may be used for vertex coloring or material color)
-               UNITY_VERTEX_INPUT_INSTANCE_ID  // Instance ID for GPU instancing (used for rendering multiple objects efficiently)
-               UNITY_VERTEX_OUTPUT_STEREO  // Stereo rendering output (for VR or 3D rendering)
-          };
+            #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
+            #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
+            #pragma multi_compile_fragment _ _ADDITIONAL_LIGHT_SHADOWS
+            #pragma multi_compile_fragment _ _SHADOWS_SOFT _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
+            // _SCREEN_SPACE_OCCLUSION zamerne vynechano - SSAO na travе/listech delalo tmave obrysy
+            #pragma multi_compile _ _FORWARD_PLUS _CLUSTER_LIGHT_LOOP
+            #pragma multi_compile_fragment _ _REFLECTION_PROBE_BLENDING
+            #pragma multi_compile_fragment _ _REFLECTION_PROBE_BOX_PROJECTION
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_fog
+            #pragma multi_compile_instancing
 
-          // Vertex shader function
-          v2f vert( appdata_full v )
-          {
-               v2f o;  // Output vertex structure
-               UNITY_SETUP_INSTANCE_ID( v );  // Set up instance ID for efficient GPU instancing
-               UNITY_INITIALIZE_OUTPUT( v2f, o );  // Initialize the output structure of the vertex shader
-               UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO( o );  // Initialize stereo output for VR or 3D rendering
-               UNITY_TRANSFER_INSTANCE_ID( v, o );  // Transfer the instance ID to the output structure
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
+            #if defined(LOD_FADE_CROSSFADE)
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+            #endif
 
-               Input customInputData;  // Custom input data for the shader
-               vertexDataFunc( v, customInputData );  // Populate the custom input data
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float2 uv : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
 
-               float3 worldPos = mul( unity_ObjectToWorld, v.vertex ).xyz;  // Transform the vertex position to world space
-               half3 worldNormal = UnityObjectToWorldNormal( v.normal );  // Transform the vertex normal to world space
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+                float3 positionWS : TEXCOORD1;
+                float3 normalWS : TEXCOORD2;
+                float3 localPos : TEXCOORD3;
+                half fogFactor : TEXCOORD4;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
+            };
 
-               o.worldNormal = worldNormal;  // Store world normal in the output structure
-               o.customPack1.xy = customInputData.uv_texcoord;  // Store custom UV texture coordinates in the output structure
-               o.customPack1.xy = v.texcoord;  // Store the original vertex texture coordinates (overwrites custom ones)
-               o.worldPos = worldPos;  // Store the world position in the output structure
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_TRANSFER_INSTANCE_ID(v, o);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 
-               TRANSFER_SHADOW_CASTER_NORMALOFFSET( o )  // Apply any necessary normal offset for the shadow caster pass
-               o.color = v.color;  // Store the vertex color in the output structure
+                // Puvodni lokalni pozice (pred vetrem) se pouziva pro vyskove blendovani barev
+                o.localPos = v.positionOS.xyz;
 
-               return o;  // Return the transformed output vertex data
-          }
+                float3 positionOS = ApplyWind(v.positionOS.xyz);
+                o.positionWS = TransformObjectToWorld(positionOS);
+                o.positionCS = TransformWorldToHClip(o.positionWS);
+                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                o.uv = v.uv;
+                o.fogFactor = ComputeFogFactor(o.positionCS.z);
+                return o;
+            }
 
-          // Fragment shader function
-          half4 frag(v2f IN
-               #if !defined(CAN_SKIP_VPOS)
-               , UNITY_VPOS_TYPE vpos : VPOS  // Position variable for certain platforms (to handle depth and stencil operations)
-               #endif
-               ) : SV_Target
-          {
-               UNITY_SETUP_INSTANCE_ID(IN);  // Set up instance ID for efficient GPU instancing
+            half4 frag(Varyings i, bool isFrontFace : SV_IsFrontFace) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(i);
 
-               Input surfIN;  // Declare surface input structure
-               UNITY_INITIALIZE_OUTPUT(Input, surfIN);  // Initialize surface input structure
+                half3 albedo;
+                half alpha;
+                GetSurfaceColor(i.uv, i.localPos, albedo, alpha);
 
-               surfIN.uv_texcoord = IN.customPack1.xy;  // Pass the UV coordinates to the surface shader
-               surfIN.worldPos = IN.worldPos;  // Pass the world position to the surface shader
+                // Vylepseni vzhledu travy (jen SecureBase = trava, ne listy stromu),
+                // aby uprostred dne nevypadala placata a prepalena.
+                if (_SecureFoliageBase > 0.5)
+                {
+                    // jemny vyskovy gradient - tmavsi u zeme, svetlejsi spicky (mekky AO)
+                    albedo *= lerp(0.78, 1.06, saturate(i.localPos.y));
+                    // nizkofrekvencni variace podle pozice ve svete - rozbije uniformni "koberec"
+                    float variation = sin(i.positionWS.x * 0.35) * sin(i.positionWS.z * 0.29);
+                    albedo *= 1.0 + variation * _ColorVariation;
+                    // lehke odsyceni prepalene zelene
+                    half luma = dot(albedo, half3(0.299, 0.587, 0.114));
+                    albedo = lerp(albedo, half3(luma, luma, luma), _Desaturate);
+                }
 
-               SurfaceOutputStandard o;  // Declare a standard surface output structure
-               UNITY_INITIALIZE_OUTPUT(SurfaceOutputStandard, o);  // Initialize the surface output structure
+                // Alpha cutoff (stejne chovani jako puvodni clip())
+                clip(alpha - _AlphaCutoff);
 
-               surf(surfIN, o);  // Call the surface shader function to compute lighting, color, etc.
+                #if defined(LOD_FADE_CROSSFADE)
+                    LODFadeCrossFade(i.positionCS);
+                #endif
 
-               half4 result = half4(o.Albedo, o.Alpha);  // Combine the albedo (color) and alpha (transparency) for the final color result
-               return result;  // Return the final color result from the fragment shader
-          }
+                // Oboustranne listy - normala se otoci pro zadni strany
+                float3 normalWS = NormalizeNormalPerPixel(i.normalWS);
+                normalWS = isFrontFace ? normalWS : -normalWS;
 
-          ENDCG  // End the CGPROGRAM section
-     }
-}
+                InputData inputData = (InputData)0;
+                inputData.positionWS = i.positionWS;
+                inputData.positionCS = i.positionCS;
+                inputData.normalWS = normalWS;
+                inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
+                inputData.shadowCoord = TransformWorldToShadowCoord(i.positionWS);
+                inputData.fogCoord = i.fogFactor;
+                inputData.bakedGI = SampleSH(normalWS);
+                inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
+                inputData.shadowMask = half4(1, 1, 1, 1);
+
+                SurfaceData surfaceData = (SurfaceData)0;
+                surfaceData.albedo = albedo;
+                surfaceData.metallic = 0.0;
+                surfaceData.specular = half3(0, 0, 0);
+                surfaceData.smoothness = _Smoothness;
+                surfaceData.normalTS = half3(0, 0, 1);
+                surfaceData.emission = half3(0, 0, 0);
+                surfaceData.occlusion = 1.0;
+                surfaceData.alpha = alpha;
+
+                half4 color = UniversalFragmentPBR(inputData, surfaceData);
+
+                // Prosvitani (backlight) - kdyz je slunce za vegetaci, listy a stebla teple prosvitaji.
+                // Nejvic se projevi za usvitu a soumraku, kdy je slunce nizko za travou.
+                Light mainLight = GetMainLight(inputData.shadowCoord);
+                float backLight = saturate(dot(-inputData.viewDirectionWS, mainLight.direction));
+                float trans = pow(backLight, 3.0) * _Translucency;
+                color.rgb += albedo * mainLight.color.rgb * trans * mainLight.shadowAttenuation;
+
+                color.rgb = MixFog(color.rgb, inputData.fogCoord);
+                color.a = 1.0; // cutout - plne krytí po clipu
+                return color;
+            }
+            ENDHLSL
+        }
+
+        // Stinovy pass (s animaci vetru, aby stiny odpovidaly geometrii)
+        Pass
+        {
+            Name "ShadowCaster"
+            Tags { "LightMode" = "ShadowCaster" }
+
+            ZWrite On
+            ZTest LEqual
+            ColorMask 0
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_instancing
+
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
+            #if defined(LOD_FADE_CROSSFADE)
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+            #endif
+
+            float3 _LightDirection;
+            float3 _LightPosition;
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float2 uv : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+                float3 localPos : TEXCOORD1;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_TRANSFER_INSTANCE_ID(v, o);
+
+                o.localPos = v.positionOS.xyz;
+                o.uv = v.uv;
+
+                float3 positionWS = TransformObjectToWorld(ApplyWind(v.positionOS.xyz));
+                float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
+
+            #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
+                float3 lightDirectionWS = normalize(_LightPosition - positionWS);
+            #else
+                float3 lightDirectionWS = _LightDirection;
+            #endif
+
+                o.positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
+            #if UNITY_REVERSED_Z
+                o.positionCS.z = min(o.positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            #else
+                o.positionCS.z = max(o.positionCS.z, UNITY_NEAR_CLIP_VALUE);
+            #endif
+                return o;
+            }
+
+            half4 frag(Varyings i) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(i);
+                half3 albedo;
+                half alpha;
+                GetSurfaceColor(i.uv, i.localPos, albedo, alpha);
+                clip(alpha - _AlphaCutoff);
+                #if defined(LOD_FADE_CROSSFADE)
+                    LODFadeCrossFade(i.positionCS);
+                #endif
+                return 0;
+            }
+            ENDHLSL
+        }
+
+        // Depth pass (depth priming / depth textura)
+        Pass
+        {
+            Name "DepthOnly"
+            Tags { "LightMode" = "DepthOnly" }
+
+            ZWrite On
+            ColorMask R
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_instancing
+
+            #if defined(LOD_FADE_CROSSFADE)
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+            #endif
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float2 uv : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+                float3 localPos : TEXCOORD1;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_TRANSFER_INSTANCE_ID(v, o);
+                o.localPos = v.positionOS.xyz;
+                o.uv = v.uv;
+                o.positionCS = TransformObjectToHClip(ApplyWind(v.positionOS.xyz));
+                return o;
+            }
+
+            half frag(Varyings i) : SV_Target
+            {
+                UNITY_SETUP_INSTANCE_ID(i);
+                half3 albedo;
+                half alpha;
+                GetSurfaceColor(i.uv, i.localPos, albedo, alpha);
+                clip(alpha - _AlphaCutoff);
+                #if defined(LOD_FADE_CROSSFADE)
+                    LODFadeCrossFade(i.positionCS);
+                #endif
+                return i.positionCS.z;
+            }
+            ENDHLSL
+        }
+
+        // Pozn.: DepthNormals pass zamerne odstranen - vegetace se tak neucastni SSAO
+        // (SSAO kolem travy a listi delalo tmava halo). Stiny a depth pass zustavaji.
+    }
+
+    Fallback Off
 }

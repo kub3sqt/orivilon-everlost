@@ -27,6 +27,12 @@ namespace Orivilon.Core
         /// <summary>Data světa vybraného v hlavním menu. Nastavuje se před načtením Game scény.</summary>
         public static WorldData selectedWorld;
 
+        /// <summary>True pokud je aktuálně aktivní multiplayer session.</summary>
+        public static bool IsMultiplayer = false;
+
+        /// <summary>True pokud je lokální hráč hostitel multiplayeru.</summary>
+        public static bool IsHost = false;
+
         /// <summary>
         /// Reference na GameObject pause menu. Přiřazuje se automaticky v FindUIElements()
         /// po načtení Game scény – v Inspektoru ponechte prázdné.
@@ -796,6 +802,15 @@ namespace Orivilon.Core
             {
                 cam.enabled = true;
                 Debug.Log("Player camera enabled");
+            }
+
+            // Multiplayer: připoj síťový bridge na hráče (posílá pozici do sítě).
+            // V single-playeru se komponent nepřidá vůbec.
+            if (IsMultiplayer &&
+                player.GetComponent<Orivilon.Multiplayer.NetworkPlayerBridge>() == null)
+            {
+                player.AddComponent<Orivilon.Multiplayer.NetworkPlayerBridge>();
+                Debug.Log("[GameManager] NetworkPlayerBridge připojen na hráče (multiplayer).");
             }
 
             yield return new WaitForSeconds(0.5f);

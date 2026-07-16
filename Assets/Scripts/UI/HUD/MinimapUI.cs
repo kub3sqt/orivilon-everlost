@@ -25,7 +25,7 @@ namespace Orivilon.UI.HUD
     {
         [Header("Layout")]
         [SerializeField] private Vector2 size = new Vector2(220f, 220f);
-        [SerializeField] private Vector2 bottomRightMargin = new Vector2(20f, 20f);
+        [SerializeField] private Vector2 bottomRightMargin = new Vector2(15f, 15f);
         [SerializeField] private float cornerRadius = 26f;
 
         [Header("Camera")]
@@ -52,6 +52,7 @@ namespace Orivilon.UI.HUD
             if (!sceneLoadedHooked)
             {
                 SceneManager.sceneLoaded += OnSceneLoaded;
+                SceneManager.activeSceneChanged += OnActiveSceneChanged;
                 sceneLoadedHooked = true;
             }
             TryCreateForActiveScene();
@@ -59,25 +60,80 @@ namespace Orivilon.UI.HUD
 
         private static void OnSceneLoaded(Scene scene, LoadSceneMode mode)
         {
+            // I pri aditivnim nacitani (Main Menu -> Play) je nactena scena uz "Game" a jeji Canvas existuje,
+            // i kdyz jeste neni aktivni. Tvorime primo v teto scene, nezavisle na tom, ktera scena je aktivni.
             if (scene.name == "Game")
-                TryCreateForActiveScene();
+                CreateInScene(scene);
         }
 
+        private static void OnActiveSceneChanged(Scene previous, Scene next)
+        {
+            if (next.name == "Game")
+                CreateInScene(next);
+        }
+
+        // Pro primy start / editor: aktivni scena uz je Game.
         private static void TryCreateForActiveScene()
         {
-            if (SceneManager.GetActiveScene().name != "Game")
+            Scene active = SceneManager.GetActiveScene();
+            if (active.name == "Game")
+                CreateInScene(active);
+        }
+
+        /// <summary>Vytvori minimapu v dane (Game) scene, pokud jeste neexistuje a scena ma pouzitelny Canvas.</summary>
+        private static void CreateInScene(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded)
                 return;
 
             if (FindFirstObjectByType<MinimapUI>(FindObjectsInactive.Include) != null)
                 return;
 
-            Canvas canvas = FindFirstObjectByType<Canvas>(FindObjectsInactive.Include);
+            Canvas canvas = FindUsableCanvas(scene);
             if (canvas == null)
+            {
+                Debug.LogWarning("[MinimapUI] CreateInScene: nenalezen pouzitelny Canvas – minimapa se nevytvorila.");
                 return;
+            }
 
             GameObject root = new GameObject(MinimapName, typeof(RectTransform));
             root.transform.SetParent(canvas.transform, false);
             root.AddComponent<MinimapUI>();
+
+            Debug.Log($"[MinimapUI] Minimapa vytvorena pod Canvasem '{canvas.name}' (scena '{canvas.gameObject.scene.name}').");
+        }
+
+        /// <summary>
+        /// Najde Canvas, ktery PREZIJE (v Game scene nebo DontDestroyOnLoad). Vyhne se Canvasu z LoadingScreenu
+        /// nebo MainMenu, ktery se po nacteni odloadi (jinak by minimapa zmizela s nim).
+        /// </summary>
+        private static Canvas FindUsableCanvas(Scene gameScene)
+        {
+            Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsInactive.Include, FindObjectsSortMode.None);
+            Canvas inScene = null;
+            Canvas persistent = null;
+            Canvas other = null;
+
+            foreach (Canvas c in canvases)
+            {
+                if (c == null) continue;
+                Scene cs = c.gameObject.scene;
+
+                if (cs == gameScene)
+                {
+                    if (inScene == null || c.isRootCanvas) inScene = c;
+                }
+                else if (cs.name == "DontDestroyOnLoad")
+                {
+                    if (persistent == null) persistent = c;
+                }
+                else if (cs.name != "LoadingScreen" && cs.name != "MainMenu")
+                {
+                    if (other == null) other = c;
+                }
+            }
+
+            return inScene != null ? inScene : (persistent != null ? persistent : other);
         }
 
         // ------------------------------------------------------------------ Unity lifecycle

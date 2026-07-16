@@ -58,7 +58,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 4.577917
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000008000000
     usePerlinDensity: 1
     densityScale: 0.05
     densityThreshold: 0.5
@@ -73,7 +73,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000008000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -88,7 +88,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000008000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -103,7 +103,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000008000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -118,7 +118,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000008000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -133,7 +133,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000003000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -148,7 +148,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000003000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -163,7 +163,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000003000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -178,7 +178,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000003000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -193,7 +193,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.5, y: 0.7}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000003000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -208,7 +208,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.2, y: 0.5}
-    allowedBiomes: 05000000
+    allowedBiomes: 030000000a00000006000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -223,7 +223,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.2, y: 0.5}
-    allowedBiomes: 05000000
+    allowedBiomes: 030000000a00000006000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -238,7 +238,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 5
     scaleRange: {x: 0.2, y: 0.5}
-    allowedBiomes: 05000000
+    allowedBiomes: 030000000a00000006000000
     usePerlinDensity: 0
     densityScale: 0.05
     densityThreshold: 0.5
@@ -253,7 +253,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.07, y: 0.1}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000800000009000000
     usePerlinDensity: 1
     densityScale: 0.5
     densityThreshold: 0.5
@@ -267,7 +267,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.05, y: 0.07}
-    allowedBiomes: 05000000
+    allowedBiomes: 05000000060000000800000003000000
     usePerlinDensity: 1
     densityScale: 0.5
     densityThreshold: 0.5
@@ -282,7 +282,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.05, y: 0.07}
-    allowedBiomes: 05000000
+    allowedBiomes: 0500000006000000030000000900000001000000
     usePerlinDensity: 1
     densityScale: 0.5
     densityThreshold: 0.5
@@ -296,7 +296,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
     usePerlinDensity: 0
     densityScale: 2.5
     densityThreshold: 0.5
@@ -311,7 +311,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
     usePerlinDensity: 0
     densityScale: 2.5
     densityThreshold: 0.5
@@ -325,7 +325,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
     usePerlinDensity: 0
     densityScale: 2.5
     densityThreshold: 0.5
@@ -334,13 +334,13 @@ MonoBehaviour:
     prefab: {fileID: 5294693042610595858, guid: 95cd32842343a3949b21541061ec35c4,
       type: 3}
     category: 1
-    spawnChance: 0.005
+    spawnChance: 0.1
     minHeight: 0
     maxHeight: 1
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 05000000
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
@@ -355,7 +355,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 05000000
+    allowedBiomes: 0500000008000000
     usePerlinDensity: 1
     densityScale: 0.5
     densityThreshold: 0.5
@@ -370,7 +370,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b00000003000000
+    allowedBiomes: 0500000003000000060000000b000000
     usePerlinDensity: 1
     densityScale: 0.5
     densityThreshold: 0.5
@@ -384,7 +384,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b00000003000000
+    allowedBiomes: 0500000006000000080000000b000000
     usePerlinDensity: 1
     densityScale: 0.5
     densityThreshold: 0.5
@@ -399,7 +399,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b00000003000000
+    allowedBiomes: 030000000a00000006000000
     usePerlinDensity: 1
     densityScale: 0.5
     densityThreshold: 0.5
@@ -413,7 +413,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b00000003000000
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
@@ -428,7 +428,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b00000003000000
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
@@ -443,7 +443,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b00000003000000
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
@@ -457,7 +457,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b000000
+    allowedBiomes: 0500000008000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
@@ -472,7 +472,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b000000
+    allowedBiomes: 0500000008000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
@@ -487,7 +487,7 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b000000
+    allowedBiomes: 05000000060000000800000003000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
@@ -501,14 +501,2098 @@ MonoBehaviour:
     minSlope: 0
     maxSlope: 70
     scaleRange: {x: 0.09, y: 0.2}
-    allowedBiomes: 050000000b000000
+    allowedBiomes: 05000000060000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Broadleaf 01
+    prefab: {fileID: 5074539104921943795, guid: a48171ae4080f0c479eb9676796574bd,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 01000000090000000b000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Broadleaf 02
+    prefab: {fileID: 5179005818011820642, guid: 9b9dac268545f2c43add82072a4b68b5,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 01000000090000000b000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Broadleaf 03
+    prefab: {fileID: 340118151494311072, guid: b3e3212789c347d418c93b523de50868, type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 01000000090000000b000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Broadleaf 04
+    prefab: {fileID: 7629262143488614540, guid: 6837843842424874fbc981891301aa80,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 01000000090000000b000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Broadleaf 05
+    prefab: {fileID: 7527333179843404999, guid: e6483875488122f43994b8506d5f08b0,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 01000000090000000b000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Birch 01
+    prefab: {fileID: 8557982165475650478, guid: 8ba385e02bfdc0c4d8281f4ee18b6b35,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 010000000b0000000a000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Birch 02
+    prefab: {fileID: 3358672685642334607, guid: 7151731ba4476f84295da8c3bb922e32,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 010000000b0000000a000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Birch 03
+    prefab: {fileID: 5609904454082080260, guid: 71af80ad033b37a4fa4137fc7c346340,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 010000000b0000000a000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Birch 04
+    prefab: {fileID: 2123485584865432308, guid: f884c011d14c5bd49a931936b1f18f86,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 010000000b0000000a000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Birch 05
+    prefab: {fileID: 7727820442245324811, guid: 08d92d63fa5ea5748a641451025ae735,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.5, y: 0.7}
+    allowedBiomes: 010000000b0000000a000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Fir
+    prefab: {fileID: 5568035483004952841, guid: 2baf05a2bea796547b1f83db503f99dc,
+      type: 3}
+    category: 0
+    spawnChance: 0.08
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.2, y: 0.45}
+    allowedBiomes: 0a000000070000000300000001000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Fir Sapling
+    prefab: {fileID: 3023119117125994518, guid: 38afb2e5d43efd6479d5724bf01c1474,
+      type: 3}
+    category: 0
+    spawnChance: 0.1
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.15, y: 0.3}
+    allowedBiomes: 030000000a00000006000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Tree A
+    prefab: {fileID: 4274055460859047206, guid: 52c2a0468fc6b334b8bbbee4d2cdef9e,
+      type: 3}
+    category: 0
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.4, y: 0.6}
+    allowedBiomes: 010000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Tree B
+    prefab: {fileID: 5730253111998390793, guid: 8652999f91f5ab2489fa7af1bff17209,
+      type: 3}
+    category: 0
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.4, y: 0.6}
+    allowedBiomes: 010000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Cactus 1
+    prefab: {fileID: 1969713965026721963, guid: cdbe74afc68b30147802de16c45616b7,
+      type: 3}
+    category: 3
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 8
+    scaleRange: {x: 0.1, y: 0.18}
+    allowedBiomes: 04000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Cactus 2
+    prefab: {fileID: 5671857461531198932, guid: 58575b16d04ae9641b9a74bfdb698d1a,
+      type: 3}
+    category: 3
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 8
+    scaleRange: {x: 0.1, y: 0.18}
+    allowedBiomes: 04000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Cactus 3
+    prefab: {fileID: 3942092420053400026, guid: 241f0bf246bfc1142b2db04520133868,
+      type: 3}
+    category: 3
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 8
+    scaleRange: {x: 0.1, y: 0.18}
+    allowedBiomes: 04000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Cactus 4
+    prefab: {fileID: 1242539092817198550, guid: b8d7fb9dc8ec1244ebf6b0ecaba34c9c,
+      type: 3}
+    category: 3
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 8
+    scaleRange: {x: 0.1, y: 0.18}
+    allowedBiomes: 04000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Cactus 5
+    prefab: {fileID: 5527261695828008131, guid: 5e5336fcdf7c9fb42857b5dd1c6b0e8c,
+      type: 3}
+    category: 3
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 8
+    scaleRange: {x: 0.1, y: 0.18}
+    allowedBiomes: 04000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Bush 1
+    prefab: {fileID: 9171248431807932088, guid: b5148f6d5c38e0b49b564ae30a26a6f9,
+      type: 3}
+    category: 3
+    spawnChance: 0.05
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.18}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.55
+    rotateToTerrain: 1
+  - name: Dead Bush 2
+    prefab: {fileID: 6920502536496967575, guid: 3377b8d610efd704d908ba04f7654230,
+      type: 3}
+    category: 3
+    spawnChance: 0.05
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.18}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.55
+    rotateToTerrain: 1
+  - name: Dead Bush 3
+    prefab: {fileID: 1299442693259240842, guid: 87880882cd3c6324cbcd5ca7093f62c6,
+      type: 3}
+    category: 3
+    spawnChance: 0.05
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.18}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 0.05
+    densityThreshold: 0.55
+    rotateToTerrain: 1
+  - name: Dead Bush Short
+    prefab: {fileID: 7401143292592426380, guid: f4b1e6abcbc5d14488a1250487d6fa18,
+      type: 3}
+    category: 3
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.2}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Dead Bush Tall
+    prefab: {fileID: 8082466112665239461, guid: 920a63430d17594439ad6aaf7c4b69ab,
+      type: 3}
+    category: 3
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.2}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Flower Cherry Blossom
+    prefab: {fileID: 8366222868333777573, guid: 721ee23a48282ba4f8067ffb6520137f,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.07, y: 0.12}
+    allowedBiomes: 0500000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Flower Lavender
+    prefab: {fileID: 9060240730759330550, guid: 7592c60578a093e42ba5fa78a649566e,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.07, y: 0.12}
+    allowedBiomes: 0500000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Reed Grass
+    prefab: {fileID: 1960691091638989861, guid: ec7c3b18195135344a94591cc44bc1ad,
+      type: 3}
+    category: 2
+    spawnChance: 0.08
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 45
+    scaleRange: {x: 0.06, y: 0.1}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Mushroom 1
+    prefab: {fileID: 5362209467363679392, guid: 3dd101df4f36ca743aa558978683a47d,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: Mushroom 2
+    prefab: {fileID: 5597074282992850413, guid: 570b76ee5c225ca48a3629569f348b86,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: Mushroom 3
+    prefab: {fileID: 2780172627225135106, guid: 27f6b41228f56334197c74d8482217e0,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: Mushroom 4
+    prefab: {fileID: 263619801499319137, guid: a4da396b697bde64a8022ecc281fed6d, type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: Mushroom 5
+    prefab: {fileID: 862690347260069720, guid: 75064c421a917cb4bb80315cfc027414, type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: Mushroom Amanita
+    prefab: {fileID: 5839608159926857861, guid: ad92c7b351c74bb4cad618345fa9b8ed,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.09}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: Mushroom Liberty Cap
+    prefab: {fileID: 7334720590348356753, guid: d8d96b24013d1a04ba218ba3e493fcba,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.09}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: Clovers
+    prefab: {fileID: 3658937527399104965, guid: 8294eca7f718cdc4d95e3be1a44fcc85,
+      type: 3}
+    category: 2
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 45
+    scaleRange: {x: 0.05, y: 0.08}
+    allowedBiomes: 0500000008000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Fern High
+    prefab: {fileID: 4183397270544365087, guid: f201bbbfbfa468443bc57054bc3989d0,
+      type: 3}
+    category: 2
+    spawnChance: 0.05
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 45
+    scaleRange: {x: 0.05, y: 0.09}
+    allowedBiomes: 080000000b00000003000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Fern Low
+    prefab: {fileID: 6086074737746822712, guid: 0b6650952374b424796ed4e74afa3291,
+      type: 3}
+    category: 2
+    spawnChance: 0.05
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 45
+    scaleRange: {x: 0.05, y: 0.09}
+    allowedBiomes: 080000000b00000003000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Swamp Reeds
+    prefab: {fileID: 899703291575651881, guid: f82096172d2169c49b33c2aaf2b21018, type: 3}
+    category: 2
+    spawnChance: 0.08
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.1}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Water Lily
+    prefab: {fileID: 1221402619304984379, guid: 187518f692b580142b9f471c420306ae,
+      type: 3}
+    category: 2
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 3
+    scaleRange: {x: 0.05, y: 0.09}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Wild Wheat
+    prefab: {fileID: 343299255271419682, guid: 27e95d58d2d22144cbb83da655cf92f1, type: 3}
+    category: 2
+    spawnChance: 0.04
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 40
+    scaleRange: {x: 0.05, y: 0.09}
+    allowedBiomes: 0900000005000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Reed 1
+    prefab: {fileID: 5803370506752409702, guid: 2ec99b4255e9d884eb0786780b53bae0,
+      type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.11}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Reed 2
+    prefab: {fileID: 6696165441774658718, guid: 5a0cf8424113aa34095baaa813055a39,
+      type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.11}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Reed 3
+    prefab: {fileID: 8564729464782795470, guid: 038d5299009555545b61392d0a2dbe84,
+      type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.11}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Reed 4
+    prefab: {fileID: 541711129412369821, guid: 6c8225c9fbce581438ede5bda78835ef, type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.11}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Reed 5
+    prefab: {fileID: 1169595287672908992, guid: 2b473dabf5993d746af91e64bb892dff,
+      type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.11}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Rock Cliff 01
+    prefab: {fileID: 3032256343506758604, guid: 4ddf7285573570b48a272dcd96afadee,
+      type: 3}
+    category: 1
+    spawnChance: 0.004
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 5
+    maxSlope: 70
+    scaleRange: {x: 0.15, y: 0.3}
+    allowedBiomes: 0600000001000000070000000a00000003000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Rock Cliff 02
+    prefab: {fileID: 2228810771528020836, guid: 5d861e6001702ec43b372c687b7118b0,
+      type: 3}
+    category: 1
+    spawnChance: 0.004
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 5
+    maxSlope: 70
+    scaleRange: {x: 0.15, y: 0.3}
+    allowedBiomes: 0600000001000000070000000a00000003000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Rock Cliff 03
+    prefab: {fileID: 2209722459856986808, guid: 394f584433c2dde4eb8ca24aa2b87850,
+      type: 3}
+    category: 1
+    spawnChance: 0.004
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 5
+    maxSlope: 70
+    scaleRange: {x: 0.15, y: 0.3}
+    allowedBiomes: 0600000001000000070000000a00000003000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Small Rock 01
+    prefab: {fileID: 5793742321913582671, guid: 9d4c1d49fd35b7749ada4607332b1642,
+      type: 3}
+    category: 1
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.12}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Small Rock 02
+    prefab: {fileID: 1061230936035982819, guid: b15442dd8b4f74141b355a82d7f5fec7,
+      type: 3}
+    category: 1
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.12}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Small Rock 03
+    prefab: {fileID: 6049234962630683894, guid: eeaf7dd087ce56842ab54417091d0b4d,
+      type: 3}
+    category: 1
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.12}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 02
+    prefab: {fileID: 7292772797354777926, guid: b7de050f7f8858143a048e2d45cf27c6,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 03
+    prefab: {fileID: 3808722854889528340, guid: 62c0e4ecac6493b41aea21c0e0146742,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 04
+    prefab: {fileID: 7557689785403977256, guid: 0214b65d454020646be0053003270fda,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 05
+    prefab: {fileID: 7644678055167519119, guid: daf740f76dec5104e813b03b0ad6f5bd,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 06
+    prefab: {fileID: 1156361911762515558, guid: fd7582ed38c30ed4d89f83d4300570d3,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 07
+    prefab: {fileID: 3599776156356104918, guid: a03cd9e5418490246987e2a91005e5c3,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 030000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 08
+    prefab: {fileID: 1211986760970869025, guid: da10d7c79c140e8428abe0ec6cc02b1e,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 030000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 09
+    prefab: {fileID: 4967716598267930531, guid: c98969eaccc51b843866ce9ab445f46e,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 030000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 10
+    prefab: {fileID: 1997693843523329843, guid: a277f008374371d4d85405951f3d44c5,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 030000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 11
+    prefab: {fileID: 553809892187492008, guid: a4c16c97925436a449d78214d887f5d9, type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 030000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 12
+    prefab: {fileID: 7076123552898181792, guid: 2d536ad89b8579b48b452184c746b1ef,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 13
+    prefab: {fileID: 2421802248199281633, guid: 28784d4a79399684581e9d32925683a1,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 14
+    prefab: {fileID: 114165393753473470, guid: 5f8920d8df49004439fde7b2b377ec2d, type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 15
+    prefab: {fileID: 8783385149344373695, guid: f71f18f85e8c62842b76314b8ef1fb59,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 16
+    prefab: {fileID: 2046344990270509884, guid: ca6698db10b246a40ad1683be86bf5cf,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 040000000900000001000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 17
+    prefab: {fileID: 7990604444910047352, guid: e12b8760c8fd36649a616ee711c7c924,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 0b0000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 18
+    prefab: {fileID: 7444078533870859102, guid: 4e052fbc00473a94b863f0e8e3133b68,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 0b0000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 19
+    prefab: {fileID: 101100302048120051, guid: dbc8934d5b549d14d8a05b657dc33c82, type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 0b0000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 20
+    prefab: {fileID: 217152196822566249, guid: ce92c702425c73b43b718adb57066e61, type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 0b0000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Stone 21
+    prefab: {fileID: 2099438193970480826, guid: 74239212c8587ba43a259a07111010e9,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.06, y: 0.14}
+    allowedBiomes: 0b0000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Branch 01
+    prefab: {fileID: 3528588753531175390, guid: 12cdea464ad53d548a9d84137cb1ca8e,
+      type: 3}
+    category: 3
+    spawnChance: 0.025
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Branch 02
+    prefab: {fileID: 5730203395157358324, guid: 5061cf8d84c7b3f4a9b6f567716e3b33,
+      type: 3}
+    category: 3
+    spawnChance: 0.025
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Branch 03
+    prefab: {fileID: 7960911759658621264, guid: ed3740a1cbcbdd0438204232b17b665e,
+      type: 3}
+    category: 3
+    spawnChance: 0.025
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Birch Stump
+    prefab: {fileID: 4225271214641569350, guid: 968c270448402c04f9284b01ba1111d1,
+      type: 3}
+    category: 3
+    spawnChance: 0.008
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 20
+    scaleRange: {x: 0.09, y: 0.15}
+    allowedBiomes: 050000000300000006000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Broadleaf Stump
+    prefab: {fileID: 2952751264939785155, guid: 758d3477ec040154185a2b2891a5025b,
+      type: 3}
+    category: 3
+    spawnChance: 0.008
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 20
+    scaleRange: {x: 0.09, y: 0.15}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: Fir Stump
+    prefab: {fileID: 2615772118024889198, guid: 7432efbc2f28a6c4498f2280acaccb49,
+      type: 3}
+    category: 3
+    spawnChance: 0.008
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 20
+    scaleRange: {x: 0.09, y: 0.15}
+    allowedBiomes: 030000000a00000006000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Dead Tree 1 [F]'
+    prefab: {fileID: 785069078288797624, guid: 3424061a3fd02c644ab0fd6f242c6253, type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.4, y: 0.6}
+    allowedBiomes: 010000000900000004000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Dead Tree 2 [F]'
+    prefab: {fileID: 5012135168289911575, guid: 91afd57991d2dbd4a87ad3e8e0228cf5,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.4, y: 0.6}
+    allowedBiomes: 010000000900000004000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Dead Tree 3 [F]'
+    prefab: {fileID: 5868209869921766121, guid: fc31b7b34eda98643b29f879479756a0,
+      type: 3}
+    category: 0
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.4, y: 0.6}
+    allowedBiomes: 010000000900000004000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Fir Tree 1 [F]'
+    prefab: {fileID: 1642999765017134502, guid: ec5be04df55011c41afa9c0247e24db3,
+      type: 3}
+    category: 0
+    spawnChance: 0.12
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.3, y: 0.5}
+    allowedBiomes: 030000000a00000006000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Fir Tree 2 [F]'
+    prefab: {fileID: 2589352659173336205, guid: 067d7a0e4a114614194bbe1d46f34da7,
+      type: 3}
+    category: 0
+    spawnChance: 0.12
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.3, y: 0.5}
+    allowedBiomes: 030000000a00000006000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Fir Tree 3 [F]'
+    prefab: {fileID: 5918147258272725158, guid: ed697756358382b46aefdb61c5255384,
+      type: 3}
+    category: 0
+    spawnChance: 0.12
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.3, y: 0.5}
+    allowedBiomes: 030000000a00000006000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Young Fir 1 [F]'
+    prefab: {fileID: 1716187387309008254, guid: 38df6890ef0e6cc48ae20f36713fb176,
+      type: 3}
+    category: 0
+    spawnChance: 0.08
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.15, y: 0.3}
+    allowedBiomes: 030000000a00000006000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Young Fir 2 [F]'
+    prefab: {fileID: 7434621235856599277, guid: 43e0c7666025a3941820340e7a1934a3,
+      type: 3}
+    category: 0
+    spawnChance: 0.08
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 7
+    scaleRange: {x: 0.15, y: 0.3}
+    allowedBiomes: 030000000a00000006000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Branch 1 [F]'
+    prefab: {fileID: 8828665058184601058, guid: d8e904ae66ac4a84f8867cade0cf0890,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Branch 2 [F]'
+    prefab: {fileID: 3538981044469286201, guid: bbf7aa4d9fbd7e54ba3f22a19a34a24c,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Branch 3 [F]'
+    prefab: {fileID: 249398177652987820, guid: 1c53c2fd974647041a3e986bcc726c53, type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Branch 4 [F]'
+    prefab: {fileID: 959819362646978673, guid: 9cc3c0a7cfdae1f4c80a1c81fbacef67, type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Branch 5 [F]'
+    prefab: {fileID: 7020534574846395334, guid: af8ebcb09b44e7240b066fad8d00befe,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Flower T1-1 [F]'
+    prefab: {fileID: 3825151938905980653, guid: cf98299119ef5f24fbc44f5d4192062d,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.07, y: 0.12}
+    allowedBiomes: 0500000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Flower T1-2 [F]'
+    prefab: {fileID: 6748109562182510089, guid: 4518bc8dbdf67cd4888400e4b8ae0d87,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.07, y: 0.12}
+    allowedBiomes: 0500000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Flower T2-1 [F]'
+    prefab: {fileID: 3537664396516041832, guid: 573292cb9227f474b843157aaaf6c407,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.07, y: 0.12}
+    allowedBiomes: 0500000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Flower T2-2 [F]'
+    prefab: {fileID: 7612285202223472002, guid: 4a7fea45ca81be042b3d94e83c8ba26f,
+      type: 3}
+    category: 3
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.07, y: 0.12}
+    allowedBiomes: 0500000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Reed Grass 1 [F]'
+    prefab: {fileID: 9182003493657030042, guid: f45ccb498288e6942a2e58849202f0bf,
+      type: 3}
+    category: 2
+    spawnChance: 0.06
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 40
+    scaleRange: {x: 0.05, y: 0.09}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Log 1 [F]'
+    prefab: {fileID: 723009738890282308, guid: ef346ce1d22b8ed4fb33a4de25ec044e, type: 3}
+    category: 3
+    spawnChance: 0.006
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000600000003000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Log 2 [F]'
+    prefab: {fileID: 3577913327415559208, guid: dcbe732818429ab42a762f4a7735203c,
+      type: 3}
+    category: 3
+    spawnChance: 0.006
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000600000003000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Log 3 [F]'
+    prefab: {fileID: 7693283219385120266, guid: f927a7f6c236c5642aebcad66ab59276,
+      type: 3}
+    category: 3
+    spawnChance: 0.006
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 25
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000600000003000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Mushroom T1-1 [F]'
+    prefab: {fileID: 7824286167837882012, guid: 1209a19945af3854baa72a30a217a740,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: 'Mushroom T1-2 [F]'
+    prefab: {fileID: 6983274261875508860, guid: c15dbadf87f6ca64d90a072f37a38689,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: 'Mushroom T2-1 [F]'
+    prefab: {fileID: 8081270076593215772, guid: 5b6db449753be4948b858f3b7afd2552,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: 'Mushroom T2-2 [F]'
+    prefab: {fileID: 2689444879844288111, guid: a98c3d4bd6f12764781fe88c0d920b54,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: 'Mushroom T3-1 [F]'
+    prefab: {fileID: 4909478344357250846, guid: 786bda24a175dda4f93873bd6e80b5ac,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: 'Mushroom T3-2 [F]'
+    prefab: {fileID: 3745785784224749439, guid: a471ffe13edf378469f8cafa34855bd5,
+      type: 3}
+    category: 3
+    spawnChance: 0.012
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 030000000b00000008000000
+    usePerlinDensity: 1
+    densityScale: 0.3
+    densityThreshold: 0.45
+    rotateToTerrain: 1
+  - name: 'Reed 1 [F]'
+    prefab: {fileID: 2166996824317095274, guid: eae832b11418f0a43a12c2924cf5e32a,
+      type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.1}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Reed 2 [F]'
+    prefab: {fileID: 942264709403898867, guid: f249039f063ada84089123dae235598c, type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.1}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Reed 3 [F]'
+    prefab: {fileID: 1666662396307064688, guid: 5a5a453318070f344a8e76b4e3271b4e,
+      type: 3}
+    category: 2
+    spawnChance: 0.07
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 30
+    scaleRange: {x: 0.06, y: 0.1}
+    allowedBiomes: 0b000000
+    usePerlinDensity: 1
+    densityScale: 0.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stick 1 [F]'
+    prefab: {fileID: 8879658655792587610, guid: f0c485ab26e2539408e2ed944bccba3f,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stick 2 [F]'
+    prefab: {fileID: 5961440396841667744, guid: ad7e5d2142c219040990bd54e99b9fa7,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stick 3 [F]'
+    prefab: {fileID: 5055972077932569127, guid: b23837778e77689459c12929139c6461,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stick 4 [F]'
+    prefab: {fileID: 7720375647914074356, guid: b49af73301ea0a44ba6ecae0a56b3690,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stick 5 [F]'
+    prefab: {fileID: 961713186981797200, guid: 760b52139347e064984a3dc838314643, type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 35
+    scaleRange: {x: 0.09, y: 0.16}
+    allowedBiomes: 050000000300000006000000080000000b00000009000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stump 1 [F]'
+    prefab: {fileID: 7602269393156732991, guid: 6c1bf29ab7c58ff4c987db9120d99745,
+      type: 3}
+    category: 3
+    spawnChance: 0.008
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 20
+    scaleRange: {x: 0.09, y: 0.15}
+    allowedBiomes: 05000000030000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stump 2 [F]'
+    prefab: {fileID: 8889792798254991260, guid: 6e0827afe0799d2468245701b6a6f84f,
+      type: 3}
+    category: 3
+    spawnChance: 0.008
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 20
+    scaleRange: {x: 0.09, y: 0.15}
+    allowedBiomes: 05000000030000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stump 3 [F]'
+    prefab: {fileID: 5463625328505529421, guid: 118a04461a06c444c9fa5cfa680346c5,
+      type: 3}
+    category: 3
+    spawnChance: 0.008
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 20
+    scaleRange: {x: 0.09, y: 0.15}
+    allowedBiomes: 05000000030000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Big Stone 1 [S]'
+    prefab: {fileID: 5914865127977665233, guid: 028433187ef67594c9c2a8b5d97c0544,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.009, y: 0.02}
+    allowedBiomes: 0600000001000000030000000a0000000700000005000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Big Stone 2 [S]'
+    prefab: {fileID: 3005388978630509945, guid: f6d8f9433fc7c5641b4617dfad871b2d,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.009, y: 0.02}
+    allowedBiomes: 0600000001000000030000000a0000000700000005000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Big Stone 3 [S]'
+    prefab: {fileID: 5100609847868003203, guid: 50f45ab073917894083983a62a6225d6,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.009, y: 0.02}
+    allowedBiomes: 0600000001000000030000000a0000000700000005000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Big Stone 4 [S]'
+    prefab: {fileID: 3965001833538618408, guid: 0818bfd6fb3f3fc4b91d0d27861dc58f,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.009, y: 0.02}
+    allowedBiomes: 0600000001000000030000000a0000000700000005000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Big Stone 5 [S]'
+    prefab: {fileID: 4715387954544895227, guid: 742346dd3629683428dc94db066ff345,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.009, y: 0.02}
+    allowedBiomes: 0600000001000000030000000a0000000700000005000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 1 [S]'
+    prefab: {fileID: 5293572241542225829, guid: 033ca3e6afefb0944ad4731a3328a185,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 2 [S]'
+    prefab: {fileID: 8372776376402456504, guid: 856a95a1c89b0bb4cabc32b57e7e8465,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 3 [S]'
+    prefab: {fileID: 1933157509842798860, guid: d4a76f2357ac0e943a73afc1c206d766,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 4 [S]'
+    prefab: {fileID: 7741748932706725100, guid: 229fec3de6bba3e40a130b8a376346e4,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 5 [S]'
+    prefab: {fileID: 8497343293848948482, guid: f57f2aa5492e8bd4aa7d87d3de64de50,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 6 [S]'
+    prefab: {fileID: 3729794027241074785, guid: 0fbbca5f3cbc2824d8c360a76a0dbdd5,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 7 [S]'
+    prefab: {fileID: 7286576765588718985, guid: ef16a73d0167def42b9956ecb9d55dfc,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 8 [S]'
+    prefab: {fileID: 2707465093478462465, guid: 27958906646c8b54e8aecf5482bdcaa5,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 9 [S]'
+    prefab: {fileID: 2815380192832739268, guid: 6d03935cbfea17b4c9d013245f9aa117,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Small Stone 10 [S]'
+    prefab: {fileID: 3903381823175049469, guid: 5605408a55d5be64fb07c1e43a1c24bf,
+      type: 3}
+    category: 3
+    spawnChance: 0.03
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.05, y: 0.1}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000080000000b000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 1 [S]'
+    prefab: {fileID: 2152618826101754177, guid: 1bc2dfb19c6e3c44f898f3eab4cdd074,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 05000000060000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 2 [S]'
+    prefab: {fileID: 6553076901589857565, guid: 7b76d7cfd151f984c9e2d8c071923633,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 05000000060000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 3 [S]'
+    prefab: {fileID: 3810784648018136202, guid: e36a43d7ecaa47c4396c1bdca1d58df3,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 05000000060000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 4 [S]'
+    prefab: {fileID: 8868404800207700714, guid: 4ac0eddb16555d84f87cc6ad00149f6b,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 05000000060000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 5 [S]'
+    prefab: {fileID: 6278080358334986053, guid: 42b970d5fa438884fb585764fdfcb0df,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 05000000060000000800000003000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 6 [S]'
+    prefab: {fileID: 1741639518239084134, guid: add777116a8bcf64592f20693ce649fd,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 0100000004000000090000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 7 [S]'
+    prefab: {fileID: 7432149617894592714, guid: 817fda3839515004f8ad979bc6b53d8e,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 0100000004000000090000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 8 [S]'
+    prefab: {fileID: 5150781235969602363, guid: 7044a17b93cfb2d438b87142b12a227b,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 0100000004000000090000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 9 [S]'
+    prefab: {fileID: 7582997523948218649, guid: c5dff74f07df7654782feabe0e34a287,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 0100000004000000090000000a00000007000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+  - name: 'Stone 10 [S]'
+    prefab: {fileID: 4194525958804171213, guid: 541b1c60a73726941a740eb1b9169920,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.07, y: 0.15}
+    allowedBiomes: 0100000004000000090000000a00000007000000
     usePerlinDensity: 1
     densityScale: 5
     densityThreshold: 0.5
     rotateToTerrain: 1
   maxObjectsPerChunk: 500
   maxGrassPerChunk: 2500
-  seaLevel: -9999
+  seaLevel: 0
   forestNoiseScale: 0.008
   forestThreshold: 0.42
   grassDensityMultiplier: 1

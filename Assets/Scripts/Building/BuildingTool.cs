@@ -352,6 +352,7 @@ namespace Orivilon.Building
             }
 
             ConsumeResources();
+            Orivilon.Multiplayer.NetworkWorldSync.Instance?.BroadcastBuildingPlaced(selectedPiece, buildPos, buildRot);
         }
 
         /// <summary>

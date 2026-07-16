@@ -1,0 +1,275 @@
+{
+    "position": {
+        "x": -796.526611328125,
+        "y": 59.0571403503418,
+        "z": 698.798583984375
+    },
+    "playerRotation": {
+        "x": 0.0,
+        "y": 0.8808686137199402,
+        "z": 0.0,
+        "w": 0.4733608663082123
+    },
+    "cameraRotation": {
+        "x": 0.10366055369377136,
+        "y": 0.0,
+        "z": 0.0,
+        "w": 0.9946127533912659
+    },
+    "inventory": {
+        "slots": [
+            {
+                "itemID": "everlost:building_tool",
+                "amount": 1
+            },
+            {
+                "itemID": "everlost:stone_axe",
+                "amount": 1
+            },
+            {
+                "itemID": "everlost:berries",
+                "amount": 25
+            },
+            {
+                "itemID": "everlost:grass",
+                "amount": 25
+            },
+            {
+                "itemID": "everlost:rope",
+                "amount": 5
+            },
+            {
+                "itemID": "everlost:stick",
+                "amount": 52
+            },
+            {
+                "itemID": "everlost:log",
+                "amount": 3
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            },
+            {
+                "itemID": "",
+                "amount": 0
+            }
+        ]
+    }
+}

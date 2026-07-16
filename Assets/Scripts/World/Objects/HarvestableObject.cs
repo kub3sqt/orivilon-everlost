@@ -114,6 +114,13 @@ namespace Orivilon.World.Objects
                 }
 
                 Orivilon.SaveSystem.SaveSystem.MarkObjectDestroyed(gameObject);
+
+                // Multiplayer: oznam ostatním hráčům, že tento objekt zmizel.
+                // V single-playeru je to no-op (BroadcastObjectDestroyed se hned vrátí).
+                var detId = GetComponent<DeterministicObjectId>();
+                if (detId != null)
+                    Orivilon.Multiplayer.NetworkWorldSync.Instance?.BroadcastObjectDestroyed(detId.Hash);
+
                 Destroy(gameObject);
             }
         }

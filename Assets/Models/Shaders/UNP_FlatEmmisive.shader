@@ -8,58 +8,65 @@ Shader "UNP/FlatEmissive"
 
     SubShader
     {
-        // Define rendering order and type
-        Tags { "Queue" = "Transparent" "RenderType" = "Transparent" }
-        
-        // Render settings
+        // URP verze: ploche "emisivni" zbarveni bez osvetleni, pruhledne
+        Tags { "RenderType" = "Transparent" "Queue" = "Transparent" "RenderPipeline" = "UniversalPipeline" "IgnoreProjector" = "True" }
+
         Cull Off        // Disable backface culling (renders both sides of the object)
         ZWrite Off      // Disable depth writing (ensures proper blending for transparency)
         Blend SrcAlpha OneMinusSrcAlpha // Enable alpha blending for transparency
 
         Pass
         {
-            CGPROGRAM
-            // Shader stages
-            #pragma vertex vert          // Specify the vertex shader
-            #pragma fragment frag        // Specify the fragment shader
+            Name "Unlit"
 
-            // Include Unity's helper functions
-            #include "UnityCG.cginc"
+            HLSLPROGRAM
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile_fog
+            #pragma multi_compile_instancing
 
-            // Shader property for the main color
-            uniform float4 _Color;
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
-            // Vertex input structure
-            struct appdata_t
+            // SRP Batcher kompatibilni material buffer
+            CBUFFER_START(UnityPerMaterial)
+                float4 _Color;
+            CBUFFER_END
+
+            struct Attributes
             {
-                float4 vertex : POSITION; // Vertex position in object space
+                float4 positionOS : POSITION;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            // Vertex-to-fragment structure
-            struct v2f
+            struct Varyings
             {
-                float4 pos : SV_POSITION; // Vertex position in clip space
-                float4 color : COLOR;     // Vertex color passed to the fragment shader
+                float4 positionCS : SV_POSITION;
+                half fogFactor : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+                UNITY_VERTEX_OUTPUT_STEREO
             };
 
-            // Vertex shader
-            v2f vert(appdata_t v)
+            Varyings vert(Attributes v)
             {
-                v2f o;
-                o.pos = UnityObjectToClipPos(v.vertex); // Transform object space position to clip space
-                o.color = _Color;                      // Pass the color to the fragment shader
+                Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_TRANSFER_INSTANCE_ID(v, o);
+                UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
+                o.positionCS = TransformObjectToHClip(v.positionOS.xyz);
+                o.fogFactor = ComputeFogFactor(o.positionCS.z);
                 return o;
             }
 
-            // Fragment shader
-            fixed4 frag(v2f i) : SV_Target
+            half4 frag(Varyings i) : SV_Target
             {
-                return i.color; // Output the interpolated color from the vertex shader
+                UNITY_SETUP_INSTANCE_ID(i);
+                half4 color = _Color;
+                color.rgb = MixFog(color.rgb, i.fogFactor);
+                return color;
             }
-            ENDCG
+            ENDHLSL
         }
     }
 
-    // Fallback shader for platforms that don't support this shader
-    Fallback "Unlit/Transparent"
+    Fallback Off
 }
