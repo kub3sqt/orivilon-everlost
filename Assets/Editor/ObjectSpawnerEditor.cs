@@ -387,10 +387,14 @@ public class ObjectSpawnerEditor : Editor
         }
         EditorGUILayout.EndHorizontal();
 
-        // souhrn: šance + biomy
+        // souhrn: šance + dohled + biomy
         float chance = el.FindPropertyRelative("spawnChance").floatValue;
         string biomeSummary = BiomeSummary(biomesProp);
-        EditorGUILayout.LabelField($"{EffectiveChance(chance) * 100f:0.##} % / buňka   •   {biomeSummary}",
+        int viewDist = el.FindPropertyRelative("maxViewDistanceChunks").intValue;
+        string viewSummary = (cat != (int)SpawnCategory.Grass && viewDist > 0)
+            ? $"   •   dohled {viewDist} ch."
+            : "";
+        EditorGUILayout.LabelField($"{EffectiveChance(chance) * 100f:0.##} % / buňka{viewSummary}   •   {biomeSummary}",
             EditorStyles.miniLabel);
 
         EditorGUILayout.EndVertical();
@@ -418,6 +422,25 @@ public class ObjectSpawnerEditor : Editor
             EditorGUILayout.PropertyField(el.FindPropertyRelative("scaleRange"),
                 new GUIContent("Scale Range (min/max)"));
             EditorGUILayout.PropertyField(el.FindPropertyRelative("rotateToTerrain"));
+
+            // Dohled objektu (v chuncích). Tráva má globální vzdálenost na EndlessTerrain.
+            if (cat == (int)SpawnCategory.Grass)
+            {
+                EditorGUILayout.LabelField("View Distance",
+                    "tráva se řídí globálním EndlessTerrain.grassDistance", EditorStyles.miniLabel);
+            }
+            else
+            {
+                SerializedProperty viewDistProp = el.FindPropertyRelative("maxViewDistanceChunks");
+                EditorGUILayout.PropertyField(viewDistProp, new GUIContent("View Distance (chunky)",
+                    "Max. vzdálenost od hráče (v chuncích), do které je objekt fyzicky ve scéně. "
+                    + "0 = neomezeno (objekt je ve všech viditelných chuncích). "
+                    + "Vhodné pro malé objekty – klacky, kamínky apod."));
+                if (viewDistProp.intValue < 0) viewDistProp.intValue = 0;
+                if (viewDistProp.intValue == 0)
+                    EditorGUILayout.LabelField(" ", "0 = neomezeno – objekt existuje ve všech viditelných chuncích",
+                        EditorStyles.miniLabel);
+            }
 
             SerializedProperty perlinProp = el.FindPropertyRelative("usePerlinDensity");
             EditorGUILayout.PropertyField(perlinProp, new GUIContent("Use Perlin Density",
@@ -568,6 +591,7 @@ public class ObjectSpawnerEditor : Editor
         el.FindPropertyRelative("densityScale").floatValue = 0.05f;
         el.FindPropertyRelative("densityThreshold").floatValue = 0.5f;
         el.FindPropertyRelative("rotateToTerrain").boolValue = true;
+        el.FindPropertyRelative("maxViewDistanceChunks").intValue = 0;
     }
 
     /// <summary>Zkopíruje záznam na konec seznamu (bezpečné pro determinismus).</summary>
@@ -592,6 +616,7 @@ public class ObjectSpawnerEditor : Editor
         dst.FindPropertyRelative("densityScale").floatValue = src.FindPropertyRelative("densityScale").floatValue;
         dst.FindPropertyRelative("densityThreshold").floatValue = src.FindPropertyRelative("densityThreshold").floatValue;
         dst.FindPropertyRelative("rotateToTerrain").boolValue = src.FindPropertyRelative("rotateToTerrain").boolValue;
+        dst.FindPropertyRelative("maxViewDistanceChunks").intValue = src.FindPropertyRelative("maxViewDistanceChunks").intValue;
 
         SerializedProperty srcBiomes = src.FindPropertyRelative("allowedBiomes");
         SerializedProperty dstBiomes = dst.FindPropertyRelative("allowedBiomes");

@@ -193,6 +193,18 @@ namespace Orivilon.SaveSystem
         public string lastPlayed;
 
         /// <summary>
+        /// Timestamp vytvoření světa ve formátu ISO 8601.
+        /// Světy vytvořené před přidáním tohoto pole mají prázdný string (UI zobrazí pomlčku).
+        /// </summary>
+        public string createdAt = "";
+
+        /// <summary>
+        /// Celkový odehraný čas ve světě v sekundách.
+        /// Přičítá se při každém uložení hry (SaveSystem.SaveWorld).
+        /// </summary>
+        public float totalPlayTime;
+
+        /// <summary>
         /// Numerická reprezentace seedu používaná generátory terénu a spawnu.
         /// Vypočtená z textového sedu pomocí jednoduchého hash algoritmu.
         /// </summary>
@@ -211,6 +223,7 @@ namespace Orivilon.SaveSystem
             seed = seedValue;
             folderPath = "";
             lastPlayed = "";
+            createdAt = System.DateTime.Now.ToString("o");
 
             if (!string.IsNullOrEmpty(seedValue))
             {

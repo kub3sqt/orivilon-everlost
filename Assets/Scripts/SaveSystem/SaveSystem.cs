@@ -46,6 +46,9 @@ namespace Orivilon.SaveSystem
 
             GameManager.selectedWorld.lastPlayed = System.DateTime.Now.ToString("o");
 
+            if (GameManager.instance != null)
+                GameManager.selectedWorld.totalPlayTime += GameManager.instance.ConsumeSessionPlayTime();
+
             WorldSaveData worldData = new WorldSaveData
             {
                 worldName = GameManager.selectedWorld.worldName,

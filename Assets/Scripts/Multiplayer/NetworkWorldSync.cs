@@ -552,6 +552,49 @@ namespace Orivilon.Multiplayer
                 writer);
         }
 
+        /// <summary>
+        /// Odešle jméno lokálního hráče ostatním. Klient ho pošle serveru
+        /// (ten ho rozešle dál), host ho rozešle přímo všem připojeným klientům.
+        /// </summary>
+        public void SendLocalPlayerName(string playerName)
+        {
+            if (!MultiplayerManager.IsActive || NetworkManager.Singleton == null) return;
+            if (string.IsNullOrEmpty(playerName)) return;
+
+            if (NetworkManager.Singleton.IsServer)
+            {
+                foreach (var cid in NetworkManager.Singleton.ConnectedClientsIds)
+                {
+                    if (cid == NetworkManager.Singleton.LocalClientId) continue;
+                    SendPlayerNameTo(cid, NetworkManager.Singleton.LocalClientId, playerName);
+                }
+                return;
+            }
+
+            using var writer = new FastBufferWriter(128, Allocator.Temp);
+            writer.WriteValueSafe(playerName);
+            NetworkManager.Singleton.CustomMessagingManager.SendNamedMessage(
+                NetworkMessages.PlayerName,
+                NetworkManager.ServerClientId,
+                writer);
+        }
+
+        /// <summary>
+        /// Server: pošle jednomu klientovi jméno konkrétního hráče.
+        /// Payload [ulong owner][string name] – stejný formát jako broadcast v OnPlayerName.
+        /// </summary>
+        public void SendPlayerNameTo(ulong targetClientId, ulong ownerClientId, string playerName)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer) return;
+            if (string.IsNullOrEmpty(playerName)) return;
+
+            using var writer = new FastBufferWriter(128, Allocator.Temp);
+            writer.WriteValueSafe(ownerClientId);
+            writer.WriteValueSafe(playerName);
+            NetworkManager.Singleton.CustomMessagingManager.SendNamedMessage(
+                NetworkMessages.PlayerName, targetClientId, writer);
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         // Broadcast ze serveru na všechny klienty
         // ══════════════════════════════════════════════════════════════════════

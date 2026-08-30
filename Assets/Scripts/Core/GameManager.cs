@@ -52,6 +52,9 @@ namespace Orivilon.Core
         /// <summary>GameObject minimapy. Přiřazuje se automaticky.</summary>
         public GameObject minimap;
 
+        /// <summary>GameObject kompasu (horní pás). Přiřazuje se automaticky.</summary>
+        public GameObject compass;
+
         /// <summary>Kořenový GameObject stavebního menu. Přiřazuje se automaticky z BuildingTool.</summary>
         public GameObject buildMenuRoot;
 
@@ -75,9 +78,9 @@ namespace Orivilon.Core
         [SerializeField] private Animator inventorySlotsAnimator;
 
         /// <summary>
-        /// Animátor pozadí statistik.
+        /// Animátor pozadí statistik a craftingu.
         /// </summary>
-        [SerializeField] private Animator statsBackgroundAnimator;
+        [SerializeField] private Animator statsAndCraftingBackgroundAnimator;
 
         /// <summary>
         /// Animátor rohu.
@@ -88,11 +91,6 @@ namespace Orivilon.Core
         /// Animátor popisu statistik.
         /// </summary>
         [SerializeField] private Animator statsDescriptionAnimator;
-
-        /// <summary>
-        /// Animátor craftovacího panelu.
-        /// </summary>
-        [SerializeField] private Animator craftingAnimator;
 
         /// <summary>
         /// Animátor craftovacích slotů.
@@ -140,11 +138,30 @@ namespace Orivilon.Core
         /// <summary>Příznak, zda bylo načítání světa dokončeno a hra je plně hratelná.</summary>
         private bool isLoadingComplete = false;
 
+        /// <summary>Referenční čas (realtimeSinceStartup) pro měření odehrané session.</summary>
+        private float sessionPlayTimeStart;
+
         /// <summary>Uložená cílová spawn pozice (pouze XZ, Y se zjistí raycastem).</summary>
         private Vector3 spawnPosition;
 
         /// <summary>Veřejná read-only property vracející stav pauzy.</summary>
         public bool IsPaused => isPaused;
+
+        /// <summary>
+        /// Vrátí počet sekund odehraných od posledního volání (nebo od dokončení načtení)
+        /// a resetuje měření. Volá SaveSystem.SaveWorld, aby se čas při opakovaných
+        /// uloženích nezapočítal dvakrát. Před dokončením načtení vrací 0.
+        /// </summary>
+        public float ConsumeSessionPlayTime()
+        {
+            if (!isLoadingComplete)
+                return 0f;
+
+            float now = Time.realtimeSinceStartup;
+            float delta = Mathf.Max(0f, now - sessionPlayTimeStart);
+            sessionPlayTimeStart = now;
+            return delta;
+        }
 
         /// <summary>Chrání inicializaci Game scény před dvojím spuštěním ze sceneLoaded a přímého Play v editoru.</summary>
         private bool gameSceneInitializationStarted = false;
@@ -243,15 +260,15 @@ namespace Orivilon.Core
             pauseMenu = null;
             crosshair = null;
             minimap = null;
+            compass = null;
             buildMenuRoot = null;
             Inventory = null;
 
             mapInventoryBackgroundAnimator = null;
             inventorySlotsAnimator = null;
             cornerPieceAnimator = null;
-            statsBackgroundAnimator = null;
+            statsAndCraftingBackgroundAnimator = null;
             statsDescriptionAnimator = null;
-            craftingAnimator = null;
             craftingSlotsAnimator = null;
 
             player = null;
@@ -378,6 +395,13 @@ namespace Orivilon.Core
                 minimap.SetActive(false);
             }
 
+            var cp = FindFirstObjectByType<CompassUI>(FindObjectsInactive.Include);
+            if (cp != null)
+            {
+                compass = cp.gameObject;
+                compass.SetActive(false);
+            }
+
             var bt = FindFirstObjectByType<BuildingTool>(FindObjectsInactive.Include);
             if (bt != null)
             {
@@ -390,33 +414,35 @@ namespace Orivilon.Core
             if (inventoryRootComponent != null)
                 Inventory = inventoryRootComponent.gameObject;
 
-            mapInventoryBackgroundAnimator =
-                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(a => a.name == "Map/InventoryBackground");
+            var animators = FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None);
 
-            inventorySlotsAnimator =
-                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(a => a.name == "InventorySlots");
+            mapInventoryBackgroundAnimator = FindAnimator(animators, "MapAndInventoryBackground");
+            inventorySlotsAnimator = FindAnimator(animators, "InventorySlots");
+            cornerPieceAnimator = FindAnimator(animators, "CornerPiece");
+            statsAndCraftingBackgroundAnimator = FindAnimator(animators, "StatsAndCraftingBackground");
+            statsDescriptionAnimator = FindAnimator(animators, "StatsDescription");
+            craftingSlotsAnimator = FindAnimator(animators, "Crafting");
+        }
 
-            cornerPieceAnimator =
-                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(a => a.name == "CornerPiece");
+        /// <summary>
+        /// Najde animátor podle jména GameObjectu. Pokud neexistuje, zaloguje varování
+        /// a vrátí null – chybějící animátor tak nesmí shodit otevírání menu.
+        /// </summary>
+        private static Animator FindAnimator(Animator[] animators, string objectName)
+        {
+            var animator = animators.FirstOrDefault(a => a.name == objectName);
+            if (animator == null)
+                Debug.LogWarning($"Animator '{objectName}' nebyl nalezen!");
+            return animator;
+        }
 
-            statsBackgroundAnimator =
-                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(a => a.name == "StatsBackground");
-
-            statsDescriptionAnimator =
-                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(a => a.name == "StatsDescription");
-
-            craftingAnimator =
-                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(a => a.name == "CraftingBackground");
-
-            craftingSlotsAnimator =
-                FindObjectsByType<Animator>(FindObjectsInactive.Include, FindObjectsSortMode.None)
-                .FirstOrDefault(a => a.name == "Crafting");
+        /// <summary>
+        /// Spustí trigger na animátoru, pokud animátor existuje (null-safe).
+        /// </summary>
+        private static void SetTriggerSafe(Animator animator, string trigger)
+        {
+            if (animator != null)
+                animator.SetTrigger(trigger);
         }
 
         /// <summary>
@@ -447,19 +473,21 @@ namespace Orivilon.Core
             isInventoryOpen = true;
             isMenuOpen = true;
 
-            mapInventoryBackgroundAnimator.SetTrigger("Open");
-            inventorySlotsAnimator.SetTrigger("Open");
-            cornerPieceAnimator.SetTrigger("Open");
-            statsBackgroundAnimator.SetTrigger("Open");
-            statsDescriptionAnimator.SetTrigger("Open");
-            craftingAnimator.SetTrigger("Open");
-            craftingSlotsAnimator.SetTrigger("Open");
+            SetTriggerSafe(mapInventoryBackgroundAnimator, "Open");
+            SetTriggerSafe(inventorySlotsAnimator, "Open");
+            SetTriggerSafe(cornerPieceAnimator, "Open");
+            SetTriggerSafe(statsAndCraftingBackgroundAnimator, "Open");
+            SetTriggerSafe(statsDescriptionAnimator, "Open");
+            SetTriggerSafe(craftingSlotsAnimator, "Open");
 
             if (crosshair != null)
                 crosshair.SetActive(false);
 
             if (minimap != null)
                 minimap.SetActive(false);
+
+            if (compass != null)
+                compass.SetActive(false);
 
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -478,19 +506,21 @@ namespace Orivilon.Core
             isInventoryOpen = false;
             isMenuOpen = false;
 
-            mapInventoryBackgroundAnimator.SetTrigger("Close");
-            inventorySlotsAnimator.SetTrigger("Close");
-            cornerPieceAnimator.SetTrigger("Close");
-            statsBackgroundAnimator.SetTrigger("Close");
-            statsDescriptionAnimator.SetTrigger("Close");
-            craftingAnimator.SetTrigger("Close");
-            craftingSlotsAnimator.SetTrigger("Close");
+            SetTriggerSafe(mapInventoryBackgroundAnimator, "Close");
+            SetTriggerSafe(inventorySlotsAnimator, "Close");
+            SetTriggerSafe(cornerPieceAnimator, "Close");
+            SetTriggerSafe(statsAndCraftingBackgroundAnimator, "Close");
+            SetTriggerSafe(statsDescriptionAnimator, "Close");
+            SetTriggerSafe(craftingSlotsAnimator, "Close");
 
             if (crosshair != null)
                 crosshair.SetActive(true);
 
             if (minimap != null)
                 minimap.SetActive(true);
+
+            if (compass != null)
+                compass.SetActive(true);
 
             SetPlayerControl(true);
             ApplyGameplayCursor();
@@ -517,6 +547,7 @@ namespace Orivilon.Core
             if (hotbar != null) hotbar.SetActive(false);
             if (statusBar != null) statusBar.SetActive(false);
             if (minimap != null) minimap.SetActive(false);
+            if (compass != null) compass.SetActive(false);
 
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
@@ -541,6 +572,7 @@ namespace Orivilon.Core
             if (hotbar != null) hotbar.SetActive(true);
             if (statusBar != null) statusBar.SetActive(true);
             if (minimap != null) minimap.SetActive(true);
+            if (compass != null) compass.SetActive(true);
 
             SetPlayerControl(true);
             ApplyGameplayCursor();
@@ -567,6 +599,9 @@ namespace Orivilon.Core
 
             if (minimap != null)
                 minimap.SetActive(!newState);
+
+            if (compass != null)
+                compass.SetActive(!newState);
         }
 
         /// <summary>
@@ -820,13 +855,19 @@ namespace Orivilon.Core
             if (minimapUI != null)
                 minimapUI.Initialize(player.transform, cam);
 
+            CompassUI compassUI = compass != null ? compass.GetComponent<CompassUI>() : null;
+            if (compassUI != null)
+                compassUI.Initialize(player.transform, cam);
+
             if (crosshair != null) crosshair.SetActive(true);
             if (hotbar != null) hotbar.SetActive(true);
             if (statusBar != null) statusBar.SetActive(true);
             if (minimap != null) minimap.SetActive(true);
+            if (compass != null) compass.SetActive(true);
             if (Inventory != null) Inventory.SetActive(true);
 
             isLoadingComplete = true;
+            sessionPlayTimeStart = Time.realtimeSinceStartup;
             Debug.Log($"GameManager: Player spawned at {groundPosition} - LOADING COMPLETE");
 
             if (selectedWorld != null)

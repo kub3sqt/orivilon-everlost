@@ -62,6 +62,11 @@ namespace Orivilon.Multiplayer
         {
             if (nameLabel != null)
                 nameLabel.text = playerName;
+
+            // Stejné jméno se ukazuje i u ikony na kompasu, pokud marker existuje.
+            var marker = GetComponent<Orivilon.UI.HUD.CompassMarker>();
+            if (marker != null)
+                marker.Label = playerName;
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -100,7 +105,7 @@ namespace Orivilon.Multiplayer
             labelGo.transform.localPosition = new Vector3(0f, 2.4f, 0f);
 
             var tmp = labelGo.AddComponent<TextMeshPro>();
-            tmp.text               = "Hráč";
+            tmp.text               = "Player";
             tmp.fontSize           = 3f;
             tmp.alignment          = TextAlignmentOptions.Center;
             tmp.color              = Color.white;

@@ -56,8 +56,8 @@ namespace Orivilon.World.Terrain
         /// <summary>True pokud má chunk mít aktivní collider (nastavuje EndlessTerrain podle vzdálenosti).</summary>
         private bool colliderActive = false;
 
-        /// <summary>True pokud má chunk zobrazovat trávu (nastavuje EndlessTerrain podle vzdálenosti).</summary>
-        private bool grassActive = false;
+        /// <summary>Aktuální vzdálenost chunku od hráče v chuncích (nastavuje EndlessTerrain).</summary>
+        private int detailDistance = int.MaxValue;
 
         /// <summary>True po úspěšném spawnu dekorací (stromy/kameny; tráva se řídí zvlášť).</summary>
         private bool decorationsSpawned = false;
@@ -307,17 +307,18 @@ namespace Orivilon.World.Terrain
         }
 
         /// <summary>
-        /// Zapne/vypne trávu podle vzdálenosti od hráče. Volá EndlessTerrain.
-        /// Tráva v dálce není vidět, ale jako GameObjecty stála CPU (transformy, culling).
+        /// Předá spawneru aktuální vzdálenost chunku od hráče. Volá EndlessTerrain.
+        /// Spawner podle ní řídí fyzickou přítomnost trávy (globální grassDistance)
+        /// a dekorací s nastaveným maxViewDistanceChunks.
         /// </summary>
-        public void SetGrassActive(bool active)
+        public void SetDetailDistance(int chunkDistance)
         {
-            grassActive = active;
+            detailDistance = chunkDistance;
 
             if (!initialized || !decorationsSpawned) return;
 
             if (chunkSpawner != null && chunkObject != null)
-                chunkSpawner.SetGrassVisible(active, chunkObject.transform);
+                chunkSpawner.UpdateDetailVisibility(chunkDistance, chunkObject.transform);
         }
 
         /// <summary>
@@ -325,7 +326,7 @@ namespace Orivilon.World.Terrain
         /// Používá výškovou, altitude a biome mapu nacachovanou z vedlejšího vlákna –
         /// dřívější verze je znovu počítala na hlavním vlákně (tisíce Perlin vzorků na chunk).
         /// Tráva se neinstancuje hned: spawner si ji uloží jako "pending" a fyzicky
-        /// ji vytvoří až podle SetGrassActive (vzdálenost od hráče).
+        /// ji vytvoří až podle SetDetailDistance (vzdálenost od hráče).
         /// </summary>
         private void EnsureDecorations()
         {
@@ -374,7 +375,7 @@ namespace Orivilon.World.Terrain
 
             decorationsSpawned = true;
 
-            spawner.SetGrassVisible(grassActive, chunkObject.transform);
+            spawner.UpdateDetailVisibility(detailDistance, chunkObject.transform);
         }
 
         /// <summary>

@@ -280,8 +280,8 @@ namespace Orivilon.World.Terrain
         }
 
         /// <summary>
-        /// Zapne/vypne collider a trávu chunku podle vzdálenosti od hráče.
-        /// Hystereze +1 chunk brání přeblikávání (spawn/despawn) na hranici vzdálenosti.
+        /// Zapne/vypne collider chunku podle vzdálenosti od hráče (s hysterezí +1 chunk)
+        /// a předá chunku vzdálenost pro řízení detailních dekorací (tráva, malé objekty).
         /// </summary>
         private void ApplyDetailFlags(TerrainChunk chunk, int chunkDistance)
         {
@@ -290,10 +290,7 @@ namespace Orivilon.World.Terrain
             else if (chunkDistance > colliderDistance + 1)
                 chunk.SetColliderActive(false);
 
-            if (chunkDistance <= grassDistance)
-                chunk.SetGrassActive(true);
-            else if (chunkDistance > grassDistance + 1)
-                chunk.SetGrassActive(false);
+            chunk.SetDetailDistance(chunkDistance);
         }
 
         /// <summary>

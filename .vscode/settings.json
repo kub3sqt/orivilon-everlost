@@ -67,5 +67,5 @@
         "*.sln": "*.csproj",
         "*.slnx": "*.csproj"
     },
-    "dotnet.defaultSolution": "Everlost copy.slnx"
+    "dotnet.defaultSolution": "Everlost URP.slnx"
 }

@@ -1,10 +1,12 @@
-﻿using System.Collections.Generic;
+﻿using System.Collections;
+using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
 using UnityEngine.SceneManagement;
 using Orivilon.SaveSystem;
 using Orivilon.Core;
 using Orivilon.World.Objects;
+using Orivilon.World.Terrain;
 
 namespace Orivilon.World.Spawning
 {
@@ -77,6 +79,15 @@ namespace Orivilon.World.Spawning
 
         /// <summary>Pokud true, objekt se otočí podle normály terénu (přizpůsobí sklon). Jinak stojí svisle.</summary>
         public bool rotateToTerrain = true;
+
+        /// <summary>
+        /// Maximální vzdálenost (v chuncích od hráče), do které je objekt fyzicky ve scéně.
+        /// 0 = bez omezení (objekt existuje ve všech viditelných chuncích – původní chování).
+        /// Vhodné pro malé objekty (klacky, kamínky, houby), které v dálce nejsou vidět,
+        /// ale jako GameObjecty stojí výkon. Tráva se řídí globálním EndlessTerrain.grassDistance.
+        /// </summary>
+        [Tooltip("Max. vzdálenost v chuncích, do které je objekt ve scéně. 0 = neomezeno.")]
+        public int maxViewDistanceChunks = 0;
     }
 
     /// <summary>
@@ -148,22 +159,37 @@ namespace Orivilon.World.Spawning
         private Dictionary<Vector2Int, ChunkSpawnState> spawnedChunks = new Dictionary<Vector2Int, ChunkSpawnState>();
 
         /// <summary>
-        /// Tráva připravená ke spawnutí (deterministicky vypočtená v SpawnObjects).
-        /// Fyzicky se instancuje až přes SetGrassVisible, když je chunk blízko hráče.
+        /// Pokud true, tráva a SmallObjects nevrhají stíny (jejich stíny nejsou okem
+        /// rozlišitelné, ale zdvojnásobovaly počet draw callů ve shadow passu).
         /// </summary>
-        [System.NonSerialized] private readonly List<PendingGrassData> pendingGrass = new List<PendingGrassData>();
+        [Tooltip("Vypnout vrhání stínů pro trávu a malé objekty (velká úspora výkonu).")]
+        public bool disableShadowsForSmallDecorations = true;
 
-        /// <summary>Aktuálně instancované objekty trávy (pro despawn při vzdálení hráče).</summary>
-        [System.NonSerialized] private readonly List<GameObject> spawnedGrassObjects = new List<GameObject>();
-
-        /// <summary>True pokud má být tráva tohoto chunku fyzicky ve scéně.</summary>
-        private bool grassVisible = false;
+        /// <summary>Maximální počet instancí vytvořených za jeden snímek při spawnu chunku.</summary>
+        [Tooltip("Kolik dekorací se smí instancovat za jeden snímek (rozkládá zátěž).")]
+        public int maxInstantiatesPerFrame = 25;
 
         /// <summary>
-        /// Kompletní deterministická data jednoho stébla trávy –
+        /// Dekorace s omezeným dohledem (tráva + objekty s maxViewDistanceChunks > 0),
+        /// deterministicky vypočtené v SpawnObjects. Fyzicky se instancují
+        /// až přes UpdateDetailVisibility podle vzdálenosti chunku od hráče.
+        /// </summary>
+        [System.NonSerialized] private readonly List<PendingDetailData> pendingDetails = new List<PendingDetailData>();
+
+        /// <summary>Instancované objekty pending dekorací (index odpovídá pendingDetails; null = neinstancováno).</summary>
+        [System.NonSerialized] private readonly List<GameObject> spawnedDetails = new List<GameObject>();
+
+        /// <summary>Poslední vzdálenost chunku od hráče předaná z EndlessTerrain (v chuncích).</summary>
+        private int lastDetailDistance = int.MaxValue;
+
+        /// <summary>True dokud běží coroutine SpawnObjectsRoutine (kompletní data ještě nejsou).</summary>
+        private bool spawnRoutineRunning = false;
+
+        /// <summary>
+        /// Kompletní deterministická data jedné odložené dekorace –
         /// transform je vypočtený předem, instancování je pak jen Instantiate.
         /// </summary>
-        private struct PendingGrassData
+        private struct PendingDetailData
         {
             public int spawnableIndex;
             public Vector3 position;
@@ -445,7 +471,8 @@ namespace Orivilon.World.Spawning
         /// jitter pozice, overlap check a nakonec instantiuje objekt.
         /// Pozice povrchu se čte z altitude mapy (dříve tisíce Physics.Raycast na hlavním
         /// vlákně; na mřížkových bodech dává altitude mapa identickou výšku jako raycast).
-        /// Tráva se neinstancuje hned – uloží se jako pending a vytvoří ji SetGrassVisible.
+        /// Tráva a objekty s maxViewDistanceChunks se neinstancují hned – uloží se jako
+        /// pending a jejich přítomnost řídí UpdateDetailVisibility podle vzdálenosti od hráče.
         /// Pořadí čerpání náhodných čísel je zachováno kvůli determinismu světa.
         /// Stav spawnu se uloží do spawnedChunks slovníku.
         /// Pokud chunk byl jen "načten ze save" (isLoadedFromSave), přegeneruje se fyzicky.
@@ -475,7 +502,29 @@ namespace Orivilon.World.Spawning
 
             if (spawnables == null || spawnables.Count == 0) return;
             if (biomeMap == null) return;
+            if (spawnRoutineRunning) return;
 
+            spawnRoutineRunning = true;
+            StartCoroutine(SpawnObjectsRoutine(parent, chunkOrigin, heightMap, biomeMap, altitudeMap, vertexSpacing, chunkSize, chunkCoord));
+        }
+
+        /// <summary>
+        /// Vlastní tělo spawnu jako coroutine – instancování je rozložené do více snímků
+        /// (max maxInstantiatesPerFrame za snímek), aby vjezd do nové oblasti nezpůsoboval
+        /// propady FPS. Yield probíhá VÝHRADNĚ mezi buňkami mřížky: každá buňka má vlastní
+        /// deterministický Random (GetCellRandom), takže pořadí čerpání náhodných čísel
+        /// je identické s jednorázovým průchodem a determinismus světa je zachován.
+        /// </summary>
+        private IEnumerator SpawnObjectsRoutine(
+            Transform parent,
+            Vector3 chunkOrigin,
+            float[,] heightMap,
+            BiomeType[,] biomeMap,
+            float[,] altitudeMap,
+            float vertexSpacing,
+            int chunkSize,
+            Vector2Int chunkCoord)
+        {
             System.Random chunkRandom = GetChunkRandom(chunkCoord);
 
             float noiseOffsetX = (float)chunkRandom.NextDouble() * 10000f;
@@ -486,12 +535,19 @@ namespace Orivilon.World.Spawning
             Dictionary<BiomeType, List<int>> biomeCandidates = BuildBiomeCandidates();
             List<Vector3> reservedSpawnPositions = new List<Vector3>(maxObjectsPerChunk + maxGrassPerChunk);
 
-            // Regenerace chunku (např. po načtení ze save) – vyčistit starou trávu.
-            DespawnGrassObjects();
-            pendingGrass.Clear();
+            // Regenerace chunku (např. po načtení ze save) – vyčistit staré pending dekorace.
+            if (detailApplyRoutine != null)
+            {
+                StopCoroutine(detailApplyRoutine);
+                detailApplyRoutine = null;
+            }
+            DespawnAllDetails();
+            pendingDetails.Clear();
+            spawnedDetails.Clear();
 
             int altitudeSizeX = altitudeMap.GetLength(0);
             int altitudeSizeZ = altitudeMap.GetLength(1);
+            int instantiatedThisFrame = 0;
 
             ChunkSpawnState chunkState = new ChunkSpawnState
             {
@@ -599,11 +655,12 @@ namespace Orivilon.World.Spawning
                             : Quaternion.identity;
                         Quaternion finalRotation = baseRotation * Quaternion.AngleAxis(rotationY, Vector3.up);
 
-                        if (s.category == SpawnCategory.Grass)
+                        if (s.category == SpawnCategory.Grass || s.maxViewDistanceChunks > 0)
                         {
-                            // Trávu neinstancujeme hned – transform je deterministicky spočtený,
-                            // fyzicky vznikne až přes SetGrassVisible (blízko hráče).
-                            pendingGrass.Add(new PendingGrassData
+                            // Dekorace s omezeným dohledem se neinstancují hned – transform je
+                            // deterministicky spočtený, fyzicky vzniknou až přes UpdateDetailVisibility
+                            // podle vzdálenosti chunku od hráče.
+                            pendingDetails.Add(new PendingDetailData
                             {
                                 spawnableIndex = si,
                                 position = spawnPos,
@@ -620,11 +677,13 @@ namespace Orivilon.World.Spawning
                             t.localScale = finalScale;
                             t.rotation = finalRotation;
 
-                            RemoveLODForSmallObjects(go, s.category);
+                            ApplySmallDecorationTweaks(go, s.category);
 
                             DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
                             if (id == null) id = go.AddComponent<DeterministicObjectId>();
                             id.Initialize(objectHash, chunkCoord);
+
+                            instantiatedThisFrame++;
                         }
 
                         chunkState.spawnedObjects.Add(new SpawnedObjectData
@@ -644,6 +703,13 @@ namespace Orivilon.World.Spawning
                             reservedSpawnPositions.Add(spawnPos);
                         break;
                     }
+
+                    // Yield POUZE mezi buňkami – uvnitř buňky by přerušil RNG sekvenci.
+                    if (instantiatedThisFrame >= Mathf.Max(1, maxInstantiatesPerFrame))
+                    {
+                        instantiatedThisFrame = 0;
+                        yield return null;
+                    }
                 }
             }
 
@@ -651,70 +717,138 @@ namespace Orivilon.World.Spawning
             chunkState.grassCount = grassPlaced;
 
             spawnedChunks[chunkCoord] = chunkState;
+            spawnRoutineRunning = false;
 
-            if (grassVisible)
-                SpawnGrassObjects(parent);
+            ApplyDetailVisibility(parent);
+        }
+
+        /// <summary>Běžící coroutine aplikace viditelnosti detailů (null = neběží).</summary>
+        private Coroutine detailApplyRoutine;
+
+        /// <summary>
+        /// Aktualizuje fyzickou přítomnost pending dekorací podle vzdálenosti chunku od hráče.
+        /// Tráva používá globální EndlessTerrain.grassDistance, ostatní své maxViewDistanceChunks.
+        /// Hystereze +1 chunk brání přeblikávání na hranici. Volá TerrainChunk při každém
+        /// update cyklu – při nezměněné vzdálenosti se nic nedělá.
+        /// </summary>
+        /// <param name="chunkDistance">Chebyshev vzdálenost chunku od hráče (v chuncích).</param>
+        /// <param name="parent">Parent transform pro instancované dekorace (chunk objekt).</param>
+        public void UpdateDetailVisibility(int chunkDistance, Transform parent)
+        {
+            if (chunkDistance == lastDetailDistance) return;
+
+            lastDetailDistance = chunkDistance;
+            ApplyDetailVisibility(parent);
         }
 
         /// <summary>
-        /// Zapne/vypne fyzickou přítomnost trávy tohoto chunku podle vzdálenosti od hráče.
-        /// Deterministická data trávy (pendingGrass) zůstávají – zapnutí je jen Instantiate
-        /// předpočítaných transformů, vypnutí objekty zničí.
+        /// Spustí (nebo restartuje) postupnou aplikaci viditelnosti pending dekorací.
+        /// Instancování i ničení je rozložené do snímků přes maxInstantiatesPerFrame.
         /// </summary>
-        /// <param name="visible">True = tráva má být ve scéně.</param>
-        /// <param name="parent">Parent transform pro instancovanou trávu (chunk objekt).</param>
-        public void SetGrassVisible(bool visible, Transform parent)
+        private void ApplyDetailVisibility(Transform parent)
         {
-            if (grassVisible == visible) return;
-            grassVisible = visible;
+            if (pendingDetails.Count == 0) return;
+            if (!isActiveAndEnabled) return;
 
-            if (visible)
-                SpawnGrassObjects(parent);
-            else
-                DespawnGrassObjects();
+            if (detailApplyRoutine != null)
+                StopCoroutine(detailApplyRoutine);
+
+            detailApplyRoutine = StartCoroutine(ApplyDetailVisibilityRoutine(parent));
         }
 
         /// <summary>
-        /// Instancuje všechnu pending trávu (přeskočí stébla zničená hráčem podle hashe).
+        /// Projde pending dekorace a uvede scénu do souladu s aktuální vzdáleností:
+        /// chybějící blízké instancuje, přebývající vzdálené zničí. Restart uprostřed
+        /// průchodu je bezpečný – rozhodnutí se vždy počítají znovu od začátku seznamu.
         /// </summary>
-        private void SpawnGrassObjects(Transform parent)
+        private IEnumerator ApplyDetailVisibilityRoutine(Transform parent)
         {
-            if (spawnedGrassObjects.Count > 0) return;
+            int grassLimit = (EndlessTerrain.instance != null) ? EndlessTerrain.instance.grassDistance : 2;
+            int budget = Mathf.Max(1, maxInstantiatesPerFrame);
+            int workThisFrame = 0;
 
-            for (int i = 0; i < pendingGrass.Count; i++)
+            while (spawnedDetails.Count < pendingDetails.Count)
+                spawnedDetails.Add(null);
+
+            for (int i = 0; i < pendingDetails.Count; i++)
             {
-                PendingGrassData data = pendingGrass[i];
+                PendingDetailData data = pendingDetails[i];
 
                 if (data.spawnableIndex < 0 || data.spawnableIndex >= spawnables.Count) continue;
                 SpawnableObject s = spawnables[data.spawnableIndex];
                 if (s == null || s.prefab == null) continue;
 
-                if (SaveSystem.SaveSystem.IsObjectDestroyed(data.objectHash)) continue;
+                int limit = (s.category == SpawnCategory.Grass) ? grassLimit : s.maxViewDistanceChunks;
+                if (limit <= 0 || limit > 100000) limit = 100000;
 
-                GameObject go = Instantiate(s.prefab, data.position, data.rotation, parent);
-                go.transform.localScale = data.scale;
+                bool shouldExist;
+                int distance = lastDetailDistance;
+                if (distance <= limit) shouldExist = true;
+                else if (distance > limit + 1) shouldExist = false;
+                else shouldExist = spawnedDetails[i] != null; // hystereze – stav se nemění
 
-                RemoveLODForSmallObjects(go, s.category);
+                if (shouldExist && spawnedDetails[i] == null)
+                {
+                    if (SaveSystem.SaveSystem.IsObjectDestroyed(data.objectHash)) continue;
 
-                DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
-                if (id == null) id = go.AddComponent<DeterministicObjectId>();
-                id.Initialize(data.objectHash, data.chunkCoord);
+                    GameObject go = Instantiate(s.prefab, data.position, data.rotation, parent);
+                    go.transform.localScale = data.scale;
 
-                spawnedGrassObjects.Add(go);
+                    ApplySmallDecorationTweaks(go, s.category);
+
+                    DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
+                    if (id == null) id = go.AddComponent<DeterministicObjectId>();
+                    id.Initialize(data.objectHash, data.chunkCoord);
+
+                    spawnedDetails[i] = go;
+                    workThisFrame++;
+                }
+                else if (!shouldExist && spawnedDetails[i] != null)
+                {
+                    Destroy(spawnedDetails[i]);
+                    spawnedDetails[i] = null;
+                    workThisFrame++;
+                }
+
+                if (workThisFrame >= budget)
+                {
+                    workThisFrame = 0;
+                    yield return null;
+                }
             }
+
+            detailApplyRoutine = null;
         }
 
         /// <summary>
-        /// Zničí všechny instancované objekty trávy (pending data zůstávají pro pozdější respawn).
+        /// Okamžitě zničí všechny instancované pending dekorace (bez rozkladu do snímků).
+        /// Používá se při čištění/regeneraci chunku.
         /// </summary>
-        private void DespawnGrassObjects()
+        private void DespawnAllDetails()
         {
-            for (int i = 0; i < spawnedGrassObjects.Count; i++)
+            for (int i = 0; i < spawnedDetails.Count; i++)
             {
-                if (spawnedGrassObjects[i] != null)
-                    Destroy(spawnedGrassObjects[i]);
+                if (spawnedDetails[i] != null)
+                    Destroy(spawnedDetails[i]);
             }
-            spawnedGrassObjects.Clear();
+            spawnedDetails.Clear();
+        }
+
+        /// <summary>
+        /// Úpravy malých dekorací po instancování: odstranění LODGroup (tráva/SmallObjects)
+        /// a vypnutí vrhání stínů (stíny malých objektů nejsou vidět, ale stály draw cally).
+        /// </summary>
+        private void ApplySmallDecorationTweaks(GameObject spawnedObject, SpawnCategory category)
+        {
+            RemoveLODForSmallObjects(spawnedObject, category);
+
+            if (disableShadowsForSmallDecorations &&
+                (category == SpawnCategory.Grass || category == SpawnCategory.SmallObjects))
+            {
+                var renderers = spawnedObject.GetComponentsInChildren<Renderer>(true);
+                for (int i = 0; i < renderers.Length; i++)
+                    renderers[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            }
         }
 
         /// <summary>
@@ -751,15 +885,19 @@ namespace Orivilon.World.Spawning
         /// </summary>
         public void ClearSpawnedObjects()
         {
+            StopAllCoroutines();
+            spawnRoutineRunning = false;
+            detailApplyRoutine = null;
+
             for (int i = transform.childCount - 1; i >= 0; i--)
             {
                 Transform child = transform.GetChild(i);
                 if (child != transform) Destroy(child.gameObject);
             }
 
-            DespawnGrassObjects();
-            pendingGrass.Clear();
-            grassVisible = false;
+            DespawnAllDetails();
+            pendingDetails.Clear();
+            lastDetailDistance = int.MaxValue;
 
             objectsSpawned = false;
             grassPlaced = 0;

@@ -53,14 +53,20 @@ namespace Orivilon.Multiplayer
         [Tooltip("Prefab vizuální reprezentace vzdáleného hráče. Pokud je prázdný, vytvoří se capsule za běhu.")]
         public GameObject remotePlayerPrefab;
 
+        /// <summary>Výchozí jméno – dokud ho hráč nezmění, přepíše se jménem ze Steamu.</summary>
+        public const string DefaultPlayerName = "Hráč";
+
         [Header("Jméno hráče")]
-        [Tooltip("Jméno zobrazované ostatním hráčům")]
-        public string localPlayerName = "Hráč";
+        [Tooltip("Jméno zobrazované ostatním hráčům. Výchozí hodnota se nahradí Steam nickem.")]
+        public string localPlayerName = DefaultPlayerName;
 
         // ── Privátní ───────────────────────────────────────────────────────────
         /// <summary>Slovník vzdálených hráčů: clientId → kontrolér.</summary>
         private readonly Dictionary<ulong, RemotePlayerController> remotePlayers =
             new Dictionary<ulong, RemotePlayerController>();
+
+        /// <summary>Známá jména hráčů: clientId → jméno. Drží se i bez vytvořeného vizuálu.</summary>
+        private readonly Dictionary<ulong, string> playerNames = new Dictionary<ulong, string>();
 
         private NetworkManager   netManager;
         private UnityTransport   transport;
@@ -242,7 +248,20 @@ namespace Orivilon.Multiplayer
                 ctrl = go.AddComponent<RemotePlayerController>();
 
             ctrl.ClientId = clientId;
-            ctrl.SetPlayerName($"Hráč {clientId}");
+
+            // Marker na kompasu (HUD). Přidává se i pro vlastní prefab, aby byl vidět vždy.
+            if (go.GetComponent<Orivilon.UI.HUD.CompassMarker>() == null)
+            {
+                var marker = go.AddComponent<Orivilon.UI.HUD.CompassMarker>();
+                marker.Color = new Color(0.35f, 0.72f, 1f, 1f);
+                marker.IconSize = 16f;
+                marker.ShowDistance = true;
+            }
+
+            // Jméno už mohlo dorazit dřív než pozice, která vizuál vytváří.
+            ctrl.SetPlayerName(playerNames.TryGetValue(clientId, out string knownName)
+                ? knownName
+                : $"Player {clientId}");
 
             DontDestroyOnLoad(go);
             remotePlayers[clientId] = ctrl;
@@ -252,12 +271,53 @@ namespace Orivilon.Multiplayer
         }
 
         /// <summary>
-        /// Aktualizuje zobrazované jméno vzdáleného hráče.
+        /// Aktualizuje zobrazované jméno vzdáleného hráče a zapamatuje si ho,
+        /// aby se dalo poslat i klientům, kteří se připojí později.
         /// </summary>
         public void SetRemotePlayerName(ulong clientId, string name)
         {
+            if (string.IsNullOrEmpty(name)) return;
+
+            playerNames[clientId] = name;
+
             if (remotePlayers.TryGetValue(clientId, out var ctrl))
                 ctrl.SetPlayerName(name);
+        }
+
+        /// <summary>
+        /// Vrátí jméno lokálního hráče. Pokud je stále výchozí, převezme
+        /// jméno ze Steamu (když je Steam k dispozici).
+        /// </summary>
+        public string ResolveLocalPlayerName()
+        {
+            string steamName = SteamLobbyManager.Instance != null
+                ? SteamLobbyManager.Instance.LocalSteamName
+                : null;
+
+            if (!string.IsNullOrEmpty(steamName) &&
+                (string.IsNullOrWhiteSpace(localPlayerName) || localPlayerName == DefaultPlayerName))
+                localPlayerName = steamName;
+
+            return localPlayerName;
+        }
+
+        /// <summary>
+        /// Server: pošle novému klientovi jméno hosta i všech dřív připojených hráčů.
+        /// </summary>
+        private void SendKnownPlayerNamesTo(ulong targetClientId)
+        {
+            if (worldSync == null || NetworkManager.Singleton == null) return;
+
+            worldSync.SendPlayerNameTo(
+                targetClientId,
+                NetworkManager.Singleton.LocalClientId,
+                ResolveLocalPlayerName());
+
+            foreach (var pair in playerNames)
+            {
+                if (pair.Key == targetClientId) continue;
+                worldSync.SendPlayerNameTo(targetClientId, pair.Key, pair.Value);
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -273,8 +333,14 @@ namespace Orivilon.Multiplayer
                 if (clientId != NetworkManager.Singleton.LocalClientId)
                 {
                     worldSync.SendWorldStateTo(clientId);
+                    SendKnownPlayerNamesTo(clientId);
                     Debug.Log($"[MultiplayerManager] Klient {clientId} připojen, posílám stav světa.");
                 }
+            }
+            else if (clientId == NetworkManager.Singleton.LocalClientId)
+            {
+                // Klient po připojení pošle serveru své jméno, ten ho rozešle ostatním.
+                worldSync?.SendLocalPlayerName(ResolveLocalPlayerName());
             }
 
             // Vytvoř vizuální reprezentaci vzdáleného hráče
@@ -285,6 +351,8 @@ namespace Orivilon.Multiplayer
 
         private void OnClientDisconnected(ulong clientId)
         {
+            playerNames.Remove(clientId);
+
             if (remotePlayers.TryGetValue(clientId, out var ctrl))
             {
                 if (ctrl != null)

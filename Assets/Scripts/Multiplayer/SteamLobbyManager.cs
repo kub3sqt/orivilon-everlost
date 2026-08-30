@@ -22,6 +22,7 @@ using Steamworks.Data;
 using Unity.Netcode;
 #endif
 
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Orivilon.Core;
@@ -29,6 +30,22 @@ using Orivilon.SaveSystem;
 
 namespace Orivilon.Multiplayer
 {
+    /// <summary>
+    /// Info o kamarádovi, který právě hraje tuto hru a má otevřenou Steam lobby.
+    /// Vrací ho SteamLobbyManager.GetFriendLobbies(), zobrazuje FriendsListUI.
+    /// </summary>
+    public struct FriendLobbyInfo
+    {
+        /// <summary>Steam jméno kamaráda.</summary>
+        public string friendName;
+
+        /// <summary>Název hostovaného světa (může být prázdný, když data lobby nejsou k dispozici).</summary>
+        public string worldName;
+
+        /// <summary>ID lobby pro připojení přes JoinLobby().</summary>
+        public ulong lobbyId;
+    }
+
     /// <summary>
     /// Správa Steam lobby pro P2P multiplayer (Facepunch.Steamworks).
     /// Přidejte jako komponent na stejný GameObject jako MultiplayerManager.
@@ -229,7 +246,7 @@ namespace Orivilon.Multiplayer
             currentLobby = l;
 
             // Jméno hráče = Steam jméno (pokud ho uživatel nepřepsal v UI).
-            if (MultiplayerManager.Instance.localPlayerName == "Hráč")
+            if (MultiplayerManager.Instance.localPlayerName == MultiplayerManager.DefaultPlayerName)
                 MultiplayerManager.Instance.localPlayerName = SteamClient.Name;
 
             MultiplayerManager.Instance.StartHostSteam(world, steamAppId);
@@ -259,6 +276,39 @@ namespace Orivilon.Multiplayer
             if (!currentLobby.HasValue) { Status = "Nejdřív vytvoř lobby (hostuj)."; return; }
             currentLobby.Value.InviteFriend(friendSteamId);
             Status = "Pozvánka odeslána.";
+        }
+
+        /// <summary>
+        /// Vrátí online kamarády, kteří právě hrají tuto hru a mají joinovatelnou lobby.
+        /// worldName může být prázdný – data cizí lobby nemusí být lokálně nacachovaná.
+        /// </summary>
+        public List<FriendLobbyInfo> GetFriendLobbies()
+        {
+            var result = new List<FriendLobbyInfo>();
+
+            if (!SteamClient.IsValid)
+                return result;
+
+            foreach (var friend in SteamFriends.GetFriends())
+            {
+                if (!friend.IsOnline || !friend.IsPlayingThisGame)
+                    continue;
+
+                var gameInfo = friend.GameInfo;
+                if (!gameInfo.HasValue || !gameInfo.Value.Lobby.HasValue)
+                    continue;
+
+                var lobby = gameInfo.Value.Lobby.Value;
+
+                result.Add(new FriendLobbyInfo
+                {
+                    friendName = friend.Name,
+                    worldName = lobby.GetData("worldName"),
+                    lobbyId = lobby.Id.Value
+                });
+            }
+
+            return result;
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -329,7 +379,7 @@ namespace Orivilon.Multiplayer
             Status = $"V lobby. Připojuji se k hostovi {lobby.Owner.Name}…";
             Debug.Log($"[SteamLobbyManager] Vstup do lobby {lobby.Id.Value}, host {hostId.Value}.");
 
-            if (MultiplayerManager.Instance.localPlayerName == "Hráč")
+            if (MultiplayerManager.Instance.localPlayerName == MultiplayerManager.DefaultPlayerName)
                 MultiplayerManager.Instance.localPlayerName = SteamClient.Name;
 
             MultiplayerManager.Instance.StartClientSteam(hostId.Value, steamAppId);
@@ -348,6 +398,8 @@ namespace Orivilon.Multiplayer
 
         public string Status => "Steam podpora není nainstalovaná (balíček com.community.netcode.transport.facepunch).";
         public bool   SteamReady => false;
+        public string LocalSteamName => null;
+        public string CurrentLobbyIdString => null;
 
         private void Awake()
         {
@@ -363,6 +415,7 @@ namespace Orivilon.Multiplayer
         public void LeaveLobby() { }
         public void OpenInviteOverlay() { }
         public void InviteFriend(ulong friendSteamId) { }
+        public List<FriendLobbyInfo> GetFriendLobbies() => new List<FriendLobbyInfo>();
 #endif
     }
 }
