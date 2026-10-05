@@ -2,6 +2,7 @@
 using UnityEngine.SceneManagement;
 using System.Collections;
 using Orivilon.World.Terrain;
+using Orivilon.World.Generation;
 
 namespace Orivilon.Core
 {
@@ -132,13 +133,13 @@ namespace Orivilon.Core
 
             Debug.Log("[SceneLoader] Game scene loaded");
 
-            EndlessTerrain terrain = null;
+            VoxelTerrain terrain = null;
             float timeout = 10f;
             float startTime = Time.realtimeSinceStartup;
 
             while (terrain == null && Time.realtimeSinceStartup - startTime < timeout)
             {
-                terrain = FindFirstObjectByType<EndlessTerrain>();
+                terrain = FindFirstObjectByType<VoxelTerrain>();
                 if (terrain == null)
                 {
                     if (loadingManager != null)
@@ -154,13 +155,13 @@ namespace Orivilon.Core
 
             if (terrain == null)
             {
-                Debug.LogError("[SceneLoader] EndlessTerrain not found!");
+                Debug.LogError("[SceneLoader] VoxelTerrain not found!");
                 IsLoading = false;
                 InputBlocked = false;
                 yield break;
             }
 
-            Debug.Log("[SceneLoader] EndlessTerrain found, handing world generation to GameManager...");
+            Debug.Log("[SceneLoader] VoxelTerrain found, handing world generation to GameManager...");
 
             if (loadingManager != null)
             {

@@ -707,6 +707,9 @@ namespace Orivilon.Multiplayer
                     return;
                 }
             }
+
+            // Instancovaná tráva nemá GameObject – najde ji spawner podle hashe.
+            Orivilon.World.Spawning.ObjectSpawner.DestroyInstancedByHash(hash);
         }
 
         /// <summary>

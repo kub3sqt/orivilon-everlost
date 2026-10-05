@@ -139,6 +139,26 @@ namespace Orivilon.Data
         /// <param name="temperature">Aktuální teplota bodu (0–1).</param>
         /// <param name="humidity">Aktuální vlhkost bodu (0–1).</param>
         /// <returns>Míra neshody – čím nižší, tím lépe odpovídá biom.</returns>
+        /// <summary>
+        /// Vybere biom přímo z klimatických hodnot 0–1. Voxelový generátor má vlastní
+        /// pole teploty a vlhkosti (ColumnField.temp/hum), takže nepotřebuje jít oklikou
+        /// přes BiomeValuesGenerator a indexy staré mřížky chunků.
+        /// </summary>
+        public BiomeType ChooseBiomeType(float temperature, float humidity)
+        {
+            if (biomes == null || biomes.Length == 0) return BiomeType.None;
+
+            BiomeData best = null;
+            float bestMatch = float.MaxValue;
+            for (int i = 0; i < biomes.Length; i++)
+            {
+                if (biomes[i] == null) continue;
+                float m = GetBiomeMatchValue(biomes[i], temperature, humidity);
+                if (m < bestMatch) { bestMatch = m; best = biomes[i]; }
+            }
+            return best != null ? best.biomeType : BiomeType.None;
+        }
+
         private float GetBiomeMatchValue(BiomeData biome, float temperature, float humidity)
         {
             return Mathf.Abs(biome.temperature - temperature) + Mathf.Abs(biome.humidity - humidity);

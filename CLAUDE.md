@@ -8,7 +8,7 @@ Instrukce pro práci na projektu Everlost. Dodržuj je vždy, i když je požada
 - Unity verze: `6000.3.10f1`.
 - Hlavní kód je v `Assets/Scripts`.
 - Hlavní namespace je `Orivilon.*`.
-- Projekt používá mimo jiné HDRP, uGUI, TextMesh Pro, DOTween, Burst, Collections a Mathematics.
+- Projekt používá mimo jiné URP, uGUI, TextMesh Pro, DOTween, Burst, Collections a Mathematics.
 - Scény jsou hlavně v `Assets/Scenes`: `MainMenu`, `LoadingScreen`, `Game`.
 - Hodně vazeb je přes Unity Inspector, prefab reference, ScriptableObject assety a `.meta` GUID.
 

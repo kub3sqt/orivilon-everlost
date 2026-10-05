@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System.Linq;
@@ -7,6 +8,7 @@ using Orivilon.SaveSystem;
 using Orivilon.Core;
 using Orivilon.World.Objects;
 using Orivilon.World.Terrain;
+using Orivilon.World.Generation;
 
 namespace Orivilon.World.Spawning
 {
@@ -96,7 +98,7 @@ namespace Orivilon.World.Spawning
     /// Spravuje interní stav spawnutých chunků a umožňuje jejich serializaci pro save systém.
     /// Při přechodu mezi scénami se přenačte seed ze souboru pro konzistenci.
     /// </summary>
-    public class ObjectSpawner : MonoBehaviour
+    public partial class ObjectSpawner : MonoBehaviour
     {
         /// <summary>Globální instance singletonu.</summary>
         public static ObjectSpawner Instance { get; private set; }
@@ -147,6 +149,21 @@ namespace Orivilon.World.Spawning
         private readonly Collider[] overlapBuffer = new Collider[4];
 
         /// <summary>Výška nad terénem, ze které se vysílají raycasto dolů pro hledání povrchu.</summary>
+        /// <summary>
+        /// Svislé okno, ve kterém se vůbec osazuje. Dřív to byl pevný rozsah odvozený
+        /// od raycastu (⟨−50, 50⟩ m); voxelový svět sahá výš, takže je to teď nastavitelné.
+        /// </summary>
+        public float surfaceYMin = -256f;
+
+        /// <inheritdoc cref="surfaceYMin"/>
+        public float surfaceYMax = 512f;
+
+        /// <summary>
+        /// Dohled trávy v chuncích, když neběží EndlessTerrain. Voxelový sloupec je 32 m,
+        /// takže 4 = 128 m, což odpovídá původním 2 chunkům po 64 m.
+        /// </summary>
+        public int grassDistanceChunks = 4;
+
         private const float raycastHeight = 50f;
 
         /// <summary>Maximální délka raycastu pro hledání povrchu.</summary>
@@ -168,6 +185,68 @@ namespace Orivilon.World.Spawning
         /// <summary>Maximální počet instancí vytvořených za jeden snímek při spawnu chunku.</summary>
         [Tooltip("Kolik dekorací se smí instancovat za jeden snímek (rozkládá zátěž).")]
         public int maxInstantiatesPerFrame = 25;
+
+        [Header("Instancing trávy")]
+        [Tooltip("Kreslit trávu přes GPU instancing místo jednotlivých GameObjectů. " +
+                 "Vypnutím se vrátí staré chování (a s ním i tisíce batchů).")]
+        public bool instanceGrass = true;
+
+        /// <summary>
+        /// Dávky trávy poslané do <see cref="VegetationRenderer"/>: index spawnable → úchyt.
+        /// Drží se jen pro sloupce v dosahu trávy; mimo něj se pole matic zahodí.
+        /// </summary>
+        [System.NonSerialized] private readonly Dictionary<int, int> grassBatches = new Dictionary<int, int>(4);
+
+        /// <summary>
+        /// Mesh + materiál vytažené z prefabu, sdílené všemi sloupci. Klíč je prefab.
+        ///
+        /// <para>Statické schválně: materiál se musí vyrobit JEDNOU. Kdyby si ho každý
+        /// sloupec vytvořil sám, měl by každý vlastní instanci téhož materiálu a GPU by
+        /// je nemohlo sloučit – instancing by se tím zrušil sám.</para>
+        /// </summary>
+        private static readonly Dictionary<GameObject, InstancedSource> instancedSources =
+            new Dictionary<GameObject, InstancedSource>();
+
+        /// <summary>Co je potřeba ke kreslení jednoho druhu vegetace bez GameObjectu.</summary>
+        private struct InstancedSource
+        {
+            public Mesh mesh;
+            public Material material;
+            public int layer;
+
+            /// <summary>
+            /// Transform meshe vůči kořeni prefabu. Mesh bývá na potomkovi s vlastním
+            /// posunem; bez tohohle by tráva vyrostla posunutá proti tomu, kde ji
+            /// GameObjectová cesta kreslila.
+            /// </summary>
+            public Matrix4x4 offset;
+
+            /// <summary>
+            /// Nemá <c>HarvestableObject</c> ani <c>PickupItem</c>, takže se s ním nedá nijak
+            /// pracovat – existuje jen proto, aby byl vidět, a případně aby do něj šlo vrazit.
+            /// </summary>
+            public bool passive;
+
+            /// <summary>Má collider, takže GameObject musí vzniknout i bez rendereru.</summary>
+            public bool hasCollider;
+
+            public bool Valid => mesh != null && material != null;
+        }
+
+        /// <summary>
+        /// Matice pasivních propů čekající na odeslání rendereru, po druzích.
+        /// Plní se ve spawn rutině a odesílá se na jejím konci – jedna registrace
+        /// na druh a sloupec místo registrace po každém kameni.
+        /// </summary>
+        [System.NonSerialized] private readonly Dictionary<int, List<Matrix4x4>> propMatrices =
+            new Dictionary<int, List<Matrix4x4>>(8);
+
+        /// <summary>Dávky pasivních propů tohoto sloupce: index spawnable → úchyt.</summary>
+        [System.NonSerialized] private readonly Dictionary<int, int> propBatches = new Dictionary<int, int>(8);
+
+        [Tooltip("Kreslit PASIVNÍ propy (kameny, klacky, keře bez interakce) instancovaně. " +
+                 "Collidery zůstávají, mizí jen renderer – interaktivní objekty se nedotýká.")]
+        public bool instancePassiveProps = true;
 
         /// <summary>
         /// Dekorace s omezeným dohledem (tráva + objekty s maxViewDistanceChunks > 0),
@@ -197,10 +276,19 @@ namespace Orivilon.World.Spawning
             public Vector3 scale;
             public long objectHash;
             public Vector2Int chunkCoord;
+            /// <summary>Jen v dosahu trávy (sebratelné kamínky) – daleko by byly zbytečné GameObjecty.</summary>
+            public bool nearOnly;
         }
 
         /// <summary>Numerický seed světa pro deterministickou generaci objektů.</summary>
-        private int worldSeed = 0;
+        /// <summary>
+        /// Seed světa. STATICKÝ: spawner se instancuje jednou na sloupec terénu, takže
+        /// instanční pole by znamenalo čtení save souboru z disku pro každý sloupec.
+        /// </summary>
+        private static int worldSeed = 0;
+
+        /// <summary>Jestli už seed někdo načetl. Brání opakovanému čtení z disku.</summary>
+        private static bool worldSeedReady = false;
 
         /// <summary>Uložená souřadnice chunku pro zpětnou kompatibilitu se starším rozhraním.</summary>
         private Vector2Int chunkCoord;
@@ -277,6 +365,9 @@ namespace Orivilon.World.Spawning
 
         private void OnDestroy()
         {
+            ReleaseGrassBatches();
+            ReleasePropBatches();
+
             if (Instance == this)
                 Instance = null;
         }
@@ -286,7 +377,8 @@ namespace Orivilon.World.Spawning
         /// </summary>
         private void Start()
         {
-            InitializeWorldSeed();
+            // Jen jednou za běh – spawner je instancovaný na každý sloupec terénu.
+            if (!worldSeedReady) InitializeWorldSeed();
         }
 
         /// <summary>
@@ -327,6 +419,11 @@ namespace Orivilon.World.Spawning
             chunkCoord = coord;
             objectsSpawned = false;
 
+            // Seed musí být načtený DŘÍV, než se poprvé losuje. Start() by se u čerstvě
+            // instancovaného spawneru spustil až na konci snímku, tedy po SpawnObjects,
+            // a první sloupec by se osadil s nulovým seedem – jinak než všechny ostatní.
+            if (!worldSeedReady) InitializeWorldSeed();
+
             ClearSpawnedObjects();
         }
 
@@ -339,6 +436,8 @@ namespace Orivilon.World.Spawning
         /// </summary>
         public void InitializeWorldSeed()
         {
+            worldSeedReady = true;
+
             if (useDebugSeed)
             {
                 worldSeed = GetStableHashCode(debugSeedValue);
@@ -615,7 +714,7 @@ namespace Orivilon.World.Spawning
 
                         // Stejné okno jako původní raycast (start v raycastHeight, délka raycastMax) –
                         // zachovává chování, kdy se na extrémně vysokém/nízkém terénu nespawnovalo.
-                        if (surfaceY > raycastHeight || surfaceY < raycastHeight - raycastMax) continue;
+                        if (surfaceY > surfaceYMax || surfaceY < surfaceYMin) continue;
 
                         Vector3 surfaceNormal = GetTerrainNormal(altitudeMap, x, z, vertexSpacing, altitudeSizeX, altitudeSizeZ);
 
@@ -655,6 +754,13 @@ namespace Orivilon.World.Spawning
                             : Quaternion.identity;
                         Quaternion finalRotation = baseRotation * Quaternion.AngleAxis(rotationY, Vector3.up);
 
+                        // ── mikro-biom: co se tu smí objevit ──────────────────────
+                        //
+                        // Až TADY, po všech losech. Kdyby se filtrovalo dřív, spotřebovalo by
+                        // se jiné množství náhodných čísel a rozmístění by se v celém sloupci
+                        // posunulo – determinismus stojí na tom, že pořadí losů je pevné.
+                        if (!MicroAllows(s, spawnPos)) continue;
+
                         if (s.category == SpawnCategory.Grass || s.maxViewDistanceChunks > 0)
                         {
                             // Dekorace s omezeným dohledem se neinstancují hned – transform je
@@ -672,18 +778,59 @@ namespace Orivilon.World.Spawning
                         }
                         else
                         {
-                            GameObject go = Instantiate(s.prefab, spawnPos, Quaternion.identity, parent);
-                            Transform t = go.transform;
-                            t.localScale = finalScale;
-                            t.rotation = finalRotation;
+                            // ── pasivní prop: kreslí ho instancer, GameObject je tu jen kvůli collideru ──
+                            //
+                            // Kámen ani suchý keř nemá HarvestableObject ani PickupItem, takže z něj
+                            // hráč nic nedostane a jediné, co po něm chce, je do něj nevejít. Renderer
+                            // proto zhasne a tvar pošleme rendereru; když prefab nemá ani collider,
+                            // nevzniká GameObject vůbec. Tohle je tam, kde se batche ve skutečnosti
+                            // sypaly – kamenů je ve spawnables 42 druhů proti 19 interaktivním.
+                            InstancedSource psrc = instancePassiveProps && s.category != SpawnCategory.Grass
+                                ? GetInstancedSource(s.prefab, s.category)
+                                : default;
 
-                            ApplySmallDecorationTweaks(go, s.category);
+                            if (psrc.Valid && psrc.passive)
+                            {
+                                if (!propMatrices.TryGetValue(si, out List<Matrix4x4> plist))
+                                {
+                                    plist = new List<Matrix4x4>(64);
+                                    propMatrices[si] = plist;
+                                }
+                                plist.Add(Matrix4x4.TRS(spawnPos, finalRotation, finalScale) * psrc.offset);
 
-                            DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
-                            if (id == null) id = go.AddComponent<DeterministicObjectId>();
-                            id.Initialize(objectHash, chunkCoord);
+                                if (psrc.hasCollider)
+                                {
+                                    GameObject shell = Instantiate(s.prefab, spawnPos, Quaternion.identity, parent);
+                                    Transform st = shell.transform;
+                                    st.localScale = finalScale;
+                                    st.rotation = finalRotation;
 
-                            instantiatedThisFrame++;
+                                    StripRenderers(shell);
+
+                                    DeterministicObjectId sid = shell.GetComponent<DeterministicObjectId>();
+                                    if (sid == null) sid = shell.AddComponent<DeterministicObjectId>();
+                                    sid.Initialize(objectHash, chunkCoord);
+
+                                    instantiatedThisFrame++;
+                                }
+                            }
+                            else
+                            {
+                                GameObject go = Instantiate(s.prefab, spawnPos, Quaternion.identity, parent);
+                                Transform t = go.transform;
+                                t.localScale = finalScale;
+                                t.rotation = finalRotation;
+
+                                ApplySmallDecorationTweaks(go, s.category);
+                                ApplyMicroLook(go, s.category, spawnPos);
+                                ApplyTrunkLook(go, s.category);
+
+                                DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
+                                if (id == null) id = go.AddComponent<DeterministicObjectId>();
+                                id.Initialize(objectHash, chunkCoord);
+
+                                instantiatedThisFrame++;
+                            }
                         }
 
                         chunkState.spawnedObjects.Add(new SpawnedObjectData
@@ -719,7 +866,71 @@ namespace Orivilon.World.Spawning
             spawnedChunks[chunkCoord] = chunkState;
             spawnRoutineRunning = false;
 
+            PublishPropBatches();
             ApplyDetailVisibility(parent);
+        }
+
+        /// <summary>
+        /// Odešle nasbírané matice pasivních propů rendereru – jedna dávka na druh a sloupec.
+        ///
+        /// <para>Až na konci spawn rutiny schválně: během ní se seznam ještě plní a
+        /// registrovat ho po kouskách by znamenalo desítky dávek místo jednotek.</para>
+        /// </summary>
+        private void PublishPropBatches()
+        {
+            if (propMatrices.Count == 0) return;
+
+            VegetationRenderer vr = VegetationRenderer.Instance;
+            if (vr == null) { propMatrices.Clear(); return; }
+
+            foreach (KeyValuePair<int, List<Matrix4x4>> kv in propMatrices)
+            {
+                if (kv.Value.Count == 0) continue;
+                if (kv.Key < 0 || kv.Key >= spawnables.Count) continue;
+
+                InstancedSource src = GetInstancedSource(spawnables[kv.Key].prefab, spawnables[kv.Key].category);
+                if (!src.Valid) continue;
+
+                // Kolo 6: pole z poolu místo ToArray (vrací se v ReleasePropBatches).
+                int count = kv.Value.Count;
+                Matrix4x4[] matrices = RentMatrices(count);
+                kv.Value.CopyTo(matrices);
+                kv.Value.Clear();
+
+                Bounds bounds = new Bounds(matrices[0].GetColumn(3), Vector3.zero);
+                for (int i = 1; i < count; i++)
+                    bounds.Encapsulate(matrices[i].GetColumn(3));
+                bounds.Expand(src.mesh.bounds.size.magnitude * 3f);
+
+                // Propy vrhají stín – na rozdíl od trávy jsou dost velké na to, aby to bylo vidět.
+                int handle = vr.Register(src.mesh, src.material, matrices, count,
+                                         bounds, UnityEngine.Rendering.ShadowCastingMode.On,
+                                         src.layer, 0f);
+
+                if (handle != 0) { propBatches[kv.Key] = handle; propArrays[kv.Key] = matrices; }
+                else ReturnMatrices(matrices);
+            }
+
+            // Seznamy se nechávají ve slovníku prázdné – spawner z poolu je použije znovu.
+        }
+
+        /// <summary>
+        /// Zhasne renderery na instanci, ale nechá všechno ostatní.
+        ///
+        /// <para>Vypíná se i LODGroup – ta si renderery zapíná sama podle vzdálenosti,
+        /// takže by je po chvíli rozsvítila zpátky a objekt by se kreslil dvakrát.
+        /// Collidery, skripty ani hierarchie se nedotýká; proto se objekty MAŽOU
+        /// renderery, ne odstraňují – kdyby se odstranil celý potomek, zmizel by
+        /// s ním i collider, který na něm může sedět.</para>
+        /// </summary>
+        private static void StripRenderers(GameObject instance)
+        {
+            var group = instance.GetComponentInChildren<LODGroup>(true);
+            if (group != null) group.enabled = false;
+
+            var renderers = instance.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+                renderers[i].enabled = false;
         }
 
         /// <summary>Běžící coroutine aplikace viditelnosti detailů (null = neběží).</summary>
@@ -763,9 +974,16 @@ namespace Orivilon.World.Spawning
         /// </summary>
         private IEnumerator ApplyDetailVisibilityRoutine(Transform parent)
         {
-            int grassLimit = (EndlessTerrain.instance != null) ? EndlessTerrain.instance.grassDistance : 2;
+            int grassLimit = (EndlessTerrain.instance != null) ? EndlessTerrain.instance.grassDistance : grassDistanceChunks;
             int budget = Mathf.Max(1, maxInstantiatesPerFrame);
             int workThisFrame = 0;
+
+            // Tráva se vyřizuje NAJEDNOU a mimo tuhle smyčku: je to jedna dávka na druh,
+            // ne 2500 rozhodnutí rozložených do snímků. Smyčka níž ji proto přeskočí.
+            float columnSpan = Generation.VoxelTerrain.instance != null
+                ? Generation.VoxelTerrain.instance.ChunkSpan
+                : 32f;
+            SyncGrassBatches(lastDetailDistance <= grassLimit, (grassLimit + 1) * columnSpan);
 
             while (spawnedDetails.Count < pendingDetails.Count)
                 spawnedDetails.Add(null);
@@ -778,7 +996,11 @@ namespace Orivilon.World.Spawning
                 SpawnableObject s = spawnables[data.spawnableIndex];
                 if (s == null || s.prefab == null) continue;
 
-                int limit = (s.category == SpawnCategory.Grass) ? grassLimit : s.maxViewDistanceChunks;
+                // Tráva, kterou kreslí VegetationRenderer, tady nemá co dělat – jinak by
+                // vznikla podruhé jako GameObject a překrývala by se sama se sebou.
+                if (s.category == SpawnCategory.Grass && GrassIsInstanced(data.spawnableIndex)) continue;
+
+                int limit = (s.category == SpawnCategory.Grass || data.nearOnly) ? grassLimit : s.maxViewDistanceChunks;
                 if (limit <= 0 || limit > 100000) limit = 100000;
 
                 bool shouldExist;
@@ -795,6 +1017,7 @@ namespace Orivilon.World.Spawning
                     go.transform.localScale = data.scale;
 
                     ApplySmallDecorationTweaks(go, s.category);
+                    ApplyTrunkLook(go, s.category);
 
                     DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
                     if (id == null) id = go.AddComponent<DeterministicObjectId>();
@@ -820,12 +1043,552 @@ namespace Orivilon.World.Spawning
             detailApplyRoutine = null;
         }
 
+        // ── tráva přes GPU instancing ──────────────────────────────────
+
+        /// <summary>
+        /// Uvede dávky trávy do souladu s tím, jestli je sloupec v dosahu.
+        ///
+        /// <para>Staví se jednou při vstupu do dosahu a zahazuje při odchodu – tedy přesně
+        /// v momentech, kdy se dřív instancovaly a ničily tisíce GameObjectů. Rozdíl je,
+        /// že tady jde o jednu alokaci pole matic místo 2500 objektů se scénickým grafem.</para>
+        ///
+        /// <para>Matice se drží jen pro sloupce v dosahu trávy. Kdyby se držely pro všechny
+        /// načtené sloupce, bylo by to při dohledu 2 km řádově desítky megabajtů za nic –
+        /// vzdálenou trávu stejně nikdo nevidí.</para>
+        /// </summary>
+        private void SyncGrassBatches(bool shouldDraw, float maxDistance)
+        {
+            if (!instanceGrass || VegetationRenderer.Instance == null)
+            {
+                ReleaseGrassBatches();
+                return;
+            }
+
+            if (!shouldDraw) { ReleaseGrassBatches(); return; }
+            if (grassBatches.Count > 0) return;   // už postavené, není co dělat
+
+            BuildGrassBatches(maxDistance);
+        }
+
+        /// <summary>Zahodí všechny dávky tohoto sloupce. Volá se i z OnDestroy.</summary>
+        private void ReleaseGrassBatches()
+        {
+            UnlistGrassPickups();
+            if (grassBatches.Count == 0) return;
+
+            VegetationRenderer vr = VegetationRenderer.Instance;
+            if (vr != null)
+            {
+                foreach (KeyValuePair<int, int> kv in grassBatches)
+                    vr.Unregister(kv.Value);
+            }
+            grassBatches.Clear();
+            foreach (KeyValuePair<int, Matrix4x4[]> kv in grassArrays) ReturnMatrices(kv.Value);
+            grassArrays.Clear();
+        }
+
+        /// <summary>
+        /// Zruší dávky pasivních propů. Na rozdíl od trávy žijí celou dobu existence
+        /// sloupce – prop je vidět na celý dohled LOD0, takže se nemá podle čeho zapínat.
+        /// </summary>
+        private void ReleasePropBatches()
+        {
+            propMatrices.Clear();
+            if (propBatches.Count == 0) return;
+
+            VegetationRenderer vr = VegetationRenderer.Instance;
+            if (vr != null)
+            {
+                foreach (KeyValuePair<int, int> kv in propBatches)
+                    vr.Unregister(kv.Value);
+            }
+            propBatches.Clear();
+            foreach (KeyValuePair<int, Matrix4x4[]> kv in propArrays) ReturnMatrices(kv.Value);
+            propArrays.Clear();
+        }
+
+        /// <summary>
+        /// Poskládá matice trávy po druzích a pošle je rendereru.
+        ///
+        /// <para>Pořadí se bere z <c>pendingDetails</c>, které vzniklo deterministicky ve
+        /// spawn rutině – žádné náhodné číslo se tu netočí, takže rozmístění zůstává
+        /// bit po bitu stejné jako u GameObjectové cesty.</para>
+        /// </summary>
+        private void BuildGrassBatches(float maxDistance)
+        {
+            grassMaxDistance = maxDistance;
+            if (pendingDetails.Count == 0) return;
+
+            // Kolo 6: bez Dictionary/List/ToArray na každý sloupec. Nejdřív se spočítá, kolik
+            // stébel má který druh, pak se pole matic půjčí z poolu (vrací se v
+            // ReleaseGrassBatches) a plní přímo. Pořadí stébel zůstává stejné.
+            if (grassCount == null || grassCount.Length < spawnables.Count)
+            {
+                grassCount = new int[spawnables.Count];
+                grassFill = new int[spawnables.Count];
+                grassArr = new Matrix4x4[spawnables.Count][];
+            }
+            System.Array.Clear(grassCount, 0, grassCount.Length);
+
+            for (int pass = 0; pass < 2; pass++)
+            {
+                for (int i = 0; i < pendingDetails.Count; i++)
+                {
+                    PendingDetailData data = pendingDetails[i];
+                    if (data.spawnableIndex < 0 || data.spawnableIndex >= spawnables.Count) continue;
+
+                    SpawnableObject s = spawnables[data.spawnableIndex];
+                    if (s == null || s.prefab == null || s.category != SpawnCategory.Grass) continue;
+
+                    InstancedSource src = GetInstancedSource(s.prefab);
+                    if (!src.Valid) continue;   // nedá se instancovat – zůstane na GameObjectové cestě
+
+                    // Zničené objekty se přeskakují stejně jako při instancování.
+                    if (SaveSystem.SaveSystem.IsObjectDestroyed(data.objectHash)) continue;
+
+                    int si = data.spawnableIndex;
+                    if (pass == 0) { grassCount[si]++; continue; }
+                    grassArr[si][grassFill[si]++] = Matrix4x4.TRS(data.position, data.rotation, data.scale) * src.offset;
+                }
+
+                if (pass == 0)
+                    for (int si = 0; si < spawnables.Count; si++)
+                    {
+                        grassFill[si] = 0;
+                        grassArr[si] = grassCount[si] > 0 ? RentMatrices(grassCount[si]) : null;
+                    }
+            }
+
+            for (int si = 0; si < spawnables.Count; si++)
+            {
+                int count = grassFill[si];
+                Matrix4x4[] matrices = grassArr[si];
+                grassArr[si] = null;
+                if (matrices == null) continue;
+                if (count == 0) { ReturnMatrices(matrices); continue; }
+
+                InstancedSource src = GetInstancedSource(spawnables[si].prefab);
+
+                // Obálka celého sloupce. Frustum se testuje proti ní, ne proti stéblům –
+                // 2500 testů na sloupec a snímek by sežralo víc, než kolik by ušetřilo.
+                Bounds bounds = new Bounds(matrices[0].GetColumn(3), Vector3.zero);
+                for (int i = 1; i < count; i++)
+                    bounds.Encapsulate(matrices[i].GetColumn(3));
+                bounds.Expand(src.mesh.bounds.size.magnitude * 2f);
+
+                var shadows = disableShadowsForSmallDecorations
+                    ? UnityEngine.Rendering.ShadowCastingMode.Off
+                    : UnityEngine.Rendering.ShadowCastingMode.On;
+
+                int handle = VegetationRenderer.Instance.Register(
+                    src.mesh, src.material, matrices, count,
+                    bounds, shadows, src.layer, maxDistance);
+
+                if (handle != 0) { grassBatches[si] = handle; grassArrays[si] = matrices; AddGrassPickupBounds(bounds); }
+                else ReturnMatrices(matrices);
+            }
+            ListGrassPickups();
+        }
+
+        // ── kolo 6: pool polí matic (tráva a pasivní propy) ───────────────
+        [System.NonSerialized] private readonly Dictionary<int, Matrix4x4[]> grassArrays = new Dictionary<int, Matrix4x4[]>(4);
+        [System.NonSerialized] private readonly Dictionary<int, Matrix4x4[]> propArrays = new Dictionary<int, Matrix4x4[]>(8);
+        private static int[] grassCount, grassFill;
+        private static Matrix4x4[][] grassArr;
+        private static readonly Dictionary<int, Stack<Matrix4x4[]>> matrixPool = new Dictionary<int, Stack<Matrix4x4[]>>(8);
+
+        /// <summary>Pole matic aspoň pro <paramref name="n"/> instancí (mocnina dvou), z poolu nebo nové.</summary>
+        private static Matrix4x4[] RentMatrices(int n)
+        {
+            int cap = Mathf.NextPowerOfTwo(Mathf.Max(n, 32));
+            if (matrixPool.TryGetValue(cap, out Stack<Matrix4x4[]> st) && st.Count > 0) return st.Pop();
+            return new Matrix4x4[cap];
+        }
+
+        /// <summary>Vrátí pole do poolu (VegetationRenderer už ho po Unregister nedrží).</summary>
+        private static void ReturnMatrices(Matrix4x4[] a)
+        {
+            if (a == null) return;
+            if (!matrixPool.TryGetValue(a.Length, out Stack<Matrix4x4[]> st))
+            {
+                st = new Stack<Matrix4x4[]>(8);
+                matrixPool[a.Length] = st;
+            }
+            if (st.Count < 48) st.Push(a);
+        }
+
+        /// <summary>
+        /// Vytáhne z prefabu mesh a materiál pro instancing, nebo vrátí neplatný zdroj.
+        ///
+        /// <para><b>Instancovat jde jen jednoduchý prefab</b> – právě jeden renderer s jedním
+        /// materiálem. Složitější prefab (víc materiálů, víc částí) by se musel kreslit po
+        /// částech a tím by se výhoda ztratila; takový prostě propadne na GameObjectovou
+        /// cestu. Raději nechat pár typů po staru než tiše kreslit něco jiného.</para>
+        ///
+        /// <para>Materiál se KOPÍRUJE a zapíná se mu instancing. Přepsat sdílený asset
+        /// v Resources by změnilo soubor na disku; a bez zapnutého instancingu by
+        /// <c>DrawMeshInstanced</c> jen tiše nekreslilo nic.</para>
+        /// </summary>
+        private static InstancedSource GetInstancedSource(GameObject prefab, SpawnCategory category = SpawnCategory.Grass)
+        {
+            if (prefab == null) return default;
+            if (instancedSources.TryGetValue(prefab, out InstancedSource cached)) return cached;
+
+            InstancedSource src = default;
+            MeshRenderer chosen = PickRenderer(prefab);
+
+            // Meziúkol: prefab z více dílů v LOD0 (keř = kmen + listí) instancer nakreslí jen
+            // jedním meshem – z keře zbyl holý kmen. Takový zůstává na GameObjectech.
+            var lodGroup = prefab.GetComponentInChildren<LODGroup>(true);
+            if (lodGroup != null)
+            {
+                LOD[] lods = lodGroup.GetLODs();
+                int n = 0;
+                if (lods.Length > 0 && lods[0].renderers != null)
+                    foreach (Renderer r in lods[0].renderers) if (r != null) n++;
+                if (n > 1) chosen = null;
+            }
+
+            if (chosen != null && chosen.sharedMaterials.Length == 1)
+            {
+                var filter = chosen.GetComponent<MeshFilter>();
+                Material source = chosen.sharedMaterial;
+
+                if (filter != null && filter.sharedMesh != null && filter.sharedMesh.subMeshCount == 1
+                    && source != null)
+                {
+                    var mat = new Material(source) { enableInstancing = true, name = source.name + " (instanced)" };
+                    // Kolo 11: suchý strom (jeden mesh = holý kmen) dostane stejný doplněk oblohy jako kmeny.
+                    if (category == SpawnCategory.Trees && IsTrunkMaterial(source)) RegisterTrunkMaterial(mat);
+
+                    src = new InstancedSource
+                    {
+                        mesh = filter.sharedMesh,
+                        material = mat,
+                        layer = chosen.gameObject.layer,
+                        offset = prefab.transform.worldToLocalMatrix * chosen.transform.localToWorldMatrix,
+                        passive = prefab.GetComponentInChildren<HarvestableObject>(true) == null
+                                  && prefab.GetComponentInChildren<PickupItem>(true) == null,
+                        hasCollider = prefab.GetComponentInChildren<Collider>(true) != null,
+                    };
+                }
+            }
+
+            if (src.Valid)
+                Debug.Log($"[ObjectSpawner] '{prefab.name}' se kreslí instancovaně " +
+                          $"(mesh {src.mesh.name}, {src.mesh.vertexCount} vrcholů).", prefab);
+            else
+                Debug.LogWarning($"[ObjectSpawner] Prefab '{prefab.name}' nejde instancovat " +
+                                 "(čekal se jeden mesh s jedním materiálem). Zůstává na GameObjectech.", prefab);
+
+            instancedSources[prefab] = src;
+            return src;
+        }
+
+        /// <summary>
+        /// Vybere z prefabu ten renderer, který se má instancovat.
+        ///
+        /// <para><b>LODGroup je pravidlo, ne výjimka.</b> Travní prefaby z asset packů mají
+        /// tři úrovně detailu, tedy tři MeshRenderery – kdo čeká jediný renderer, odmítne
+        /// úplně všechnu trávu a ani se nedozví proč. Bere se <b>LOD0</b>, protože přesně
+        /// ten kreslila i GameObjectová cesta: <see cref="RemoveLODForSmallObjects"/> u trávy
+        /// LODGroup po instancování stejně zahazuje, takže se zobrazení nemění.</para>
+        /// </summary>
+        private static MeshRenderer PickRenderer(GameObject prefab)
+        {
+            var group = prefab.GetComponentInChildren<LODGroup>(true);
+            if (group != null)
+            {
+                LOD[] lods = group.GetLODs();
+                if (lods.Length > 0 && lods[0].renderers != null)
+                {
+                    for (int i = 0; i < lods[0].renderers.Length; i++)
+                    {
+                        if (lods[0].renderers[i] is MeshRenderer mr && mr != null) return mr;
+                    }
+                }
+            }
+
+            var renderers = prefab.GetComponentsInChildren<MeshRenderer>(true);
+            return renderers.Length == 1 ? renderers[0] : null;
+        }
+
+        /// <summary>
+        /// Materiály listí přebarvené do podzimu, klíčované původním materiálem.
+        ///
+        /// <para><b>Jedna sdílená kopie na celý svět, ne jedna na strom.</b> Na tom stojí
+        /// všechno ostatní: SRP Batcher spojuje kresbu podle shaderu a materiálu, takže
+        /// tisíc bříz se sdíleným materiálem je pořád jedna dávka. Kdyby se materiál klonoval
+        /// per instanci (nebo se sáhlo na <c>renderer.material</c>, což klon udělá samo a
+        /// potichu), rozpadlo by se dávkování na tisíc kusů – přesně ten problém, který jsme
+        /// právě vyřešili u rákosí.</para>
+        ///
+        /// <para>Proto se taky nepřidává prefabová varianta jako asset: nový prefab by musel
+        /// vzniknout v projektu i s .meta souborem a pak ho někdo musí udržovat vedle originálu.
+        /// Výsledek na obrazovce je stejný, jen bez druhého assetu k zapomenutí.</para>
+        /// </summary>
+        private static readonly Dictionary<Material, Material> autumnLeaves =
+            new Dictionary<Material, Material>(4);
+
+        /// <summary>
+        /// Barva listí ve zlatém háji: spodek koruny a špičky.
+        ///
+        /// <para>Jantar, ne oranžová – čistá oranžová vypadá na nízkopolygonovém listu jako
+        /// plast. Dvě barvy proto, že shader vegetace míchá <c>_MainColor</c> u báze a
+        /// <c>_SecondColor</c> u špiček; jedna barva by korunu zploštila do jedné plochy.</para>
+        /// </summary>
+        private static readonly Color AutumnLeaf = new Color(0.60f, 0.29f, 0.07f, 1f);
+
+        /// <inheritdoc cref="AutumnLeaf"/>
+        private static readonly Color AutumnLeafTip = new Color(0.90f, 0.55f, 0.12f, 1f);
+
+        /// <summary>
+        /// Vizuální varianta objektu podle mikro-biomu. Zatím jen podzimní listí v háji.
+        /// </summary>
+        private void ApplyMicroLook(GameObject go, SpawnCategory category, Vector3 worldPos)
+        {
+            if (category != SpawnCategory.Trees) return;
+
+            VoxelTerrain vt = VoxelTerrain.instance;
+            if (vt == null) return;
+            if (vt.MicroAt(worldPos.x, worldPos.z, out float w) != MicroBiome.GoldenGrove || w < 0.35f) return;
+
+            var renderers = go.GetComponentsInChildren<MeshRenderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Material[] mats = renderers[i].sharedMaterials;
+                bool changed = false;
+
+                for (int m = 0; m < mats.Length; m++)
+                {
+                    if (!IsLeafMaterial(mats[m])) continue;
+                    mats[m] = AutumnVariant(mats[m]);
+                    changed = true;
+                }
+
+                // Přiřadit se smí jen když se opravdu něco změnilo: sharedMaterials vrací
+                // kopii pole, ale zpětný zápis renderer označí jako změněný i bez rozdílu.
+                if (changed) renderers[i].sharedMaterials = mats;
+            }
+        }
+
+        /// <summary>
+        /// Je to materiál listí? Poznává se podle jména – materiál sám o sobě nenese nic,
+        /// z čeho by šlo odvodit, že kryje korunu a ne kmen.
+        /// </summary>
+        private static bool IsLeafMaterial(Material m)
+            => m != null && (m.name.IndexOf("Leaves", StringComparison.OrdinalIgnoreCase) >= 0
+                             || m.name.IndexOf("Leaf", StringComparison.OrdinalIgnoreCase) >= 0);
+
+        /// <summary>Podzimní kopie materiálu listí. Vyrobí se jednou a sdílí se.</summary>
+        private static Material AutumnVariant(Material src)
+        {
+            if (autumnLeaves.TryGetValue(src, out Material cached) && cached != null) return cached;
+
+            var v = new Material(src) { name = src.name + " (autumn)" };
+
+            // Barvu nese _MainColor a _SecondColor shaderu UNP_Vegetation, NE _BaseColor.
+            // V materiálu sice pole _BaseColor* zůstala po dřívějším shaderu a v souboru
+            // vypadají rozumně, ale tenhle shader je nečte – přebarvit je nedělá vůbec nic.
+            // Právě na tom první pokus tiše selhal: materiál se vyrobil, jen byl beze změny.
+            SetIfHas(v, "_MainColor", AutumnLeaf);
+            SetIfHas(v, "_SecondColor", AutumnLeafTip);
+
+            autumnLeaves[src] = v;
+            return v;
+        }
+
+        private static void SetIfHas(Material m, string prop, Color c)
+        {
+            if (m.HasProperty(prop)) m.SetColor(prop, c);
+        }
+
+        // ── Kolo 11: kmeny ve stínu ───────────────────────────────────────────
+        //
+        // Kmen kreslí URP/Lit s paletovou texturou („Color_Palette“). Ve stínu koruny mu zbude
+        // jen obloha (SH do boku ~0,18 proti slunci 3,0): tmavá kůra je pak černá plocha bez
+        // kresby. Měřeno: SSAO na tom podíl nemá (vypnuté = stejné pixely), rozhoduje poměr
+        // slunce a ambientu. Globální ambient se zvedat nesmí (terén, atmosféra), proto kmeny
+        // dostanou běhovou kopii materiálu se shaderem „Everlost/Trunk“ – to je URP/Lit
+        // (stíny, hloubka a SSAO přes UsePass), jen osvětlený pass vrátí do stínu část
+        // světla s obalem N·L a trochu oblohy. Stejný mechanismus jako listí v kole 10.
+        //
+        // Sdílené kopie (jedna na zdrojový materiál) – SRP Batcher ani instancing se
+        // nerozpadne. Asset Color_Palette se nemění (sdílí ho i kameny a klády).
+
+        /// <summary>Kolo 11: světlo kmenů zapnuté (konzole <c>/kmen look on|off</c>).</summary>
+        public static bool TrunkLook = true;
+
+        /// <summary>Kolik ztraceného přímého světla se kmeni vrátí do stínu (s obalem N·L).</summary>
+        public static float TrunkShadowFloor = 0.22f;
+
+        /// <summary>Kolik oblohy (SH) se kmeni přidá navíc; 1 = obloha na kmeni ×2.</summary>
+        public static float TrunkAmbient = 0.85f;
+
+        /// <summary>Nejnižší lineární jas albeda kůry (tmavý pás břízy 0,046 se zvedne na tuto hodnotu).</summary>
+        public static float TrunkAlbedoFloor = 0.11f;
+
+        /// <summary>Diagnostika: 1 = kmeny jako maska (plná purpurová) pro měření pixelů.</summary>
+        public static int TrunkDiagMask;
+
+        /// <summary>
+        /// Kolo 26: viditelnost v mlze F (0–1); mezi F a F/3 strom – kmen i listí najednou – plynule zmizí
+        /// (shadery Everlost/Trunk a UNP/Vegetation, jen listí). Za koncem mlhy zůstávala z koruny bledá
+        /// silueta proti obloze, kmen splynul s terénem a vypadalo to jako levitující listí. 0 = vypnuto.
+        /// </summary>
+        public static float TreeFogFade = 0.3f;
+
+        private static readonly Dictionary<Material, Material> trunkVariants = new Dictionary<Material, Material>(4);
+        private static readonly List<Material> trunkMaterials = new List<Material>(8);
+        private static Shader trunkShader;
+        private static bool trunkShaderMissing;
+
+        /// <summary>Materiál kmene stromu: URP/Lit (nebo už kmenová kopie), který není listím.</summary>
+        public static bool IsTrunkMaterial(Material m)
+            => m != null && !IsLeafMaterial(m) && m.shader != null
+               && (m.shader.name == "Universal Render Pipeline/Lit" || m.shader.name == "Everlost/Trunk");
+
+        private static Shader TrunkShader
+        {
+            get
+            {
+                if (trunkShader == null && !trunkShaderMissing)
+                {
+                    trunkShader = Shader.Find("Everlost/Trunk");
+                    if (trunkShader == null || !trunkShader.isSupported)
+                    {
+                        trunkShaderMissing = true;
+                        trunkShader = null;
+                        Debug.LogWarning("[ObjectSpawner] Shader „Everlost/Trunk“ chybí nebo není podporovaný – kmeny zůstávají na URP/Lit.");
+                    }
+                }
+                return trunkShader;
+            }
+        }
+
+        /// <summary>Sdílená kmenová kopie materiálu; pro jiný než kmenový materiál vrací tentýž.</summary>
+        public static Material TrunkVariant(Material src)
+        {
+            if (!IsTrunkMaterial(src) || trunkMaterials.Contains(src)) return src;
+            if (trunkVariants.TryGetValue(src, out Material cached) && cached != null) return cached;
+            if (TrunkShader == null) return src;
+            var v = new Material(src) { name = src.name + " (kmen)" };
+            RegisterTrunkMaterial(v);
+            trunkVariants[src] = v;
+            return v;
+        }
+
+        /// <summary>
+        /// Přepne materiál na shader kmene. Volá se i pro instancované a vzdálené kopie.
+        /// Alpha test se vypíná: paleta je všude neprůhledná (alfa 255), takže řez nic
+        /// neodřezával – jen bral kmeni early-Z.
+        /// </summary>
+        public static void RegisterTrunkMaterial(Material v)
+        {
+            if (v == null || trunkMaterials.Contains(v) || TrunkShader == null) return;
+            int queue = v.renderQueue;
+            v.shader = TrunkShader;
+            v.DisableKeyword("_ALPHATEST_ON");
+            if (v.HasProperty("_AlphaClip")) v.SetFloat("_AlphaClip", 0f);
+            v.renderQueue = queue <= 2450 ? queue : 2000;
+            trunkMaterials.Add(v);
+        }
+
+        /// <summary>Kmeny stromu na GameObjectu přepne na sdílenou kmenovou kopii.</summary>
+        private static void ApplyTrunkLook(GameObject go, SpawnCategory category)
+        {
+            if (category != SpawnCategory.Trees || go == null) return;
+            var renderers = go.GetComponentsInChildren<MeshRenderer>(true);
+            for (int i = 0; i < renderers.Length; i++)
+            {
+                Material[] mats = renderers[i].sharedMaterials;
+                bool changed = false;
+                for (int m = 0; m < mats.Length; m++)
+                {
+                    Material t = TrunkVariant(mats[m]);
+                    if (t != mats[m]) { mats[m] = t; changed = true; }
+                }
+                if (changed) renderers[i].sharedMaterials = mats;
+            }
+        }
+
+        /// <summary>Globální parametry shaderu kmene (volá VoxelTerrain.LateUpdate; levné – tři SetGlobalFloat).</summary>
+        public static void UpdateTrunkLook()
+        {
+            Shader.SetGlobalFloat("_TrunkShadowFloor", TrunkLook ? TrunkShadowFloor : 0f);
+            Shader.SetGlobalFloat("_TrunkAmbient", TrunkLook ? TrunkAmbient : 0f);
+            Shader.SetGlobalFloat("_TrunkDiag", TrunkDiagMask);
+            Shader.SetGlobalFloat("_TrunkAlbedoFloor", TrunkLook ? TrunkAlbedoFloor : 0f);
+            Shader.SetGlobalFloat("_TreeFogFade", TreeFogFade);
+        }
+
+        /// <summary>Diagnostika pro konzoli.</summary>
+        public static string TrunkInfo()
+            => string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "kmenových materiálů {0} (shader {1}), světlo kmenů {2}: stín {3:0.00}, obloha +{4:0.00}, albedo ≥ {6:0.000}, maska {5}",
+                trunkMaterials.Count, TrunkShader != null ? "Everlost/Trunk" : "CHYBÍ", TrunkLook ? "ZAP" : "VYP",
+                TrunkShadowFloor, TrunkAmbient, TrunkDiagMask, TrunkAlbedoFloor);
+
+        /// <summary>Diagnostika: všechny kmenové materiály.</summary>
+        public static List<Material> TrunkMaterials => trunkMaterials;
+
+        /// <summary>
+        /// Smí tenhle druh vyrůst na tomhle místě? Rozhoduje mikro-biom.
+        ///
+        /// <para>Biom sloupce už je přepsaný ve <c>VoxelProps</c>, takže v háji je v nabídce
+        /// sada s břízami a na čediči suť. To ale nestačí: sada s břízami nese i jedle a
+        /// suť nese trávu. Tenhle filtr dělá to poslední – vyřadí, co by charakter místa
+        /// rozmělnilo.</para>
+        ///
+        /// <para><b>Podle jména prefabu.</b> Není to hezké, ale spawnable nenese žádnou
+        /// informaci o druhu – jen kategorii (strom, kámen, tráva, drobnost). Přidat do
+        /// dat druh by znamenalo přerovnat sto třicet záznamů ve scéně ručně; jméno je
+        /// v projektu stabilní a v kódu je aspoň vidět, co se filtruje.</para>
+        /// </summary>
+        private bool MicroAllows(SpawnableObject s, Vector3 worldPos)
+        {
+            VoxelTerrain vt = VoxelTerrain.instance;
+            if (vt == null) return true;
+
+            MicroBiome m = vt.MicroAt(worldPos.x, worldPos.z, out float w);
+            if (m == MicroBiome.None || w < 0.35f) return true;
+
+            if (m == MicroBiome.GoldenGrove)
+            {
+                // Háj je březový. Jehličnan uprostřed zlatého listí sráží celý dojem,
+                // protože jehličí se nepodzimňuje a zůstane v obraze jako tmavá skvrna.
+                if (s.category != SpawnCategory.Trees) return true;
+                return s.prefab != null && s.prefab.name.IndexOf("Birch", StringComparison.OrdinalIgnoreCase) >= 0;
+            }
+
+            // Čedič je holá vychladlá láva. Tráva ani stromy tu nemají co dělat – celý
+            // efekt stojí na tom, že je vidět kámen.
+            if (s.category == SpawnCategory.Grass || s.category == SpawnCategory.Trees) return false;
+
+            // A ze skal jen svislé útvary. Světlé balvany z pouštní sady na černém poli
+            // nevypadaly jako čedič, ale jako pískovec někdo rozsypal po lávě – kontrast
+            // je tak silný, že zabil i tvar terénu pod nimi.
+            if (s.category == SpawnCategory.Stones)
+                return s.prefab != null && s.prefab.name.IndexOf("Cliff", StringComparison.OrdinalIgnoreCase) >= 0;
+
+            return true;
+        }
+
+        /// <summary>Kreslí se tráva tohoto sloupce instancovaně? Používá se k přeskočení GameObjectů.</summary>
+        private bool GrassIsInstanced(int spawnableIndex) => grassBatches.ContainsKey(spawnableIndex);
+
         /// <summary>
         /// Okamžitě zničí všechny instancované pending dekorace (bez rozkladu do snímků).
         /// Používá se při čištění/regeneraci chunku.
         /// </summary>
         private void DespawnAllDetails()
         {
+            ReleaseGrassBatches();
+
+            // Volá se i na začátku spawn rutiny (regenerace sloupce). Bez tohohle by se
+            // propy zaregistrovaly podruhé a kreslily by se přes sebe.
+            ReleasePropBatches();
+
             for (int i = 0; i < spawnedDetails.Count; i++)
             {
                 if (spawnedDetails[i] != null)
@@ -910,11 +1673,35 @@ namespace Orivilon.World.Spawning
         /// </summary>
         private void RemoveLODForSmallObjects(GameObject spawnedObject, SpawnCategory category)
         {
-            if (category == SpawnCategory.Grass || category == SpawnCategory.SmallObjects)
+            if (category != SpawnCategory.Grass && category != SpawnCategory.SmallObjects) return;
+
+            var lodGroup = spawnedObject.GetComponent<LODGroup>();
+            if (lodGroup == null) return;
+
+            // NEJDŘÍV zhasnout renderery ostatních úrovní, teprve pak zahodit LODGroup.
+            //
+            // Tohle byla tichá díra ve výkonu: LODGroup je jediné, co vyšší úrovně detailu
+            // vypíná. Když se odstranil sám, zůstalo v objektu VŠECH pět mesh rendererů
+            // zapnutých a kreslily se najednou, ve všech vzdálenostech. U rákosí z asset
+            // packu to znamenalo pět rendererů po dvou materiálech, tedy deset draw callů
+            // na jedno stéblo místo jednoho. V mokřadu to samo dělalo přes 6 000 rendererů.
+            //
+            // Z obrazu se to nepozná – vyšší úrovně detailu leží v témž místě jako LOD0 a
+            // jen se překrývají. Pozná se to jen na počtu batchů.
+            LOD[] lods = lodGroup.GetLODs();
+            if (lods.Length > 1)
             {
-                var lodGroup = spawnedObject.GetComponent<LODGroup>();
-                if (lodGroup != null) DestroyImmediate(lodGroup, true);
+                var keep = new HashSet<Renderer>();
+                if (lods[0].renderers != null)
+                    for (int i = 0; i < lods[0].renderers.Length; i++)
+                        if (lods[0].renderers[i] != null) keep.Add(lods[0].renderers[i]);
+
+                Renderer[] all = spawnedObject.GetComponentsInChildren<Renderer>(true);
+                for (int i = 0; i < all.Length; i++)
+                    if (!keep.Contains(all[i])) all[i].enabled = false;
             }
+
+            DestroyImmediate(lodGroup, true);
         }
 
         /// <summary>

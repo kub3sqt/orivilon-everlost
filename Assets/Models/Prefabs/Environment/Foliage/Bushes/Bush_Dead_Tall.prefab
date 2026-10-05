@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 6445013677534727879}
   - component: {fileID: 5801048531978868154}
   - component: {fileID: 4758863646120641589}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Bush_Tall_Trunk_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -58,6 +58,11 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -79,9 +84,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &1362309944393283918
 GameObject:
@@ -94,7 +101,7 @@ GameObject:
   - component: {fileID: 2314558233322743145}
   - component: {fileID: 1175199727543795682}
   - component: {fileID: 3141510826740275268}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Bush_Tall_Trunk_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -141,6 +148,11 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -162,9 +174,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &4354109278347088401
 GameObject:
@@ -177,7 +191,7 @@ GameObject:
   - component: {fileID: 4464105419986401336}
   - component: {fileID: 2099321478957571244}
   - component: {fileID: 1067083891109289084}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Bush_Tall_Trunk_LOD2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -224,6 +238,11 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -245,9 +264,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &4359316823812957394
 GameObject:
@@ -260,7 +281,7 @@ GameObject:
   - component: {fileID: 874206904938634440}
   - component: {fileID: 1912864270918212508}
   - component: {fileID: 7586926884114531824}
-  m_Layer: 0
+  m_Layer: 8
   m_Name: Bush_Tall_Trunk_LOD3
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -307,6 +328,11 @@ MeshRenderer:
   m_ReflectionProbeUsage: 1
   m_RayTracingMode: 2
   m_RayTraceProcedural: 0
+  m_RayTracingAccelStructBuildFlagsOverride: 0
+  m_RayTracingAccelStructBuildFlags: 1
+  m_SmallMeshCulling: 1
+  m_ForceMeshLod: -1
+  m_MeshLodSelectionBias: 0
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
@@ -328,9 +354,11 @@ MeshRenderer:
   m_AutoUVMaxDistance: 0.5
   m_AutoUVMaxAngle: 89
   m_LightmapParameters: {fileID: 0}
+  m_GlobalIlluminationMeshLod: 0
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &8082466112665239461
 GameObject:
@@ -342,7 +370,9 @@ GameObject:
   m_Component:
   - component: {fileID: 5435541884458169215}
   - component: {fileID: 3849771811286832143}
-  m_Layer: 0
+  - component: {fileID: -3271203013641549263}
+  - component: {fileID: 4361392248099271792}
+  m_Layer: 8
   m_Name: Bush_Dead_Tall
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -399,3 +429,38 @@ LODGroup:
     renderers:
     - renderer: {fileID: 7586926884114531824}
   m_Enabled: 1
+--- !u!114 &-3271203013641549263
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8082466112665239461}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20dc680bf7028f6419c7e54b425a129d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Orivilon::Orivilon.World.Objects.PickupItem
+  itemData: {fileID: 11400000, guid: 890940c71bd2a0247a621f907c1df7ff, type: 2}
+  itemCount: 3
+--- !u!65 &4361392248099271792
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 8082466112665239461}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 1
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0, y: 0.5, z: 0}

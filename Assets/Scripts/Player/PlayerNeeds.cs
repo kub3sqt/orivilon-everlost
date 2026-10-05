@@ -141,9 +141,11 @@ namespace Orivilon.Player
         /// </summary>
         private void HandleNeedsDrain()
         {
-            bool isRunning = playerMovement != null && playerMovement.isSprinting;
+            // Namáhavý pohyb = sprint NEBO lezení. Dřív se tu četl jen isSprinting,
+            // takže výstup na skálu hráče nestál ani jídlo, ani vodu.
+            bool isExerting = playerMovement != null && playerMovement.IsExerting;
 
-            float multiplier = isRunning ? runningMultiplier : 1f;
+            float multiplier = isExerting ? runningMultiplier : 1f;
 
             preciseFood -= foodDrainPerSecond * multiplier * Time.deltaTime;
             preciseWater -= waterDrainPerSecond * multiplier * Time.deltaTime;
@@ -239,17 +241,24 @@ namespace Orivilon.Player
             if (staminaBar != null && staminaBar.gameObject != null && playerMovement != null)
                 staminaBar.fillAmount = Mathf.Lerp(staminaBar.fillAmount, playerMovement.CurrentStamina / 100f, Time.deltaTime * 5f);
 
-            if (healthValueText != null)
-                healthValueText.text = Mathf.RoundToInt(health).ToString();
+            // Text se přepisuje jen při změně celého čísla. Dřív se každý snímek volalo
+            // čtyřikrát int.ToString() – profil to ukázal jako stálou GC alokaci
+            // (~0,11 KB/snímek) a text se navíc každý snímek znovu sestavoval.
+            SetNumber(healthValueText, Mathf.RoundToInt(health), ref shownHealth);
+            SetNumber(foodValueText, Mathf.RoundToInt(food), ref shownFood);
+            SetNumber(waterValueText, Mathf.RoundToInt(water), ref shownWater);
+            if (playerMovement != null)
+                SetNumber(staminaValueText, Mathf.RoundToInt(playerMovement.CurrentStamina), ref shownStamina);
+        }
 
-            if (foodValueText != null)
-                foodValueText.text = Mathf.RoundToInt(food).ToString();
+        private int shownHealth = int.MinValue, shownFood = int.MinValue,
+                    shownWater = int.MinValue, shownStamina = int.MinValue;
 
-            if (waterValueText != null)
-                waterValueText.text = Mathf.RoundToInt(water).ToString();
-
-            if (staminaValueText != null && playerMovement != null)
-                staminaValueText.text = Mathf.RoundToInt(playerMovement.CurrentStamina).ToString();
+        private static void SetNumber(TMPro.TMP_Text label, int value, ref int shown)
+        {
+            if (label == null || value == shown) return;
+            shown = value;
+            label.text = value.ToString();
         }
     }
 }

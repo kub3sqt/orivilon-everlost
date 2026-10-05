@@ -1,5 +1,6 @@
 using Orivilon.Data;
-using Orivilon.World.Terrain;
+using Orivilon.World.Generation;
+using Orivilon.World.Spawning;
 using System.Collections;
 using TMPro;
 using UnityEngine;
@@ -104,6 +105,12 @@ namespace Orivilon.Core
             currentBiomeText.text = "Biome: " + biome.name;
         }
 
+        /// <summary>Varianta pro voxelový generátor, který pracuje přímo s typem biomu.</summary>
+        public void UpdateBiome(BiomeType biome)
+        {
+            currentBiomeText.text = "Biome: " + biome;
+        }
+
         /// <summary>
         /// Aktualizuje textové pole s průměrnými FPS.
         /// </summary>
@@ -141,12 +148,15 @@ namespace Orivilon.Core
 
         /// <summary>
         /// Obnoví zobrazení pozice hráče a aktuálního biomu.
-        /// Pozici čte přímo z transformace vieweru v EndlessTerrain.
-        /// Biom určuje pomocí MapGenerator.biomeCollection na základě souřadnic hráče.
+        ///
+        /// <para>Biom se čte z klimatických polí voxelového generátoru. Dřív tu stálo
+        /// <c>MapGenerator.instance.biomeCollection</c> – jenže starý generátor je ve scéně
+        /// vypnutý, takže instance byla null a panel padal na výjimku při každém otevření.</para>
         /// </summary>
         void UpdateGUI()
         {
-            var p = EndlessTerrain.instance.viewer.position;
+            if (VoxelTerrain.instance == null || VoxelTerrain.instance.viewer == null) return;
+            var p = VoxelTerrain.instance.viewer.position;
 
             int px = Mathf.RoundToInt(p.x);
             int py = Mathf.RoundToInt(p.y);
@@ -156,10 +166,14 @@ namespace Orivilon.Core
             playerYText.text = "Y: " + py;
             playerZText.text = "Z: " + pz;
 
-            BiomeData biome = MapGenerator.instance.biomeCollection
-                .ChooseBiome(px, pz, Vector2Int.zero);
+            if (currentBiomeText == null) return;
 
-            UpdateBiome(biome);
+            VoxelTerrain.instance.ClimateAt(p.x, p.z, out float temperature, out float humidity);
+
+            BiomeCollection biomes = VoxelProps.Biomes;
+            UpdateBiome(biomes != null
+                ? biomes.ChooseBiomeType(temperature, humidity)
+                : BiomeType.None);
         }
     }
 }

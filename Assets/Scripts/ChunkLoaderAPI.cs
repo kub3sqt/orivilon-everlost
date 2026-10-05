@@ -1,4 +1,5 @@
 ﻿using Orivilon.World.Terrain;
+using Orivilon.World.Generation;
 using UnityEngine;
 
 namespace Orivilon
@@ -35,19 +36,27 @@ namespace Orivilon
             loading = true;
             loaded = 0;
 
-            if (EndlessTerrain.instance != null)
+            if (VoxelTerrain.instance != null)
             {
-                totalToLoad = EndlessTerrain.instance.GetTargetChunkCount();
+                totalToLoad = VoxelTerrain.instance.GetTargetChunkCount();
             }
             else
             {
-                Debug.LogWarning("[ChunkLoaderAPI] EndlessTerrain.instance is null, computing fallback total");
+                Debug.LogWarning("[ChunkLoaderAPI] VoxelTerrain.instance is null, computing fallback total");
                 ComputeFallbackTotal();
             }
 
             Debug.Log($"[ChunkLoaderAPI] Starting chunk loading with totalToLoad={totalToLoad}");
 
-            EndlessTerrain.instance.GenerateWorldChunks(OnChunkLoaded, OnAllChunksGenerated);
+            if (VoxelTerrain.instance == null)
+            {
+                // Bez streameru by se loading screen zasekl navždy – radši ho pustíme dál.
+                Debug.LogError("[ChunkLoaderAPI] VoxelTerrain.instance chybí, načítání se ukončuje.");
+                OnAllChunksGenerated();
+                return;
+            }
+
+            VoxelTerrain.instance.GenerateWorldChunks(OnChunkLoaded, OnAllChunksGenerated);
         }
 
         /// <summary>

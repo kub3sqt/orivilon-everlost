@@ -11,7 +11,8 @@ GameObject:
   - component: {fileID: 4850548967293500872}
   - component: {fileID: 4346382014940328292}
   - component: {fileID: -7130018385512323996}
-  m_Layer: 6
+  - component: {fileID: -4524550874380344562}
+  m_Layer: 8
   m_Name: Tree_Broadleaf_Log
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -86,6 +87,20 @@ CapsuleCollider:
   m_Height: 1.5
   m_Direction: 0
   m_Center: {x: -0.01, y: 0.15, z: 0}
+--- !u!114 &-4524550874380344562
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 451332667285792908}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20dc680bf7028f6419c7e54b425a129d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Orivilon::Orivilon.World.Objects.PickupItem
+  itemData: {fileID: 11400000, guid: 890940c71bd2a0247a621f907c1df7ff, type: 2}
+  itemCount: 5
 --- !u!1 &693177954506072484
 GameObject:
   m_ObjectHideFlags: 0
@@ -97,7 +112,7 @@ GameObject:
   - component: {fileID: 7256781055905207364}
   - component: {fileID: 7362406172797542984}
   - component: {fileID: 4852956460289505195}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Broadleaf_Log_LOD2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -174,6 +189,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &6726595033134897173
 GameObject:
@@ -186,7 +202,7 @@ GameObject:
   - component: {fileID: 2167485282067040214}
   - component: {fileID: 5036064524095959961}
   - component: {fileID: 2136232971408168964}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Broadleaf_Log_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -263,6 +279,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &7127244372579928641
 GameObject:
@@ -275,7 +292,7 @@ GameObject:
   - component: {fileID: 716205193315619606}
   - component: {fileID: 1110831845340766531}
   - component: {fileID: 37891474223098813}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Broadleaf_Log_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -352,4 +369,5 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}

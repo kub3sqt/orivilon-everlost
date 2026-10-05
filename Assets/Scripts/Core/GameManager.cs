@@ -3,6 +3,7 @@ using Orivilon.Inventory;
 using Orivilon.Inventory.Hotbar;
 using Orivilon.Inventory.Inventory;
 using Orivilon.SaveSystem;
+using Orivilon.UI.Arcanum;
 using Orivilon.UI.HUD;
 using Orivilon.UI.Menu;
 using Orivilon.World.Spawning;
@@ -117,6 +118,12 @@ namespace Orivilon.Core
         /// <summary>Příznak, zda je stavební menu momentálně otevřeno.</summary>
         private bool isBuildingOpen = false;
 
+        /// <summary>Příznak, zda je otevřen panel výzkumu Arcanum (klávesa C).</summary>
+        private bool isArcanumOpen = false;
+
+        /// <summary>Veřejný read-only stav panelu Arcanum.</summary>
+        public bool IsArcanumOpen => isArcanumOpen;
+
         /// <summary>
         /// Veřejný příznak signalizující, že je otevřeno jakékoliv herní menu.
         /// Ostatní skripty (HotbarController) ho čtou, aby blokovaly vstup.
@@ -215,16 +222,12 @@ namespace Orivilon.Core
             if (SceneLoader.IsLoading) return;
 
             if (Input.GetKeyDown(KeyCode.Escape))
-            {
-                if (isInventoryOpen)
-                    CloseInventory();
-                else if (isBuildingOpen)
-                    CloseBuildingMenu();
-                else
-                    TogglePauseGame();
-            }
+                HandleEscapeKey();
 
-            if (Input.GetKeyDown(KeyCode.Tab))
+            if (Input.GetKeyDown(KeyCode.C) && !IsTextInputActive())
+                ToggleArcanum();
+
+            if (Input.GetKeyDown(KeyCode.Tab) && !isArcanumOpen)
             {
                 if (isBuildingOpen)
                     CloseBuildingMenu();
@@ -250,6 +253,7 @@ namespace Orivilon.Core
             isLoadingComplete = false;
             isInventoryOpen = false;
             isBuildingOpen = false;
+            isArcanumOpen = false;
 
             if (currentSpawnRoutine != null)
             {
@@ -455,6 +459,7 @@ namespace Orivilon.Core
         {
             if (!isLoadingComplete) return;
             if (isPaused) return;
+            if (isArcanumOpen) return;
 
             if (isInventoryOpen)
                 CloseInventory();
@@ -579,6 +584,94 @@ namespace Orivilon.Core
         }
 
         /// <summary>
+        /// Escape: Arcanum (nejdřív připnutý detail, pak panel) → inventář → stavba → pauza.
+        /// Veřejné kvůli QA příkazu /arcanum esc; jinak se volá jen z Update.
+        /// </summary>
+        public void HandleEscapeKey()
+        {
+            if (isArcanumOpen)
+            {
+                var arcanum = ArcanumUI.Instance;
+                if (arcanum == null || !arcanum.HandleEscape())
+                    CloseArcanum();
+            }
+            else if (isInventoryOpen)
+                CloseInventory();
+            else if (isBuildingOpen)
+                CloseBuildingMenu();
+            else
+                TogglePauseGame();
+        }
+
+        /// <summary>
+        /// True, když hráč píše do konzole/chatu nebo do libovolného UI textového pole –
+        /// herní zkratky (C) se pak ignorují.
+        /// </summary>
+        private static bool IsTextInputActive()
+        {
+            if (GameConsole.IsOpen) return true;
+            var es = UnityEngine.EventSystems.EventSystem.current;
+            var go = es != null ? es.currentSelectedGameObject : null;
+            if (go == null) return false;
+            var tmp = go.GetComponent<TMPro.TMP_InputField>();
+            if (tmp != null && tmp.isFocused) return true;
+            var legacy = go.GetComponent<UnityEngine.UI.InputField>();
+            return legacy != null && legacy.isFocused;
+        }
+
+        /// <summary>Přepne panel výzkumu Arcanum (klávesa C).</summary>
+        private void ToggleArcanum()
+        {
+            if (isArcanumOpen) CloseArcanum();
+            else OpenArcanum();
+        }
+
+        /// <summary>
+        /// Otevře Arcanum se stejným vzorem jako stavební menu: skryje HUD, odemkne kurzor
+        /// a zablokuje pohyb. Nic nedělá během načítání, v pauze ani při jiném otevřeném menu.
+        /// </summary>
+        public void OpenArcanum()
+        {
+            if (!isLoadingComplete || isPaused || isArcanumOpen) return;
+            if (isInventoryOpen || isBuildingOpen || GameConsole.IsOpen || SceneLoader.IsLoading) return;
+
+            isArcanumOpen = true;
+            isMenuOpen = true;
+
+            if (crosshair != null) crosshair.SetActive(false);
+            if (hotbar != null) hotbar.SetActive(false);
+            if (statusBar != null) statusBar.SetActive(false);
+            if (minimap != null) minimap.SetActive(false);
+            if (compass != null) compass.SetActive(false);
+
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+            SetPlayerControl(false);
+
+            ArcanumUI.GetOrCreate().Open();
+        }
+
+        /// <summary>Zavře Arcanum, obnoví HUD, pohyb a herní kurzor.</summary>
+        public void CloseArcanum()
+        {
+            if (!isArcanumOpen) return;
+
+            isArcanumOpen = false;
+            isMenuOpen = false;
+
+            if (ArcanumUI.Instance != null) ArcanumUI.Instance.Close();
+
+            if (crosshair != null) crosshair.SetActive(true);
+            if (hotbar != null) hotbar.SetActive(true);
+            if (statusBar != null) statusBar.SetActive(true);
+            if (minimap != null) minimap.SetActive(true);
+            if (compass != null) compass.SetActive(true);
+
+            SetPlayerControl(true);
+            ApplyGameplayCursor();
+        }
+
+        /// <summary>
         /// Přepne stav pauzy a aktualizuje pause menu, HUD a čas hry.
         /// Při pozastavení se zobrazí pause menu a skryje HUD; při pokračování naopak.
         /// </summary>
@@ -648,6 +741,8 @@ namespace Orivilon.Core
         {
             yield return null;
             yield return null;
+            // Mezitím se mohlo otevřít jiné menu (rychlé C/Tab) – pak kurzor nezamykat.
+            if (isMenuOpen || isPaused) yield break;
             Cursor.lockState = CursorLockMode.Locked;
             Cursor.visible = false;
         }
@@ -721,6 +816,10 @@ namespace Orivilon.Core
             Quaternion spawnRotation = Quaternion.identity;
             Quaternion cameraRotation = Quaternion.identity;
 
+            // Máme uloženou pozici? Pak se hráč vrací tam, kde skončil – i do jeskyně
+            // nebo na základnu. Hledání země platí jen pro nový svět.
+            bool hasSavedPosition = false;
+
             if (selectedWorld != null)
             {
                 Debug.Log($"Selected world: {selectedWorld.worldName}, Folder: {selectedWorld.folderPath}");
@@ -732,6 +831,7 @@ namespace Orivilon.Core
                     spawnRotation = playerData.playerRotation;
                     cameraRotation = playerData.cameraRotation;
 
+                    hasSavedPosition = true;
                     SaveSystem.SaveSystem.LoadInventory(playerData.inventory);
 
                     Debug.Log($"✓ Loaded player data:");
@@ -741,10 +841,24 @@ namespace Orivilon.Core
                 }
                 else
                 {
+                    // Nový svět: počátek souřadnic je bod jako každý jiný a klidně v něm
+                    // může být moře. Spawn se proto ptá terénu, kde je nejbližší souš,
+                    // ne kde je nula. Dotaz je analytický, takže nepotřebuje vygenerovaný
+                    // chunk ani collider.
                     spawnPosition = new Vector3(0f, 100f, 0f);
                     spawnRotation = Quaternion.identity;
                     cameraRotation = Quaternion.identity;
-                    Debug.Log($"✗ No saved player data found, using defaults");
+
+                    var voxelTerrain = Orivilon.World.Generation.VoxelTerrain.instance;
+                    if (voxelTerrain != null && voxelTerrain.TryFindLandSpawn(Vector3.zero, out Vector3 land))
+                    {
+                        spawnPosition = land;
+                        Debug.Log($"✓ Nový svět: spawn na souši {land}");
+                    }
+                    else
+                    {
+                        Debug.Log($"✗ No saved player data found, using defaults");
+                    }
                 }
             }
             else
@@ -752,7 +866,10 @@ namespace Orivilon.Core
                 Debug.LogError("No world selected! Cannot load player data.");
             }
 
-            spawnPosition = new Vector3(spawnPosition.x, 0, spawnPosition.z);
+            // Dřív se tady uložená výška zahodila (`y = 0`) a hráč se znovu hledal
+            // raycastem shora. Ve voxelovém světě je to špatně hned dvakrát: prokopaná
+            // základna i jeskyně jsou pod povrchem, takže by hráč po každém načtení
+            // vyjel nahoru na kopec. Uloženou pozici proto bereme, jak je.
 
             float findPlayerTimeout = 5f;
             float elapsed = 0f;
@@ -786,7 +903,19 @@ namespace Orivilon.Core
                 playerRigidbody.linearVelocity = Vector3.zero;
             }
 
-            float highPosition = 500f;
+            // Výška, ze které hráč hledá zem. Dřív to bylo natvrdo 500 m, což s voxelovým
+            // terénem nefunguje: collider dostávají jen chunky blízko vieweru, takže z půl
+            // kilometru není do čeho trefit – raycast selhal, čekání vypršelo a hráč se
+            // nakonec propadl ze záložní stovky. Analytický dotaz na povrch žádný collider
+            // nepotřebuje, takže se startuje pár metrů nad zemí a chunky se načtou rovnou tam.
+            float highPosition = spawnPosition.y;
+            if (!hasSavedPosition && Orivilon.World.Generation.VoxelTerrain.instance != null)
+            {
+                float surface = Orivilon.World.Generation.VoxelTerrain.instance
+                    .SurfaceHeight(spawnPosition.x, spawnPosition.z);
+                highPosition = surface + 20f;
+            }
+
             Vector3 initialPosition = new Vector3(spawnPosition.x, highPosition, spawnPosition.z);
             player.transform.position = initialPosition;
 
@@ -804,6 +933,17 @@ namespace Orivilon.Core
             Debug.Log($"Player set to position: {initialPosition}");
 
             player.SetActive(true);
+
+            // Streamer si viewer bere z Camera.main, a to je během načítání kamera
+            // načítací scény kolem výšky 0 – ne hráč. Collidery se přitom přiřazují podle
+            // 3D vzdálenosti od vieweru, takže povrch v horách (100+ m) collider nedostal,
+            // zato jeskynní chunky u nuly ano. Kontrola „je pod hráčem zem" pak buď prošla
+            // na jeskyni, nebo vypršela, a hráč propadl povrchem. Proto se viewer přepne
+            // na kameru hráče hned, jak hráč stojí na spawn pozici.
+            var terrainForViewer = Orivilon.World.Generation.VoxelTerrain.instance;
+            if (terrainForViewer != null && playerCam != null)
+                terrainForViewer.viewer = playerCam.transform;
+
             if (LoadingScreenManager.instance != null)
                 LoadingScreenManager.SetVisible(true);
 
@@ -820,11 +960,20 @@ namespace Orivilon.Core
             Debug.Log("[GameManager] Waiting for chunks under player...");
             yield return WaitForChunksUnderPlayer(spawnPosition.x, spawnPosition.z, highPosition);
 
-            Vector3 rayStart = new Vector3(spawnPosition.x, highPosition, spawnPosition.z);
-            Vector3 groundPosition = FindGroundPosition(rayStart);
+            Vector3 groundPosition;
+            if (hasSavedPosition)
+            {
+                groundPosition = spawnPosition;
+                Debug.Log($"Player restored to saved position: {groundPosition}");
+            }
+            else
+            {
+                Vector3 rayStart = new Vector3(spawnPosition.x, highPosition, spawnPosition.z);
+                groundPosition = FindGroundPosition(rayStart);
+                Debug.Log($"Player teleported to ground: {groundPosition}");
+            }
 
             player.transform.position = groundPosition;
-            Debug.Log($"Player teleported to ground: {groundPosition}");
 
             if (playerController != null)
                 playerController.enabled = true;
@@ -893,7 +1042,7 @@ namespace Orivilon.Core
 
             while (Time.realtimeSinceStartup - startTime < maxSpawnWaitTime)
             {
-                bool chunkReady = CheckChunkUnderPlayer(spawnX, spawnZ);
+                bool chunkReady = CheckChunkUnderPlayer(spawnX, spawnZ, highPosition);
 
                 if (chunkReady)
                 {
@@ -930,10 +1079,15 @@ namespace Orivilon.Core
         /// </summary>
         /// <param name="spawnX">X souřadnice kontrolovaného bodu.</param>
         /// <param name="spawnZ">Z souřadnice kontrolovaného bodu.</param>
+        /// <param name="fromHeight">Výška, ze které se střílí paprsky. Musí být tak nízko,
+        /// aby chunky pod ní už měly collider.</param>
         /// <returns>True, pokud je terén připraven pro spawn hráče.</returns>
-        private bool CheckChunkUnderPlayer(float spawnX, float spawnZ)
+        /// <summary>Jak hluboko pod výchozí výškou smí ležet zem, aby se spawn/načtení považovaly za připravené.</summary>
+        private const float SpawnGroundReach = 60f;
+
+        private bool CheckChunkUnderPlayer(float spawnX, float spawnZ, float fromHeight = 500f)
         {
-            Vector3 checkPos = new Vector3(spawnX, 500f, spawnZ);
+            Vector3 checkPos = new Vector3(spawnX, fromHeight, spawnZ);
 
             Vector3[] offsets = {
                 Vector3.zero,
@@ -950,8 +1104,14 @@ namespace Orivilon.Core
             int hits = 0;
             foreach (Vector3 offset in offsets)
             {
+                // Zásah se počítá jen blízko pod výchozí výškou. Dřív stačil jakýkoli
+                // collider do 1000 m – ve voxelovém světě to bývá strop nebo dno jeskyně
+                // hluboko pod povrchem, jehož chunk dostal collider dřív než povrch.
+                // Kontrola pak prošla, hráč se pustil a propadl povrchem do jeskyně
+                // (ověřeno: nový svět seed 777 i načtení uložené pozice v horách).
                 Vector3 rayStart = checkPos + offset;
-                if (Physics.Raycast(rayStart, Vector3.down, 1000f))
+                if (Physics.Raycast(rayStart, Vector3.down, out RaycastHit hit, SpawnGroundReach,
+                                    ~0, QueryTriggerInteraction.Ignore))
                     hits++;
             }
 

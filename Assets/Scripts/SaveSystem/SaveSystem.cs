@@ -1,6 +1,7 @@
 ﻿using Orivilon.Core;
 using Orivilon.Inventory.Inventory;
 using Orivilon.World.Objects;
+using Orivilon.World.Generation;
 using Orivilon.World.Spawning;
 using System.Collections;
 using System.Collections.Generic;
@@ -26,8 +27,11 @@ namespace Orivilon.SaveSystem
         public static void SaveEverything()
         {
             SaveWorld();
+            SaveTerrainEdits();
             SaveDestroyedObjectsRegistry();
             SavePlayer();
+            // Arcanum: samostatný soubor player/arcanum.json, ukládaný spolu s inventářem.
+            Orivilon.UI.Arcanum.ArcanumProgress.Save();
         }
 
         /// <summary>
@@ -349,6 +353,63 @@ namespace Orivilon.SaveSystem
         }
 
         /// <summary>
+        /// Uloží úpravy terénu do world/terrain_edits.json.
+        ///
+        /// <para>Ukládá se jen rozdíl proti vygenerovanému terénu, takže soubor roste
+        /// s tím, kolik toho hráč nakopal, ne s velikostí prozkoumaného světa. Svět,
+        /// do kterého nikdo nekopl, žádný soubor nemá.</para>
+        /// </summary>
+        public static void SaveTerrainEdits()
+        {
+            if (GameManager.selectedWorld == null) return;
+
+            VoxelTerrain terrain = VoxelTerrain.instance;
+            if (terrain == null || terrain.Edits == null) return;
+
+            var data = new TerrainEditsSaveData { chunks = terrain.Edits.Export() };
+
+            string folder = Path.Combine(GameManager.selectedWorld.folderPath, "world");
+            string file = Path.Combine(folder, "terrain_edits.json");
+
+            if (data.chunks.Count == 0)
+            {
+                if (File.Exists(file)) File.Delete(file);
+                return;
+            }
+
+            Directory.CreateDirectory(folder);
+            File.WriteAllText(file, JsonUtility.ToJson(data));
+
+            Debug.Log($"SaveSystem: uloženo {data.chunks.Count} upravených chunků terénu.");
+        }
+
+        /// <summary>
+        /// Načte úpravy terénu a předá je streameru, který dotčené sloupce přestaví.
+        /// Volat až po tom, co VoxelTerrain existuje.
+        /// </summary>
+        public static void LoadTerrainEdits()
+        {
+            if (GameManager.selectedWorld == null) return;
+
+            VoxelTerrain terrain = VoxelTerrain.instance;
+            if (terrain == null || terrain.Edits == null) return;
+
+            string file = Path.Combine(GameManager.selectedWorld.folderPath, "world", "terrain_edits.json");
+            if (!File.Exists(file)) return;
+
+            var data = JsonUtility.FromJson<TerrainEditsSaveData>(File.ReadAllText(file));
+            if (data?.chunks == null) return;
+
+            int skipped = terrain.Edits.Import(data.chunks);
+
+            if (skipped > 0)
+                Debug.LogWarning($"SaveSystem: {skipped} upravených chunků pochází z jiné verze " +
+                                 "generátoru a bylo zahozeno – jinak by v terénu zůstaly díry ve vzduchu.");
+
+            Debug.Log($"SaveSystem: načteno {data.chunks.Count - skipped} upravených chunků terénu.");
+        }
+
+        /// <summary>
         /// Načte základní data světa ze souboru world_data.json.
         /// Vrátí null pokud soubor neexistuje nebo není vybrán žádný svět.
         /// </summary>
@@ -405,6 +466,17 @@ namespace Orivilon.SaveSystem
                 SaveDestroyedObjectsRegistry();
         }
 
+        /// <summary>
+        /// Zapíše zničený objekt přímo podle deterministického hashe – pro objekty bez
+        /// GameObjectu (instancovaná tráva). Stejný registr i formát jako varianta s GameObjectem.
+        /// </summary>
+        public static void MarkObjectDestroyed(long objectHash)
+        {
+            EnsureDestroyedObjectsLoaded();
+            if (destroyedObjectHashes.Add(objectHash))
+                SaveDestroyedObjectsRegistry();
+        }
+
         public static void SaveDestroyedObjectsRegistry()
         {
             if (GameManager.selectedWorld == null || destroyedObjectHashes == null)
@@ -427,7 +499,10 @@ namespace Orivilon.SaveSystem
         {
             if (GameManager.selectedWorld == null)
             {
-                destroyedObjectHashes = new HashSet<long>();
+                // Bez vybraného světa (rychlý start z editoru) se registr drží jen v paměti –
+                // dřív vznikal při každém dotazu nový, takže sebrané se hned „vracelo".
+                if (destroyedObjectHashes == null || destroyedObjectHashesWorldPath != null)
+                    destroyedObjectHashes = new HashSet<long>();
                 destroyedObjectHashesWorldPath = null;
                 return;
             }
@@ -521,6 +596,13 @@ namespace Orivilon.SaveSystem
 
         /// <summary>Timestamp posledního hraní ve formátu ISO 8601.</summary>
         public string lastPlayed;
+    }
+
+    /// <summary>Úpravy terénu hráčem pro celý svět.</summary>
+    [System.Serializable]
+    public class TerrainEditsSaveData
+    {
+        public List<VoxelEdits.ChunkDiff> chunks = new List<VoxelEdits.ChunkDiff>();
     }
 
     /// <summary>

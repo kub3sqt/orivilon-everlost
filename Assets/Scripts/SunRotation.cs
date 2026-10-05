@@ -29,11 +29,41 @@ namespace Orivilon
         [Range(0, 24)]
         [SerializeField] public float timeOfDay = 12f;
 
-        /// <summary>Násobitel rychlosti plynoucího času během dne.</summary>
+        /// <summary>Násobitel rychlosti plynoucího času během dne. Viz <see cref="EffectiveDayScale"/>.</summary>
         [SerializeField] public float dayScale = 1f;
 
-        /// <summary>Násobitel rychlosti plynoucího času během noci.</summary>
+        /// <summary>Násobitel rychlosti plynoucího času během noci. Viz <see cref="EffectiveNightScale"/>.</summary>
         [SerializeField] public float nightScale = 1f;
+
+        [Header("Délka cyklu")]
+        [Tooltip("Kolik REÁLNÝCH MINUT trvá celých 24 herních hodin. Tohle je to číslo, " +
+                 "které se ladí; násobiče výš se z něj dopočítají.")]
+        [SerializeField, Range(2f, 120f)] private float fullDayMinutes = 18f;
+
+        [Tooltip("Kolikrát rychleji ubíhá noc než den. 1 = stejně, 2 = noc je poloviční.")]
+        [SerializeField, Range(0.5f, 4f)] private float nightSpeedMultiplier = 1.5f;
+
+        [Tooltip("Brát tempo z délky cyklu výš. Vypnutím se vrátí ruční dayScale/nightScale.")]
+        [SerializeField] private bool paceFromDayLength = true;
+
+        /// <summary>
+        /// Skutečné tempo dne. Čas se posouvá o <c>deltaTime / 60 * scale</c>, takže při
+        /// scale 1 trvá jedna herní hodina minutu a celý den 24 minut. Pro zadanou délku
+        /// cyklu je tedy měřítko <c>24 / fullDayMinutes</c>.
+        ///
+        /// <para>Dřív tu byly jen dva násobiče a ve scéně stálo 2 – celý cyklus tedy trval
+        /// 12 minut a den z toho sedm. Den utíkal pod rukama a nešlo to poznat jinak než
+        /// stopkami, protože z čísla „2" délka cyklu není vidět.</para>
+        /// </summary>
+        public float EffectiveDayScale
+            => paceFromDayLength ? 24f / Mathf.Max(0.5f, fullDayMinutes) : dayScale;
+
+        /// <inheritdoc cref="EffectiveDayScale"/>
+        public float EffectiveNightScale
+            => paceFromDayLength ? EffectiveDayScale * Mathf.Max(0.1f, nightSpeedMultiplier) : nightScale;
+
+        /// <summary>Délka celého cyklu v reálných minutách – pro výpis do konzole.</summary>
+        public float FullDayMinutes => fullDayMinutes;
 
         [Header("Časy přechodu den/noc (herní hodiny)")]
         [Tooltip("Začátek svítání – tady se začne rozednívat (noc → den).")]
@@ -76,10 +106,22 @@ namespace Orivilon
         [SerializeField] private Color nightFogColor = new Color(0.04f, 0.06f, 0.11f, 1f);
         [Tooltip("Barva mlhy za svítání/soumraku (golden hour).")]
         [SerializeField] private Color duskFogColor = new Color(0.60f, 0.32f, 0.18f, 1f);
-        [Tooltip("Odkud mlha začíná (dál od kamery = víc vidíš). Platí pro lineární mlhu.")]
+        [Tooltip("Odkud mlha začíná. Použije se jen tam, kde není voxelový terén – " +
+                 "jinak se počítá z jeho dohledu.")]
         [SerializeField] private float fogStartDistance = 150f;
-        [Tooltip("Kde je mlha úplně plná. Vyšší = mlha dál.")]
+        [Tooltip("Kde je mlha úplně plná. Použije se jen tam, kde není voxelový terén.")]
         [SerializeField] private float fogEndDistance = 450f;
+
+        [Tooltip("Odvodit vzdálenost mlhy z dohledu terénu místo z hodnot výš. " +
+                 "Bez toho zůstane mlha tam, kde byla, i když se dohled změní.")]
+        [SerializeField] private bool fogFromViewDistance = true;
+        [Tooltip("Kde mlha začíná, jako podíl dohledu.")]
+        [SerializeField, Range(0.05f, 0.6f)] private float fogStartFraction = 0.22f;
+        [Tooltip("Kde je mlha plná, jako podíl dohledu. Musí být pod 1, jinak je vidět konec terénu.")]
+        [SerializeField, Range(0.5f, 0.98f)] private float fogEndFraction = 0.88f;
+
+        private Orivilon.World.Generation.VoxelTerrain terrain;
+        private bool terrainSearched;
 
         [Header("Stíny (dosah do mlhy)")]
         [Tooltip("Automaticky nastavit dosah stínů (URP Max Distance) až k mlze.")]
@@ -95,6 +137,47 @@ namespace Orivilon
 
         /// <summary>Výška slunce nad obzorem, -1..1 (0 = obzor). Ponecháno pro případnou kompatibilitu.</summary>
         public static float sunHeightStatic = 0f;
+
+        /// <summary>
+        /// Odstín mlhy podle biomu. Násobí barvu mlhy spočítanou z denní doby; bílá = beze změny.
+        ///
+        /// <para>Zapisuje sem <c>BiomeAtmosphere</c>. Vlastníkem <c>RenderSettings.fog*</c> zůstává
+        /// schválně jenom tenhle skript – mlhu přepisuje každý snímek, takže druhý zapisovatel
+        /// by ji tiše přebíjel a nastavení v okně Lighting by zase nedělalo nic.</para>
+        /// </summary>
+        public static Color BiomeFogTint = Color.white;
+
+        /// <summary>
+        /// Násobič dosahu mlhy podle biomu. Pod 1 = dusno a bližší horizont (džungle, les),
+        /// nad 1 = čistý vzduch a daleký výhled (poušť, štíty). 1 = beze změny.
+        /// </summary>
+        public static float BiomeFogRange = 1f;
+
+        /// <summary>Kolo 9: násobič ZAČÁTKU mlhy (konec zůstává). Nad 1 = blízké a střední plány čistší, konec dohledu dál schovaný.</summary>
+        public static float BiomeFogNearScale = 1f;
+
+        /// <summary>Kolo 10 diagnostika: vypne stíny slunce (/folaz stiny off).</summary>
+        public static bool DiagNoShadows;
+
+        /// <summary>
+        /// Úplné převzetí mlhy. Používá se pod vodou, kde nejde o odstín, ale o jiný živel:
+        /// dohled spadne z kilometrů na desítky metrů a barva nemá s denní oblohou nic
+        /// společného. Násobičem výš by se tam nedalo dostat – je schválně omezený, aby
+        /// biom nemohl utopit svět v mlze.
+        /// </summary>
+        public static bool FogOverride;
+
+        /// <inheritdoc cref="FogOverride"/>
+        public static Color FogOverrideColor = Color.white;
+
+        /// <inheritdoc cref="FogOverride"/>
+        public static float FogOverrideNear = 0f, FogOverrideFar = 25f;
+
+        /// <summary>
+        /// Ztlumení přímého světla, 0–1. Pod vodou slunce neprosvítí; ambient zůstává,
+        /// jinak by byla tma místo šera.
+        /// </summary>
+        public static float LightDamp = 1f;
 
         /// <summary>Příznak, zda je kamerové světlo (baterka) zapnuté.</summary>
         public bool isLightOpen = false;
@@ -137,8 +220,16 @@ namespace Orivilon
         {
             timeOfDay = savedTime;
             timeOfDayStatic = savedTime;
-            dayScale = savedDayScale;
-            nightScale = savedNightScale;
+
+            // Tempo se ze save ZÁMĚRNĚ nebere, i když ho save nese. Staré světy v sobě mají
+            // hodnotu 2 (dvanáctiminutový cyklus) a ta je právě to, co se opravuje – jinak
+            // by oprava platila jen pro nově založené světy a nikdo by nevěděl proč.
+            // Podpis metody zůstává kvůli volajícím v GameManageru.
+            if (!paceFromDayLength)
+            {
+                dayScale = savedDayScale;
+                nightScale = savedNightScale;
+            }
 
             SetTime(timeOfDay);
             isTimeLoaded = true;
@@ -176,7 +267,8 @@ namespace Orivilon
 
             try
             {
-                prop.SetValue(rp, fogStartDistance + shadowsBeyondFogStart);
+                ResolveFogDistances(out float shadowNear, out _);
+                prop.SetValue(rp, shadowNear + shadowsBeyondFogStart);
             }
             catch (System.Exception e)
             {
@@ -193,7 +285,11 @@ namespace Orivilon
         {
             if (!isTimeLoaded) return;
 
-            if (Input.GetKeyDown(KeyCode.L))
+            // Klávesové zkratky nesmí reagovat, když vstup patří někomu jinému (psaní do
+            // konzole, načítání scény, pauza nebo otevřené menu). Bez téhle stráže psalo
+            // „light" v chatu baterkou.
+            bool inputBlocked = Core.SceneLoader.InputBlocked || Core.GameConsole.IsOpen;
+            if (!inputBlocked && Input.GetKeyDown(KeyCode.L))
             {
                 isLightOpen = !isLightOpen;
                 if (cameraLight != null)
@@ -202,20 +298,18 @@ namespace Orivilon
                 }
             }
 
-            if (Input.GetKeyDown(KeyCode.P))
+            if (!inputBlocked && Input.GetKeyDown(KeyCode.P))
             {
                 paused = !paused;
             }
             if (paused) return;
 
-            if (Input.GetKeyDown(KeyCode.Z))
-                timeOfDay -= 1f;
-
-            if (Input.GetKeyDown(KeyCode.T))
-                timeOfDay += 1f;
-
+            // Klávesy Z a T na posun času tu BÝVALY a byly to dvě chyby najednou:
+            // T zároveň otevírá konzoli, takže každé psaní do chatu poskočilo o hodinu
+            // dopředu, a tenhle Update se na GameConsole.IsOpen vůbec neptal. Čas se teď
+            // mění jen příkazem /time, kde je to vidět a nedá se to spustit omylem.
             bool isDaytime = timeOfDay >= morningStart && timeOfDay < eveningEnd;
-            timeOfDay += Time.deltaTime / 60f * (isDaytime ? dayScale : nightScale);
+            timeOfDay += Time.deltaTime / 60f * (isDaytime ? EffectiveDayScale : EffectiveNightScale);
 
             SetTime(timeOfDay);
         }
@@ -305,16 +399,16 @@ namespace Orivilon
             // --- SLUNCE ---
             if (_sunLight != null)
             {
-                _sunLight.intensity = _sunBaseIntensity * dayFactor;
+                _sunLight.intensity = _sunBaseIntensity * dayFactor * LightDamp;
                 _sunLight.color = Color.Lerp(sunHorizonColor, sunDayColor, dayFactor);
-                _sunLight.shadows = dayFactor > 0.05f ? LightShadows.Soft : LightShadows.None;
+                _sunLight.shadows = dayFactor > 0.05f && !DiagNoShadows ? LightShadows.Soft : LightShadows.None;
             }
 
             // --- MĚSÍC ---
             if (_moonLight != null)
             {
                 _moonLight.enabled = true;
-                _moonLight.intensity = _moonBaseIntensity * nightBlend;
+                _moonLight.intensity = _moonBaseIntensity * nightBlend * LightDamp;
                 _moonLight.color = moonColor;
                 _moonLight.shadows = nightBlend > 0.6f ? LightShadows.Soft : LightShadows.None;
             }
@@ -343,11 +437,34 @@ namespace Orivilon
             {
                 Color fog = Color.Lerp(nightFogColor, dayFogColor, dayFactor);
                 fog = Color.Lerp(fog, duskFogColor, twilight);
+
+                // Odstín podle biomu. Násobení (ne lerp) schválně: zachová rozdíl mezi dnem
+                // a nocí i západem slunce, jen celou škálu posune do teplejší nebo studenější
+                // polohy. Lerp na pevnou barvu by noc v poušti rozsvítil do béžova.
+                fog.r *= BiomeFogTint.r;
+                fog.g *= BiomeFogTint.g;
+                fog.b *= BiomeFogTint.b;
                 RenderSettings.fogColor = fog;
 
                 // Posun mlhy dál od kamery (platí pro lineární režim mlhy).
-                RenderSettings.fogStartDistance = fogStartDistance;
-                RenderSettings.fogEndDistance = fogEndDistance;
+                //
+                // Vzdálenost se přednostně počítá z DOHLEDU TERÉNU, ne z pevných čísel výš.
+                // Tenhle skript přepisoval mlhu každý snímek, takže nastavení v okně Lighting
+                // nemělo za běhu žádný účinek – dohled se zvedl na 2 km a hráč dál viděl
+                // 450 m. Dvě čísla pro tutéž věc na dvou místech se vždycky rozejdou.
+                ResolveFogDistances(out float fogNear, out float fogFar);
+                RenderSettings.fogStartDistance = fogNear;
+                RenderSettings.fogEndDistance = fogFar;
+
+                // Převzetí až na konci: přepisuje se totéž, co se právě spočítalo, takže je
+                // na jednom místě vidět, co platí. Rozdělit to do dvou větví výš by znamenalo
+                // dvě cesty ke stejným třem řádkům a dřív nebo později by se rozešly.
+                if (FogOverride)
+                {
+                    RenderSettings.fogColor = FogOverrideColor;
+                    RenderSettings.fogStartDistance = FogOverrideNear;
+                    RenderSettings.fogEndDistance = FogOverrideFar;
+                }
             }
         }
 
@@ -356,6 +473,46 @@ namespace Orivilon
         /// aby denní jas světel zůstal takový, jaký je nastavený ve scéně. Denní barvy ambientu/mlhy se neberou
         /// z RenderSettings (to je při startu přes menu nespolehlivé), ale z polí dayAmbient*/dayFogColor.
         /// </summary>
+        /// <summary>
+        /// Vzdálenost mlhy. Z dohledu terénu, pokud nějaký ve scéně je, jinak ze
+        /// serializovaných hodnot – menu a scény bez voxelového terénu se chovají jako dřív.
+        /// </summary>
+        private void ResolveFogDistances(out float near, out float far)
+        {
+            ResolveBaseFogDistances(out near, out far);
+
+            // Násobič je i na stínech, protože ty se z těchže čísel počítají (viz driveShadowDistance).
+            // Rozsah je omezený: hodnota mimo něj by v mlze utopila terén nebo naopak odkryla
+            // jeho useknutý okraj na konci posledního LOD prstence.
+            float range = Mathf.Clamp(BiomeFogRange, 0.5f, 2f);
+            near *= range;
+            far *= range;
+            near = Mathf.Min(near * Mathf.Clamp(BiomeFogNearScale, 0.5f, 2f), far * 0.8f);
+        }
+
+        /// <summary>Dosah mlhy bez vlivu biomu – čisté číslo z dohledu terénu nebo ze scény.</summary>
+        private void ResolveBaseFogDistances(out float near, out float far)
+        {
+            near = fogStartDistance;
+            far = fogEndDistance;
+            if (!fogFromViewDistance) return;
+
+            // Hledá se jednou. Streamer se během scény nemění a hledání v Update by bylo drahé.
+            if (!terrainSearched)
+            {
+                terrainSearched = true;
+                terrain = Orivilon.World.Generation.VoxelTerrain.instance;
+            }
+
+            if (terrain == null) return;
+
+            float view = terrain.ViewDistance;
+            if (view <= 1f) return;
+
+            near = view * fogStartFraction;
+            far = view * fogEndFraction;
+        }
+
         private void CaptureBaseline()
         {
             if (_baselineCaptured) return;

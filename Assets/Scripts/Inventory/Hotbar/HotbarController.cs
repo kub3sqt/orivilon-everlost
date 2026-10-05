@@ -1,4 +1,4 @@
-﻿using Orivilon.Core;
+using Orivilon.Core;
 using Orivilon.Inventory.Inventory;
 using Orivilon.Player;
 using UnityEngine;
@@ -51,6 +51,10 @@ namespace Orivilon.Inventory.Hotbar
         private void Update()
         {
             if (GameManager.instance != null && (GameManager.instance.IsPaused || GameManager.instance.isMenuOpen))
+                return;
+
+            // Kolečko myši nesmí přepínat sloty, když hráč píše do konzole.
+            if (GameConsole.IsOpen)
                 return;
 
             float scroll = Input.GetAxis("Mouse ScrollWheel");

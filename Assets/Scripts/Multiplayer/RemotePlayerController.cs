@@ -1,3 +1,5 @@
+using System;
+using Orivilon.Player;
 using TMPro;
 using UnityEngine;
 
@@ -53,6 +55,54 @@ namespace Orivilon.Multiplayer
         {
             targetPosition = position;
             targetRotation = rotation;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // Stav pohybu (plavání, pád, let)
+        // ══════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Poslední známý stav pohybu vzdáleného hráče.
+        ///
+        /// <para>Zatím se po síti neposílá – <c>NetworkPlayerBridge</c> odesílá jen
+        /// pozici a rotaci. Háček existuje proto, aby rozšíření drátového formátu
+        /// byla změna JEN v <c>NetworkWorldSync</c>: lokální hráč už stav vystavuje
+        /// jako <c>FirstPersonController.NetworkMoveState</c> a hlásí ho událostí
+        /// <c>MoveStateChanged</c>, tady ho stačí přijmout.</para>
+        ///
+        /// <para>Proč to nejde odvodit z pozice: plavání není vidět na rychlosti.
+        /// Hráč stojící po krk ve vodě a hráč stojící na břehu mají tutéž transformaci
+        /// a mají se hýbat i znít jinak.</para>
+        /// </summary>
+        public PlayerMoveState MoveState { get; private set; } = PlayerMoveState.Grounded;
+
+        /// <summary>Hlásí změnu stavu (starý, nový) – pro animace, zvuky a efekty.</summary>
+        public event Action<PlayerMoveState, PlayerMoveState> MoveStateChanged;
+
+        /// <summary>Plave tenhle vzdálený hráč?</summary>
+        public bool IsSwimming => MoveState == PlayerMoveState.Swimming;
+
+        /// <summary>
+        /// Přijme stav pohybu ze sítě. Volá se ze stejného místa jako
+        /// <see cref="SetTargetTransform"/>.
+        /// </summary>
+        public void SetMoveState(PlayerMoveState state)
+        {
+            if (state == MoveState) return;
+
+            PlayerMoveState previous = MoveState;
+            MoveState = state;
+            MoveStateChanged?.Invoke(previous, state);
+        }
+
+        /// <summary>
+        /// Přetížení pro syrovou hodnotu z drátu. Neznámé číslo (novější klient)
+        /// se zahodí místo přetypování na nesmyslný stav.
+        /// </summary>
+        public void SetMoveState(byte raw)
+        {
+            if (!Enum.IsDefined(typeof(PlayerMoveState), raw)) return;
+            SetMoveState((PlayerMoveState)raw);
         }
 
         /// <summary>

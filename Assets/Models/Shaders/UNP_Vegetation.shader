@@ -81,6 +81,16 @@ Shader "UNP/Vegetation"
             float _SnowMaskTiling;
         CBUFFER_END
 
+        // Kolo 10: globalni parametry svetla vegetace (Shader.SetGlobalFloat z VegetationLook).
+        // Vychozi 0 = puvodni chovani, takze bez skriptu se nic nemeni.
+        float _FolNormalUpLeaves;   // 0-1: normala listu k "korune" (nahoru), mene cernych rubu listu
+        float _FolNormalUpGrass;    // 0-1: normala travy k vertikale (trava se svetli jako teren)
+        float _FolShadowFloor;      // 0-1: kolik primeho svetla projde do stinu na listech
+        float _FolAmbient;          // pridany podil ambientu (SH) na listech
+        float _FolShadowFloorGrass; // totez pro travu (mene - trava ma drzet tonalitu terenu)
+        float _FolAmbientGrass;
+        float _FolDiag;             // diagnostika: 1 = bez stinu na vegetaci, 2 = jen ambient
+
         TEXTURE2D(_Texture);   SAMPLER(sampler_Texture);
         TEXTURE2D(_SnowMask);  SAMPLER(sampler_SnowMask);
 
@@ -187,6 +197,32 @@ Shader "UNP/Vegetation"
                 UNITY_VERTEX_OUTPUT_STEREO
             };
 
+            // Kolo 26: strom, ze ktereho v mlze zbyva jen bleda koruna, plynule zmizi (dither ve viditelnosti F/3..F). Rozhoduje
+            // vzdalenost POCATKU objektu, ne pixelu - kmen i koruna tehoz stromu tedy mizi najednou.
+            // V huste mlze by jinak zustala jen bleda silueta koruny proti obloze, zatimco kmen
+            // splyne se zamlzenym terenem (levitujici listi). _TreeFogFade = 0 -> beze zmeny.
+            float _TreeFogFade;
+            // 1 = strom normalne, 0 = zmizel; mezi tim pasmo ditheru. Pocita se z pocatku objektu.
+            float TreeFogKeep()
+            {
+                if (_TreeFogFade <= 0.0) return 1.0;
+                bool fogOn = false;
+                #if defined(FOG_LINEAR_KEYWORD_DECLARED)
+                if (FOG_LINEAR) fogOn = true;
+                #endif
+                #if defined(FOG_EXP_KEYWORD_DECLARED)
+                if (FOG_EXP) fogOn = true;
+                #endif
+                #if defined(FOG_EXP2_KEYWORD_DECLARED)
+                if (FOG_EXP2) fogOn = true;
+                #endif
+                if (!fogOn) return 1.0;
+                float3 pivotWS = TransformObjectToWorld(float3(0.0, 0.0, 0.0));
+                float viewZ = -TransformWorldToView(pivotWS).z;
+                float vis = ComputeFogIntensity(ComputeFogFactorZ0ToFar(max(viewZ - _ProjectionParams.y, 0.0)));
+                return saturate((vis - _TreeFogFade * 0.3333) / (_TreeFogFade * 0.6667));   // pasmo vis <F/3, F>
+            }
+
             Varyings vert(Attributes v)
             {
                 Varyings o;
@@ -203,12 +239,22 @@ Shader "UNP/Vegetation"
                 o.normalWS = TransformObjectToWorldNormal(v.normalOS);
                 o.uv = v.uv;
                 o.fogFactor = ComputeFogFactor(o.positionCS.z);
+                // Kolo 26: strom za pasmem mlhy - listi uplne pryc uz ve vertexu (zadne fragmenty).
+                if (_SecureFoliageBase < 0.5 && TreeFogKeep() <= 0.0) o.positionCS = float4(0.0, 0.0, 0.0, 1.0);
                 return o;
             }
+
+
 
             half4 frag(Varyings i, bool isFrontFace : SV_IsFrontFace) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(i);
+                if (_SecureFoliageBase < 0.5)   // jen listi, ne trava: dither v pasmu mlhy (Kolo 26)
+                {
+                    float keep = TreeFogKeep();
+                    float n = frac(52.9829189 * frac(dot(i.positionCS.xy, float2(0.06711056, 0.00583715))));
+                    clip(keep - n - 0.0001);
+                }
 
                 half3 albedo;
                 half alpha;
@@ -238,6 +284,11 @@ Shader "UNP/Vegetation"
                 // Oboustranne listy - normala se otoci pro zadni strany
                 float3 normalWS = NormalizeNormalPerPixel(i.normalWS);
                 normalWS = isFrontFace ? normalWS : -normalWS;
+                // Kolo 10: karty listu a stebel maji normalu kolmou na kartu. Na siluete koruny/trsu
+                // se karta vidi z rubu nebo z boku, normala miri od slunce a pixel dostane jen
+                // (tmavy) ambient - z toho cerny lem. Normala se proto primicha k vertikale.
+                half upW = _SecureFoliageBase > 0.5 ? _FolNormalUpGrass : _FolNormalUpLeaves;
+                normalWS = normalize(lerp(normalWS, float3(0, 1, 0), upW));
 
                 InputData inputData = (InputData)0;
                 inputData.positionWS = i.positionWS;
@@ -265,6 +316,18 @@ Shader "UNP/Vegetation"
                 // Prosvitani (backlight) - kdyz je slunce za vegetaci, listy a stebla teple prosvitaji.
                 // Nejvic se projevi za usvitu a soumraku, kdy je slunce nizko za travou.
                 Light mainLight = GetMainLight(inputData.shadowCoord);
+
+                // Kolo 10: stin na vegetaci neni cerny - listy a trava ve stinu dostanou cast
+                // primeho svetla zpet (rozptyl korunou) a o kus vic oblohy. Stin zustava citelny.
+                half ndlF = saturate(dot(normalWS, mainLight.direction) * 0.5 + 0.5);
+                half lost = (1.0 - mainLight.shadowAttenuation) * mainLight.distanceAttenuation;
+                bool grass = _SecureFoliageBase > 0.5;
+                half floorF = grass ? _FolShadowFloorGrass : _FolShadowFloor;
+                half ambF = grass ? _FolAmbientGrass : _FolAmbient;
+                color.rgb += albedo * mainLight.color.rgb * ndlF * lost * floorF;
+                color.rgb += albedo * inputData.bakedGI * ambF;
+                if (_FolDiag > 1.5) color.rgb = albedo * inputData.bakedGI;
+                else if (_FolDiag > 0.5) color.rgb += albedo * mainLight.color.rgb * ndlF * lost;
                 float backLight = saturate(dot(-inputData.viewDirectionWS, mainLight.direction));
                 float trans = pow(backLight, 3.0) * _Translucency;
                 color.rgb += albedo * mainLight.color.rgb * trans * mainLight.shadowAttenuation;

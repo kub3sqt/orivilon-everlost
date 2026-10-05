@@ -23,4 +23,7 @@ MonoBehaviour:
   handPositionOffset: {x: 0.64, y: 0, z: -0.1}
   handRotationOffset: {x: -15, y: 260, z: 0}
   handScale: {x: 0.05, y: 0.05, z: 0.05}
-  toolType: 0
+  toolType: 2
+  isFood: 0
+  foodRestore: 0
+  waterRestore: 0

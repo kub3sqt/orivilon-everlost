@@ -11,7 +11,7 @@ GameObject:
   - component: {fileID: 8130664637035586440}
   - component: {fileID: 5629691703581972045}
   - component: {fileID: 3827657089172614815}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Fir_Log_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -88,6 +88,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &621527493079556742
 GameObject:
@@ -100,7 +101,7 @@ GameObject:
   - component: {fileID: 9168232216289113876}
   - component: {fileID: 2180764282111312275}
   - component: {fileID: 7632542447911135764}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Fir_Log_LOD2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -177,6 +178,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &666108899747550231
 GameObject:
@@ -189,7 +191,7 @@ GameObject:
   - component: {fileID: 2232789310278755354}
   - component: {fileID: 4306779149885253330}
   - component: {fileID: 8631550656500437952}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Fir_Log_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -266,6 +268,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &5904368861498333352
 GameObject:
@@ -278,7 +281,8 @@ GameObject:
   - component: {fileID: 6259320588314777272}
   - component: {fileID: 4336459204346877086}
   - component: {fileID: -2670720474496035442}
-  m_Layer: 6
+  - component: {fileID: -405405031419261003}
+  m_Layer: 8
   m_Name: Tree_Fir_Log
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -353,3 +357,17 @@ CapsuleCollider:
   m_Height: 1.74
   m_Direction: 0
   m_Center: {x: -0.01, y: 0.15, z: 0}
+--- !u!114 &-405405031419261003
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5904368861498333352}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20dc680bf7028f6419c7e54b425a129d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Orivilon::Orivilon.World.Objects.PickupItem
+  itemData: {fileID: 11400000, guid: 890940c71bd2a0247a621f907c1df7ff, type: 2}
+  itemCount: 5

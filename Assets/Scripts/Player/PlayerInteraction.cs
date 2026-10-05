@@ -45,6 +45,9 @@ namespace Orivilon.Player
         /// <summary>Aktuálně cílený těžitelný objekt (null = žádný).</summary>
         private HarvestableObject currentHarvest;
 
+        /// <summary>Aktuálně cílené instancované stéblo trávy (bez GameObjectu).</summary>
+        private Orivilon.World.Spawning.ObjectSpawner.InstancedPickup currentInstanced;
+
         /// <summary>Singleton inicializace.</summary>
         private void Awake()
         {
@@ -62,6 +65,11 @@ namespace Orivilon.Player
             if (currentPickup != null && Input.GetKeyDown(KeyCode.E))
             {
                 currentPickup.PickUp();
+                ClearUI();
+            }
+            else if (currentInstanced.Valid && Input.GetKeyDown(KeyCode.E))
+            {
+                Orivilon.World.Spawning.ObjectSpawner.PickUpInstanced(currentInstanced);
                 ClearUI();
             }
 
@@ -89,13 +97,19 @@ namespace Orivilon.Player
         {
             Ray ray = Camera.main.ViewportPointToRay(new Vector3(0.5f, 0.5f));
             RaycastHit hit;
+            float grassReach = interactionDistance;
 
             if (Physics.Raycast(ray, out hit, interactionDistance))
             {
+                // Tráva kreslená instancovaně nemá collider; smí být nejvýš kousek za zásahem
+                // (paprsek do trsu obvykle skončí v zemi hned za ním).
+                grassReach = Mathf.Min(interactionDistance, hit.distance + 0.6f);
+
                 if (hit.collider.TryGetComponent(out PickupItem pickup))
                 {
                     currentPickup = pickup;
                     currentHarvest = null;
+                    currentInstanced = default;
                     ShowUI($"Press E to pick up {pickup.itemData.itemName}");
                     return;
                 }
@@ -104,11 +118,21 @@ namespace Orivilon.Player
                 {
                     currentHarvest = harvest;
                     currentPickup = null;
+                    currentInstanced = default;
 
                     var equippedTool = PlayerEquipment.Instance?.EquippedTool;
                     ShowUI(harvest.GetInteractionText(equippedTool));
                     return;
                 }
+            }
+
+            if (Orivilon.World.Spawning.ObjectSpawner.FindInstancedPickup(ray, grassReach, out var grass))
+            {
+                currentPickup = null;
+                currentHarvest = null;
+                currentInstanced = grass;
+                ShowUI($"Press E to pick up {grass.template.itemData.itemName}");
+                return;
             }
 
             ClearUI();
@@ -133,6 +157,7 @@ namespace Orivilon.Player
         {
             currentPickup = null;
             currentHarvest = null;
+            currentInstanced = default;
 
             pickupText.SetActive(false);
             crosshairDefault.SetActive(true);

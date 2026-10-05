@@ -47,6 +47,13 @@ namespace Orivilon.Inventory.Crafting
         /// </summary>
         public void Refresh()
         {
+            // OnEnable může přijít DŘÍV, než se stihnou postavit singletony craftingu –
+            // typicky když se scéna spouští napřímo, ne přes menu. Bez téhle stráže to
+            // padalo na NullReferenceException hned při startu a kazilo to konzoli.
+            // Slot v takové chvíli prostě nemá co zobrazit; naplní se při dalším Refreshi.
+            if (CraftingData.Instance == null || CraftingController.Instance == null) return;
+            if (iconImage == null) return;
+
             var item = CraftingData.Instance.resultItem;
             var amount = CraftingController.Instance.ResultAmount;
 
@@ -54,12 +61,12 @@ namespace Orivilon.Inventory.Crafting
             {
                 iconImage.sprite = item.icon;
                 iconImage.enabled = true;
-                stackAmountText.text = amount > 1 ? amount.ToString() : "";
+                if (stackAmountText != null) stackAmountText.text = amount > 1 ? amount.ToString() : "";
             }
             else
             {
                 iconImage.enabled = false;
-                stackAmountText.text = "";
+                if (stackAmountText != null) stackAmountText.text = "";
             }
         }
 

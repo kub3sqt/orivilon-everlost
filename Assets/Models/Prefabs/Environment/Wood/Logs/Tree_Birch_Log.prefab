@@ -11,7 +11,8 @@ GameObject:
   - component: {fileID: 130489312041938139}
   - component: {fileID: 2225183053331774139}
   - component: {fileID: -1104793692739847374}
-  m_Layer: 6
+  - component: {fileID: 4442290792431847334}
+  m_Layer: 8
   m_Name: Tree_Birch_Log
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -86,6 +87,20 @@ CapsuleCollider:
   m_Height: 1.5
   m_Direction: 0
   m_Center: {x: -0.01, y: 0.15, z: 0}
+--- !u!114 &4442290792431847334
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3293836120810403826}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 20dc680bf7028f6419c7e54b425a129d, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Orivilon::Orivilon.World.Objects.PickupItem
+  itemData: {fileID: 11400000, guid: 890940c71bd2a0247a621f907c1df7ff, type: 2}
+  itemCount: 5
 --- !u!1 &7052524975551558140
 GameObject:
   m_ObjectHideFlags: 0
@@ -97,7 +112,7 @@ GameObject:
   - component: {fileID: 3284001983927876550}
   - component: {fileID: 3503997577431197954}
   - component: {fileID: 7334364126537207524}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Birch_Log_LOD1
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -174,6 +189,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &7643197112778909374
 GameObject:
@@ -186,7 +202,7 @@ GameObject:
   - component: {fileID: 8483351666475557465}
   - component: {fileID: 2462622570439455555}
   - component: {fileID: 334424367270415191}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Birch_Log_LOD2
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -263,6 +279,7 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}
 --- !u!1 &8288726729584364484
 GameObject:
@@ -275,7 +292,7 @@ GameObject:
   - component: {fileID: 1215087565220209137}
   - component: {fileID: 3455970817451362932}
   - component: {fileID: 1637432906210066882}
-  m_Layer: 6
+  m_Layer: 8
   m_Name: Tree_Birch_Log_LOD0
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -352,4 +369,5 @@ MeshRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
+  m_MaskInteraction: 0
   m_AdditionalVertexStreams: {fileID: 0}

@@ -3,6 +3,7 @@ using UnityEngine;
 using UnityEngine.Audio;
 using Orivilon.Player;
 using Orivilon.World.Terrain;
+using Orivilon.World.Generation;
 
 namespace Orivilon.UI.Settings
 {
@@ -235,12 +236,11 @@ namespace Orivilon.UI.Settings
                 needs.waterDrainPerSecond = 0.7f * Current.thirstRate;
             }
 
-#pragma warning disable CS0618
-            EndlessTerrain terrain = FindObjectOfType<EndlessTerrain>();
-#pragma warning restore CS0618
+            VoxelTerrain terrain = FindFirstObjectByType<VoxelTerrain>();
             if (terrain != null)
             {
-                terrain.renderDistance = Current.renderDistance;
+                // UpdateRenderDistance hodnotu ořízne na rozsah, který streamer uveze.
+                terrain.UpdateRenderDistance(Current.renderDistance);
             }
         }
 

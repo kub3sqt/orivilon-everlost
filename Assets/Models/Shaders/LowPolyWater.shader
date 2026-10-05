@@ -27,6 +27,15 @@ Shader "Everlost/LowPolyWater"
         _FresnelPower ("Fresnel Power", Range(0.5, 8.0)) = 4.0
         _SpecStrength ("Spec Strength", Range(0.0, 2.0)) = 0.6
         _SpecPower ("Spec Sharpness", Range(8.0, 400.0)) = 200.0
+
+        [Header(Flow (kolo 10))]
+        [Space(5)]
+        _FlowWaveHeight ("River Ripple Height (m)", Range(0.0, 0.5)) = 0.07
+        _FlowScale ("River Ripple Density", Range(0.05, 2.0)) = 0.35
+        _FlowCycle ("Flow Cycle (s)", Range(0.5, 10.0)) = 3.0
+        _RapidWave ("Rapid Extra Height (m)", Range(0.0, 1.0)) = 0.22
+        _RapidFoam ("Rapid Foam", Range(0.0, 1.0)) = 0.55
+        _LakeWave ("Lake Wave Fraction", Range(0.0, 1.0)) = 0.12
     }
 
     SubShader
@@ -41,7 +50,13 @@ Shader "Everlost/LowPolyWater"
 
             Blend SrcAlpha OneMinusSrcAlpha
             ZWrite Off
-            Cull Back
+
+            // Oboustranne: pri ponoreni hrace je videt hladina ZESPODU. S Cull Back
+            // vodni plocha zevnitr proste zmizela a hrac koukal na svet jako na suchu,
+            // jen s terenem kolem sebe - nebylo podle ceho poznat, ze je pod vodou.
+            // Normala se ve fragmentu stejne prevraci nahoru (N.y < 0), takze spodek
+            // zustava osvetleny jako strop, ne jako cerna plocha.
+            Cull Off
 
             HLSLPROGRAM
             #pragma vertex vert
@@ -68,11 +83,20 @@ Shader "Everlost/LowPolyWater"
                 float _FresnelPower;
                 float _SpecStrength;
                 float _SpecPower;
+                float _FlowWaveHeight;
+                float _FlowScale;
+                float _FlowCycle;
+                float _RapidWave;
+                float _RapidFoam;
+                float _LakeWave;
             CBUFFER_END
 
             struct Attributes
             {
                 float4 positionOS : POSITION;
+                // Kolo 10: xy = tok po proudu (smer x rychlost m/s), z = vaha jezera, w = vaha reky.
+                // Nula (mesh bez atributu) = more = puvodni chovani.
+                float4 flow : TEXCOORD0;
             };
 
             struct Varyings
@@ -81,6 +105,7 @@ Shader "Everlost/LowPolyWater"
                 float3 positionWS : TEXCOORD0;
                 float4 screenPos : TEXCOORD1;
                 half fogFactor : TEXCOORD2;
+                float4 flowData : TEXCOORD3; // x = peřej 0-1, y = vzor proudu 0-1, z = vaha reky
             };
 
             // Soucet nekolika sinu -> jemne, organicke vlny. Faze z objektovych souradnic x,z.
@@ -93,13 +118,56 @@ Shader "Everlost/LowPolyWater"
                 return w * _WaveHeight;
             }
 
+            // Hodnotovy sum 2D - bez textury, hladky (smoothstep interpolace).
+            float Hash21(float2 p)
+            {
+                p = frac(p * float2(123.34, 456.21));
+                p += dot(p, p + 45.32);
+                return frac(p.x * p.y);
+            }
+            float VNoise(float2 p)
+            {
+                float2 i = floor(p), f = frac(p);
+                float2 u = f * f * (3.0 - 2.0 * f);
+                float a = Hash21(i), b = Hash21(i + float2(1, 0));
+                float c = Hash21(i + float2(0, 1)), d = Hash21(i + float2(1, 1));
+                return lerp(lerp(a, b, u.x), lerp(c, d, u.x), u.y);
+            }
+
+            // Proud: dvoufazovy "flow map" nad procedurnim sumem. Vzor se posouva po proudu
+            // rychlosti toku; kazda faze se po jednom cyklu vrati a mezitim ji prekryje druha,
+            // takze pohyb je spojity a vzor se neroztahuje ani v ohybech (smer je lokalni).
+            float FlowPattern(float2 p, float2 flow)
+            {
+                float t = _Time.y / _FlowCycle;
+                float ph0 = frac(t), ph1 = frac(t + 0.5);
+                float bw = abs(ph0 * 2.0 - 1.0);
+                float2 q = p * _FlowScale;
+                float n0 = VNoise(q - flow * (ph0 * _FlowCycle * _FlowScale));
+                float n1 = VNoise(q - flow * (ph1 * _FlowCycle * _FlowScale) + 17.3);
+                return lerp(n0, n1, bw);
+            }
+
             Varyings vert(Attributes v)
             {
                 Varyings o;
 
                 // Vlny pocitame ve SVETOVYCH souradnicich -> plynule navazuji pres sousedni dlazdice (zadne svary).
                 float3 posWS = TransformObjectToWorld(v.positionOS.xyz);
-                posWS.y += WaveHeight(posWS.xz);
+
+                // Kolo 10: rezimy vody. More = puvodni sinusove vlny, jezero = zlomek z nich
+                // (skoro klidna hladina), reka = zadne morske vlny, jen vzor tekouci po proudu;
+                // na perejich (rychly tok) je vzor vyssi a pribude pena.
+                float riverW = saturate(v.flow.w);
+                float lakeW = saturate(v.flow.z);
+                float seaW = saturate(1.0 - riverW - lakeW);
+                float spd = length(v.flow.xy);
+                float rapid = saturate((spd - 0.9) / 1.6);
+                float fp = riverW > 0.001 ? FlowPattern(posWS.xz, v.flow.xy) : 0.5;
+                float sea = WaveHeight(posWS.xz);
+                posWS.y += sea * (seaW + lakeW * _LakeWave)
+                         + (fp * 2.0 - 1.0) * (_FlowWaveHeight + rapid * _RapidWave) * riverW;
+                o.flowData = float4(rapid * riverW, fp, riverW, 0);
 
                 o.positionWS = posWS;
                 o.positionCS = TransformWorldToHClip(posWS);
@@ -154,6 +222,8 @@ Shader "Everlost/LowPolyWater"
                 float foamBand = smoothstep(0.55, 0.9, foamEdge * foamWave);
                 float foamShore = smoothstep(0.85, 1.0, foamEdge);
                 float foam = saturate(foamBand + foamShore);
+                // Kolo 10: pena jen na perejich a vodopadech - podle rychlosti toku, ve vzoru proudu.
+                foam = saturate(foam + i.flowData.x * _RapidFoam * smoothstep(0.55, 0.8, i.flowData.y));
                 col.rgb = lerp(col.rgb, _FoamColor.rgb, foam);
 
                 // Alfa: hlubsi = neprusvitnejsi, pena neprusvitna.

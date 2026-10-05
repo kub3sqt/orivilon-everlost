@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "com.adjoint.editor": "https://github.com/adjointdev/adjoint-beta-dist.git",
     "com.madsbangh.easybuttons": "https://github.com/madsbangh/EasyButtons.git#upm",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.burst": "1.8.28",
