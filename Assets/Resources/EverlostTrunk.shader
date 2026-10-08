@@ -106,6 +106,9 @@ Shader "Everlost/Trunk"
             // V husté mlze by jinak zůstala jen bledá silueta koruny proti obloze, zatímco kmen
             // splyne se zamlženým terénem („levitující listí“). _TreeFogFade = 0 → beze změny.
             float _TreeFogFade;
+            // Kolo 30: konec dosahu vzdálených stromů (x = začátek, y = konec pásma, m od kamery). Výšková mlha
+            // z vrcholu odkryje i stromy za koncem TreeProxies; tady mizí dřív, než by byl vidět jejich okraj.
+            float4 _TreeFadeDist;
             // 1 = strom normálně, 0 = zmizel; mezi tím pásmo ditheru. Počítá se z počátku objektu.
             float TreeFogKeep()
             {
@@ -124,7 +127,10 @@ Shader "Everlost/Trunk"
                 float3 pivotWS = TransformObjectToWorld(float3(0.0, 0.0, 0.0));
                 float viewZ = -TransformWorldToView(pivotWS).z;
                 float vis = ComputeFogIntensity(ComputeFogFactorZ0ToFar(max(viewZ - _ProjectionParams.y, 0.0)));
-                return saturate((vis - _TreeFogFade * 0.3333) / (_TreeFogFade * 0.6667));   // pásmo vis <F/3, F>
+                float keep = saturate((vis - _TreeFogFade * 0.3333) / (_TreeFogFade * 0.6667));   // pásmo vis <F/3, F>
+                if (_TreeFadeDist.y > 0.0)   // Kolo 30: totéž pásmo i podle vzdálenosti
+                    keep = min(keep, saturate((_TreeFadeDist.y - distance(pivotWS, _WorldSpaceCameraPos)) / max(_TreeFadeDist.y - _TreeFadeDist.x, 1.0)));
+                return keep;
             }
 
             // Kolo 26: kmen nedostává discard (zůstává mu early-Z / HSR). Zmizí celý až tam, kde je listí

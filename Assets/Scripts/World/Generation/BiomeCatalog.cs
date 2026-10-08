@@ -92,6 +92,10 @@ namespace Orivilon.World.Generation
             new BiomeEntry("basalt_columns_coast", "čedičové pobřeží",  Coast, I, (int)BiomeRegion.BasaltCoast, 0.38f, 0.66f, 0f, 1f, "kolo 28: chladnější mírné a teplé ne-vlhké pobřeží, šestiboké sloupy i v mělčině, černý písek; oceán beze změny"),
             new BiomeEntry("obsidian_plain", "obsidiánová pláň",         Hot,   I, (int)BiomeRegion.ObsidianPlain, 0.62f, 1f, 0f, 0.5f, "kolo 28: jádro horkého pásma, suché roviny 16–170 m; jen vizuální (bez poškození výbavy)"),
             new BiomeEntry("alabaster_plateau", "alabastrové plato",     Warm,  I, (int)BiomeRegion.AlabasterPlateau, 0.55f, 0.68f, 0f, 0.55f, "kolo 28: suché jádro teplého pásma, plošiny 40–420 m, hladké formace a oblouky"),
+            // ── kolo 29: sedmý balík (geologické 2), anglická kanonická id; jen na konec ──
+            new BiomeEntry("meteor_crater", "meteorický kráter",         Warm,  I, (int)BiomeRegion.MeteorCrater, 0.55f, 1f, 0f, 0.6f, "kolo 29: vzácné kruhové krátery (2,4 km buňky) v jádru teplého/horkého pásma, val R 74–112 m, tektity, černé sklo, rudy, spálený prstenec; jen vizuální"),
+            new BiomeEntry("fossilized_coral_reef", "zkamenělý korálový útes", Warm, I, (int)BiomeRegion.FossilReef, 0.55f, 0.68f, 0.3f, 0.7f, "kolo 29: vyschlé dávné mořské dno v teplých nížinách 14–120 m, kalcitové korály, porézní vápenec, kostry, průchozí brány"),
+            new BiomeEntry("mud_volcanoes", "bahenní sopky a solfatary",  Warm,  I, (int)BiomeRegion.MudVolcanoes, 0.55f, 1f, 0f, 0.6f, "kolo 29: ploché teplé/horké nížiny 10–100 m, šedé kužely, praskající krusty, sírové krystaly, střídmá pára; jen vizuální"),
         };
 
         public static int Count => All.Length;

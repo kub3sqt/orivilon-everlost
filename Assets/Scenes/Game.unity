@@ -20212,6 +20212,56 @@ RectTransform:
     type: 3}
   m_PrefabInstance: {fileID: 2120721337}
   m_PrefabAsset: {fileID: 0}
+--- !u!1 &1314067822
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1314067824}
+  - component: {fileID: 1314067823}
+  m_Layer: 0
+  m_Name: Biome Ambience
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1314067823
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1314067822}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 538e4cf9a683240a891b4966a94e9249, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Orivilon::Orivilon.World.Biomes.BiomeAmbience
+  forestLoop: {fileID: 8300000, guid: bec1cfb465efc7a41bd5ccbac5b6f2a2, type: 3}
+  desertLoop: {fileID: 8300000, guid: 660790bb19a97eb4581a05d90c81f369, type: 3}
+  plainsLoop: {fileID: 8300000, guid: 2cbeb5b18dd7a4940801811781c0e0d8, type: 3}
+  coastLoop: {fileID: 8300000, guid: 054205af35efcb942be9610445479a7c, type: 3}
+  mountainLoop: {fileID: 8300000, guid: 660790bb19a97eb4581a05d90c81f369, type: 3}
+  masterVolume: 0.6
+--- !u!4 &1314067824
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1314067822}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1322252675
 GameObject:
   m_ObjectHideFlags: 0
@@ -23601,6 +23651,24 @@ MonoBehaviour:
   hydroMaxRegions: 9
   spawnProps: 1
   maxPropColumnsPerFrame: 1
+  WaterSeamRebuilds: 0
+  WaterSeamMs: 0
+  WaterSeamFrameMaxMs: 0
+  WaterSeamFrameMaxCount: 0
+  WaterSeamSnapshots: 0
+  TerrainSeamQueued: 0
+  TerrainSeamRestarts: 0
+  TerrainSeamSwaps: 0
+  TerrainSeamForced: 0
+  TerrainSeamBlockedFrames: 0
+  TerrainSeamWaitMax: 0
+  TerrainSeamQueueMax: 0
+  TerrainSeamScheduleMs: 0
+  TerrainSeamFrameMaxMs: 0
+  TerrainSeamWaterMs: 0
+  TerrainSeamWaterFrameMaxMs: 0
+  TerrainSeamPeakFields: 0
+  TerrainSeamPeakBytes: 0
 --- !u!1 &1477067568
 GameObject:
   m_ObjectHideFlags: 0
@@ -36666,3 +36734,4 @@ SceneRoots:
   - {fileID: 1440149266}
   - {fileID: 1682714393}
   - {fileID: 1476914818}
+  - {fileID: 1314067824}

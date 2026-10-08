@@ -332,11 +332,11 @@ namespace Orivilon.World.Generation
         /// </summary>
         public float3 EvaluateArt(float3 p, float normalY, float temperature, float humidity,
                                   float shoreY, float3 off)
-            => EvaluateArt(p, normalY, temperature, humidity, shoreY, off, 0f);
+            => EvaluateArt(p, normalY, temperature, humidity, shoreY, off, 0f, default);
 
         /// <param name="cliff">Síla terasování sloupce (ColumnField.cliff) – jen diagnostika a kolo 12.</param>
         public float3 EvaluateArt(float3 p, float normalY, float temperature, float humidity,
-                                  float shoreY, float3 off, float cliff)
+                                  float shoreY, float3 off, float cliff, in CraterCell crater)
         {
             float t = saturate(temperature), h = saturate(humidity);
             float y = p.y;
@@ -367,8 +367,8 @@ namespace Orivilon.World.Generation
             bool regions = biomes > 0.5f;
             if (regions)
             {
-                rw = BiomeMath.WeightsC(p.xz, y, t, h, cliff, hW, hasShore, seaLevel, off, out cs);
-                meadow = BiomeMath.Ground(rw, meadow, p, nBig, nMid);
+                rw = BiomeMath.WeightsC(p.xz, y, t, h, cliff, hW, hasShore, seaLevel, off, crater, out cs);
+                meadow = BiomeMath.Ground(rw, meadow, p, nBig, nMid, off, crater);   // kolo 29: off pro kráter a výduchy
             }
             float aridLand = regions ? rw.desert + rw.mesa + 0.6f * rw.steppe + rw.volcanic + rw.petrified + 0.6f * rw.burnt : 0f;   // kolo 19: bez zeleného pobřežního pásu
             // kolo 20: nové biomy mají vlastní břeh (závěje, bahno, sůl, led) – bez zeleného pobřežního pásu a travnatých stupňů
@@ -377,6 +377,8 @@ namespace Orivilon.World.Generation
             // kolo 28: černý písek čediče, holá obsidiánová a alabastrová pláň – také bez zeleného pobřežního pásu
             float w28 = regions ? rw.basalt + rw.obsidian + rw.alabaster : 0f;
             if (w28 > 0.002f) own20 = saturate(own20 + w28);
+            float w29 = regions ? rw.meteor + rw.coral + rw.mud : 0f;   // kolo 29: kráter, korálový písek, bahenní krusta – vlastní břeh
+            if (w29 > 0.002f) own20 = saturate(own20 + w29);
             aridLand = saturate(aridLand + own20);
             if (regions && diag > 5.5f && diag < 6.5f) return BiomeMath.DebugColor(rw);
 
@@ -394,6 +396,9 @@ namespace Orivilon.World.Generation
                                        : new float3(0.34f, 0.40f, 0.22f);
             // kolo 20: na štítech a ledovci je i alpínské pásmo sněhové/ledové (barva regionu), ne lišejníková louka
             if (regions && cold20 > 0.002f) alpMeadow = lerp(alpMeadow, meadow, saturate((rw.snowPeaks + rw.glacier) * 1.2f));
+            // kolo 29: kráter (dno až ~260 m n. m.) má i nad hranicí trávy barvu regionu, ne alpínskou louku a suť (finál s31415: světlé dno)
+            float w29a = regions ? saturate(w29 * 1.3f) : 0f;
+            if (w29a > 0.002f) alpMeadow = lerp(alpMeadow, meadow, w29a);
             float3 scree = new float3(0.46f, 0.44f, 0.40f);
             float3 rockLo = new float3(0.44f, 0.39f, 0.33f);
             float3 rockHi = new float3(0.38f, 0.39f, 0.43f);
@@ -403,7 +408,7 @@ namespace Orivilon.World.Generation
 
             float wAlp = smoothstep(grassTop - 30f + 18f * nMid, grassTop + 40f, y);
             float3 c = lerp(meadow, alpMeadow, wAlp);
-            c = lerp(c, scree, smoothstep(rockLine - 70f + 15f * nMid, rockLine, y) * (regions ? 1f - saturate(rw.glacier * 1.3f) : 1f));
+            c = lerp(c, scree, smoothstep(rockLine - 70f + 15f * nMid, rockLine, y) * (regions ? 1f - saturate(rw.glacier * 1.3f) : 1f) * (1f - w29a));
             // Kolo 14b: v tundře je výškové pásmo lišejníkové (šedozelené), ne béžová suť.
             if (regions) c = lerp(c, BiomeMath.TundraColor(nMid), rw.tundra * 0.85f * wAlp);
 
@@ -467,6 +472,13 @@ namespace Orivilon.World.Generation
                 sandC = lerp(sandC, new float3(0.45f, 0.42f, 0.35f), saturate(rw.alabaster * 1.2f));
                 float bw28 = saturate(rw.basalt * 1.2f);
                 if (bw28 > 0.002f) { float3 bB = new float3(0.02f, 0.025f, 0.03f); under = lerp(under, bB, bw28 * 0.6f); bed = lerp(bed, bB, bw28); }
+            }
+            // Kolo 29: krémový korálový písek a šedé bahno na břehu řek (hladina ani vodní mesh se nemění).
+            if (w29 > 0.002f)
+            {
+                sandC = lerp(sandC, new float3(0.46f, 0.41f, 0.33f), saturate(rw.coral * 1.2f));
+                sandC = lerp(sandC, new float3(0.16f, 0.155f, 0.145f), saturate(rw.mud * 1.2f));
+                sandC = lerp(sandC, new float3(0.12f, 0.08f, 0.11f), saturate(rw.meteor * 1.2f));
             }
             if (y < seaLevel - 1f) c = lerp(under, bed, smoothstep(seaLevel - 14f, seaLevel, y));
             else if (y < sandTop && !riverish) c = sandC;

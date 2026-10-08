@@ -202,6 +202,8 @@ Shader "UNP/Vegetation"
             // V huste mlze by jinak zustala jen bleda silueta koruny proti obloze, zatimco kmen
             // splyne se zamlzenym terenem (levitujici listi). _TreeFogFade = 0 -> beze zmeny.
             float _TreeFogFade;
+            // Kolo 30: konec dosahu vzdalenych stromu (x = zacatek, y = konec pasma, m od kamery) - viz EverlostTrunk.
+            float4 _TreeFadeDist;
             // 1 = strom normalne, 0 = zmizel; mezi tim pasmo ditheru. Pocita se z pocatku objektu.
             float TreeFogKeep()
             {
@@ -220,7 +222,10 @@ Shader "UNP/Vegetation"
                 float3 pivotWS = TransformObjectToWorld(float3(0.0, 0.0, 0.0));
                 float viewZ = -TransformWorldToView(pivotWS).z;
                 float vis = ComputeFogIntensity(ComputeFogFactorZ0ToFar(max(viewZ - _ProjectionParams.y, 0.0)));
-                return saturate((vis - _TreeFogFade * 0.3333) / (_TreeFogFade * 0.6667));   // pasmo vis <F/3, F>
+                float keep = saturate((vis - _TreeFogFade * 0.3333) / (_TreeFogFade * 0.6667));   // pasmo vis <F/3, F>
+                if (_TreeFadeDist.y > 0.0)   // Kolo 30: totez pasmo i podle vzdalenosti
+                    keep = min(keep, saturate((_TreeFadeDist.y - distance(pivotWS, _WorldSpaceCameraPos)) / max(_TreeFadeDist.y - _TreeFadeDist.x, 1.0)));
+                return keep;
             }
 
             Varyings vert(Attributes v)

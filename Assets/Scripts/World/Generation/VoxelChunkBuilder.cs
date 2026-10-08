@@ -357,6 +357,7 @@ namespace Orivilon.World.Generation
                 microOffset = gp.offMicro,
                 micro = gp.Micro,
                 seaLevel = gp.seaLevel,
+                crater = CraterMath.ForBox(origin.xz, origin.xz + VoxelWorld.ChunkDim * voxelSize, gp, spl),   // kolo 29
                 columnTemp = column.temp,
                 columnHum = column.hum,
                 columnShoreY = column.shoreY,
@@ -420,6 +421,7 @@ namespace Orivilon.World.Generation
             worldMinY = VoxelWorld.WorldMinY,
             worldMaxY = VoxelWorld.WorldMaxY,
             gp = gp,
+            crater = CraterMath.ForBox(VoxelWorld.ChunkOrigin(coord, voxelSize).xz, VoxelWorld.ChunkOrigin(coord, voxelSize).xz + VoxelWorld.ChunkDim * voxelSize, gp, spl),   // kolo 29
             surfY = column.surfY,
             overhang = column.overhang,
             waterGate = column.waterGate,

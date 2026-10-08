@@ -145,6 +145,20 @@ namespace Orivilon.World.Biomes
         private float nextSample;
         private Transform viewer;
 
+        /// <summary>
+        /// Kolo 30: výhled z výšky. Opar je hustší dole – z údolí zůstává blízký horizont, z hřebene
+        /// je vidět dál. Rozhoduje nadmořská výška oka a jeho výška nad okolím (průměr terénu
+        /// v kruhu <see cref="VistaRingRadius"/>, moře = hladina), takže výškové údolí uvnitř
+        /// masivu zůstane zamlžené víc než vrchol ve stejné výšce.
+        /// </summary>
+        public static float VistaAltLow = 70f, VistaAltHigh = 450f, VistaAltWeight = 0.65f;
+        /// <inheritdoc cref="VistaAltLow"/>
+        public static float VistaRelLow = 15f, VistaRelHigh = 160f, VistaRelWeight = 0.6f;
+        private const float VistaRingRadius = 250f;
+        /// <summary>Rychlost náběhu výhledu (1/s). Pomalá – při stoupání se opar rozplývá postupně, ne skokem.</summary>
+        private const float VistaBlendSpeed = 0.5f;
+        private float vistaTarget, vista, vistaAlt, vistaRel;
+
         /// <summary>Biom, podle kterého se právě tónuje. Čte ho konzolový příkaz /atmo.</summary>
         public VoxelBiome ActiveBiome { get; private set; } = VoxelBiome.Plains;
 
@@ -241,6 +255,7 @@ namespace Orivilon.World.Biomes
             SunRotation.BiomeFogRange = 1f;
             SunRotation.FogOverride = false;
             SunRotation.LightDamp = 1f;
+            SunRotation.VistaFactor = 0f;
             Instance = null;
         }
 
@@ -289,6 +304,8 @@ namespace Orivilon.World.Biomes
 
             float speed = dive > 0.001f ? DiveBlendSpeed : BlendSpeed;
             current = Grading.Lerp(current, want, 1f - Mathf.Exp(-speed * Time.deltaTime));
+            vista = Mathf.Lerp(vista, vistaTarget, 1f - Mathf.Exp(-VistaBlendSpeed * Time.deltaTime));
+            SunRotation.VistaFactor = vista;
             Apply();
         }
 
@@ -339,6 +356,7 @@ namespace Orivilon.World.Biomes
 
             Vector3 p = viewer.position;
             ActiveBiome = t.BiomeAt(p.x, p.z, out _);
+            ResampleVista(t, p);
             target = For(ActiveBiome);
 
             // Mikro-biom se do gradingu nepřidává, ale MÍCHÁ podle své síly. Na okraji
@@ -347,6 +365,23 @@ namespace Orivilon.World.Biomes
             ActiveMicro = t.MicroAt(p.x, p.z, out float mw);
             if (ActiveMicro != MicroBiome.None && mw > 0.01f)
                 target = Grading.Lerp(target, ForMicro(ActiveMicro), Mathf.Clamp01(mw));
+        }
+
+        /// <summary>Kolo 30: cílový výhled z oka kamery (8 analytických dotazů na výšku za 0,3 s, bez chunků a colliderů).</summary>
+        private void ResampleVista(VoxelTerrain t, Vector3 p)
+        {
+            Camera cam = Camera.main;
+            if (cam != null) p = cam.transform.position;
+            float sea = t.SeaLevel, sum = 0f;
+            for (int k = 0; k < 8; k++)
+            {
+                float ang = k * Mathf.PI * 0.25f;
+                sum += Mathf.Max(sea, t.SurfaceHeight(p.x + Mathf.Sin(ang) * VistaRingRadius, p.z + Mathf.Cos(ang) * VistaRingRadius));
+            }
+            vistaAlt = p.y - sea;
+            vistaRel = p.y - sum / 8f;
+            vistaTarget = Mathf.Clamp01(VistaAltWeight * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(VistaAltLow, VistaAltHigh, vistaAlt))
+                                      + VistaRelWeight * Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(VistaRelLow, VistaRelHigh, vistaRel)));
         }
 
         private void Apply()
@@ -425,7 +460,11 @@ namespace Orivilon.World.Biomes
                 (ActiveMicro != MicroBiome.None ? " + " + ActiveMicro : "") +
                 (dive > 0.01f ? string.Format(" + underwater {0:0}% (line {1:0.0} m)", dive * 100f, waterLine) : ""),
                 current.fogTint.r, current.fogTint.g, current.fogTint.b,
-                current.fogRange, current.saturation, current.exposure, current.whiteBalance);
+                current.fogRange, current.saturation, current.exposure, current.whiteBalance)
+                + string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    ", vyhled {0:0.00} (cil {1:0.00}, vyska {2:0} m, nad okolim {3:0} m, {4}), mlha {5:0}-{6:0} m",
+                    vista, vistaTarget, vistaAlt, vistaRel, SunRotation.VistaEnabled ? "ZAP" : "VYP",
+                    RenderSettings.fogStartDistance, RenderSettings.fogEndDistance);
         }
     }
 }

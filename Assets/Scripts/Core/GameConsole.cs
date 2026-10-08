@@ -309,7 +309,7 @@ namespace Orivilon.Core
                 case "look": case "pohled": CmdLook(a); break;
                 case "time": case "cas": CmdTime(a); break;
                 case "veg": case "vegetation": CmdVegetation(a); break;
-                case "atmo": case "atmosphere": CmdAtmosphere(); break;
+                case "atmo": case "atmosphere": CmdAtmosphere(a); break;
                 case "stop": CmdStop(); break;
                 case "voda": case "water": CmdWater(a); break;
                 case "pauza": case "pause": CmdPause(); break;
@@ -446,11 +446,16 @@ namespace Orivilon.Core
                     break;
                 case "daleko": case "far":
                 {
-                    if (a.Length > 2) World.Spawning.TreeProxies.Enabled = a[2] != "off" && a[2] != "0";
+                    // Kolo 31: A/B vzdálených jehličnanů (/props daleko jehlic on|off) – ostatní stromy beze změny.
+                    if (a.Length > 3 && (a[2] == "jehlic" || a[2] == "conifer"))
+                    { World.Spawning.TreeProxies.ConiferProxies = a[3] != "off" && a[3] != "0"; World.Spawning.TreeProxies.MarkDirty(); }
+                    else if (a.Length > 3 && (a[2] == "orez" || a[2] == "cull"))
+                    { World.Spawning.TreeProxies.Cull = a[3] != "off" && a[3] != "0"; World.Spawning.TreeProxies.MarkDirty(); }
+                    else if (a.Length > 2) World.Spawning.TreeProxies.Enabled = a[2] != "off" && a[2] != "0";
                     if (!World.Spawning.TreeProxies.Enabled) World.Spawning.TreeProxies.Clear();
-                    string ft = string.Format(CultureInfo.InvariantCulture, "[props daleko] {0}: {1} stromů v {2} sloupcích, {3} dávek kreslení",
+                    string ft = string.Format(CultureInfo.InvariantCulture, "[props daleko] {0}, jehličnany {4}, ořez {5}: {1} stromů v {2} sloupcích, {3} dávek kreslení",
                         World.Spawning.TreeProxies.Enabled ? "ZAP" : "VYP", World.Spawning.TreeProxies.Instances,
-                        World.Spawning.TreeProxies.Columns, World.Spawning.TreeProxies.DrawGroups);
+                        World.Spawning.TreeProxies.Columns, World.Spawning.TreeProxies.DrawGroups, World.Spawning.TreeProxies.ConiferProxies ? "ZAP" : "VYP", World.Spawning.TreeProxies.Cull ? "ZAP" : "VYP");
                     Diag(ft); Ok(ft);
                     break;
                 }
@@ -1019,7 +1024,8 @@ namespace Orivilon.Core
             {
                 bool arch = pc2.name.StartsWith("SM_Ruina_Oblouk"), portal = pc2.name.StartsWith("SM_Vapenec_Portal")
                      || pc2.name.StartsWith("SM_Krystal_Jeskyne") || pc2.name.StartsWith("SM_Utes_Brana")
-                     || pc2.name.StartsWith("SM_Alabastr_Oblouk");   // kolo 28: otvor ≥ portál (x ±1,2, výška 0–4,2)   // kolo 21: stejný otvor jako portál (0–3,6 m)
+                     || pc2.name.StartsWith("SM_Alabastr_Oblouk")
+                     || pc2.name.StartsWith("SM_Koral_Brana") || pc2.name.StartsWith("SM_Koral_Kostra");   // kolo 29: otvor u počátku ≥ portál (x ±1,3, výška 0–4,2)   // kolo 28: otvor ≥ portál (x ±1,2, výška 0–4,2)   // kolo 21: stejný otvor jako portál (0–3,6 m)
                 if (!arch && !portal) continue;
                 arches++;
                 // otvor v souřadnicích meshe: oblouk x ±1,4, výška 0–3,2; portál x ±0,85, výška 0–3,7
@@ -1057,7 +1063,8 @@ namespace Orivilon.Core
         private static readonly string[] TrapPrefixes = { "SM_Ruina", "SM_Vapenec_Portal", "SM_Led_Stena", "SM_Led_Serak", "SM_Travertin", "SM_Kra_",
                                                           "SM_Snih_Hreben", "SM_Snih_Balvan", "SM_Bludny_Balvan", "SM_Gejzir", "SM_Vyduch", "SM_Sul_Kopa", "SM_Mangrovnik",
                                                           "SM_Krystal_Shluk", "SM_Krystal_Velky", "SM_Krystal_Jeskyne", "SM_Mineral_Stena", "SM_Houba_Obri", "SM_Utes_",
-                                                          "SM_Cedic_", "SM_Obsidian_Strep", "SM_Obsidian_Hreben", "SM_Obsidian_Balvan", "SM_Alabastr_Oblouk", "SM_Alabastr_Vez", "SM_Alabastr_Plotna", "SM_Alabastr_Balvan" };   // kolo 28   // kolo 21 (drobné krystaly vrstvy kamenů ne – jako ostatní kameny)
+                                                          "SM_Cedic_", "SM_Obsidian_Strep", "SM_Obsidian_Hreben", "SM_Obsidian_Balvan", "SM_Alabastr_Oblouk", "SM_Alabastr_Vez", "SM_Alabastr_Plotna", "SM_Alabastr_Balvan",
+                                                          "SM_Koral_Vetevnaty", "SM_Koral_Stolovy", "SM_Koral_Mozkovy", "SM_Koral_Brana", "SM_Koral_Kostra", "SM_Meteorit", "SM_Kraterovy_Balvan", "SM_Tektit_Sklo", "SM_Ruda_", "SM_Bahenni_Kuzel", "SM_Sirne_Krystaly" };   // kolo 29   // kolo 28   // kolo 21 (drobné krystaly vrstvy kamenů ne – jako ostatní kameny)
         private static bool TrapPiece(string n) { foreach (var pf in TrapPrefixes) if (n.StartsWith(pf)) return true; return false; }
 
         /// <summary>
@@ -2386,10 +2393,22 @@ namespace Orivilon.Core
         /// Jaké tónování zrovna běží. Grading je schválně slabý, takže se z obrazu nedá
         /// poznat, jestli funguje, nebo jestli je celý vypnutý – tenhle výpis to rozsoudí.
         /// </summary>
-        private void CmdAtmosphere()
+        private void CmdAtmosphere(string[] a)
         {
             var atmo = World.Biomes.BiomeAtmosphere.Instance;
             if (atmo == null) { Error("BiomeAtmosphere is not running - the world uses flat grading."); return; }
+
+            // Kolo 30 (A/B): /atmo vyhled on|off – výšková mlha; /atmo stromy <od> <do> | off – pásmo konce stromů.
+            if (a.Length > 2 && a[1] == "vyhled") SunRotation.VistaEnabled = a[2] != "off" && a[2] != "0";
+            if (a.Length > 2 && a[1] == "stromy")
+            {
+                if (a[2] == "off" || a[2] == "0") World.Spawning.ObjectSpawner.TreeFadeEnd = 0f;
+                else if (a.Length > 3 && TryNumber(a[2], out float f0) && TryNumber(a[3], out float f1))
+                { World.Spawning.ObjectSpawner.TreeFadeStart = f0; World.Spawning.ObjectSpawner.TreeFadeEnd = f1; }
+                World.Spawning.ObjectSpawner.UpdateTrunkLook();
+            }
+            Diag("[atmo] " + atmo.Describe() + string.Format(CultureInfo.InvariantCulture, ", stromy {0:0}-{1:0} m",
+                World.Spawning.ObjectSpawner.TreeFadeStart, World.Spawning.ObjectSpawner.TreeFadeEnd));
 
             Ok(atmo.Describe());
 

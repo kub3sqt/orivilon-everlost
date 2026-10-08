@@ -29,6 +29,9 @@ namespace Orivilon.World.Generation
         public float worldMinY, worldMaxY;
         public GenParams gp;
 
+        /// <summary>Kolo 29: meteorický kráter v chunku – u povrchu kráteru se jeskyně a propasti neotevírají (valid = 0 → žádný).</summary>
+        public CraterCell crater;
+
         [ReadOnly] public NativeArray<float> surfY;
         [ReadOnly] public NativeArray<float> overhang;
 
@@ -134,6 +137,14 @@ namespace Orivilon.World.Generation
             float below = surf - w.y;
             if (gp.Calm(4) && mask > 0.001f) below = sw - (w.y + warp.y);
             float carve = Density3D.CaveCarve(w, gp, below) * gp.caveStrength;
+            // Kolo 29: snížený povrch kráteru by přiblížil hluboké jeskyně a propasti k povrchu (finál s42/s90210: štěrbina ve
+            // stěně a rýha přes dno). Horních ~25–45 m pod povrchem kráteru zůstává plných; hlouběji a mimo kráter beze změny.
+            if (carve > 0.001f && crater.valid != 0 && crater.gate > 0.001f)
+            {
+                float cxr = CraterMath.X(w.xz, crater);
+                if (cxr < CraterMath.ReachX)
+                    carve *= 1f - crater.gate * (1f - smoothstep(1.6f, 2.35f, cxr)) * (1f - smoothstep(25f, 45f, below));
+            }
 
             // Pod vodou a u břehu se jeskyně nesmí otevřít k povrchu: dno řeky, jezera
             // i moře by dostalo díru, přes kterou je průhlednou hladinou vidět do tmy,
@@ -285,6 +296,9 @@ namespace Orivilon.World.Generation
 
         /// <summary>Hladina moře. Zlatý háj pod ní nevzniká.</summary>
         public float seaLevel;
+
+        /// <summary>Kolo 29: meteorický kráter zasahující do chunku (barva a region; nejvýš jeden, valid = 0 → žádný).</summary>
+        public CraterCell crater;
 
         /// <summary>Klima sloupce. Barva fasety se z něj čte bilineárně v jejím těžišti.</summary>
         [ReadOnly] public NativeArray<float> columnTemp;
@@ -498,7 +512,7 @@ namespace Orivilon.World.Generation
             float cliffW = columnCliff.IsCreated ? SampleColumn(columnCliff, centroid.xz) : 0f;
 
             float3 rgb = palette.art > 0.5f
-                ? palette.EvaluateArt(centroid, normalY, temp, hum, shoreY, microOffset, cliffW)
+                ? palette.EvaluateArt(centroid, normalY, temp, hum, shoreY, microOffset, cliffW, crater)
                 : palette.Evaluate(centroid.y, normalY, temp, hum, shoreY);
             if (palette.diag > 1.5f && palette.diag < 2.5f) rgb = new float3(0.5f);
             if (palette.diag > 1.5f && palette.diag < 4.5f)

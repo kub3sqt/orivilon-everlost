@@ -25,6 +25,7 @@ namespace Orivilon.EditorTools
         private static double nextPoll, nextStatus, waitUntil;
 
         private const string QueueKey = "Orivilon.RemoteBridge.Queue";
+        private const string CraterKey = "Orivilon.RemoteBridge.K29CraterMode";
         private static double readySince = -1, waitStarted = -1;
 
         static RemoteBridge()
@@ -38,6 +39,8 @@ namespace Orivilon.EditorTools
             {
                 Directory.CreateDirectory(Dir);
                 if (File.Exists(CmdPath)) lastText = File.ReadAllText(CmdPath);   // po reloadu nic neopakovat
+                // Kolo 29: pilotní A/B tvaru kráteru přežije reload domény (vstup do Play), jinak by platila výchozí hodnota.
+                Orivilon.World.Generation.WorldGenSettings.CraterMode = SessionState.GetInt(CraterKey, Orivilon.World.Generation.WorldGenSettings.CraterMode);
                 // Zbytek fronty přežije reload domény (play/stop/kompilace).
                 string rest = SessionState.GetString(QueueKey, "");
                 if (rest.Length > 0) { queue = rest.Split('\n'); queueIndex = 0; SessionState.EraseString(QueueKey); }
@@ -265,6 +268,13 @@ namespace Orivilon.EditorTools
                 {
                     // Kolo 27: offline A/B makroterénu (bez Play) – výšky, maska masivu, sklon, terasy, sníh.
                     Out("massifab " + MassifAB(line.Substring(9).Trim()));
+                }
+                else if (line.StartsWith("crater "))
+                {
+                    // Kolo 29: tvar kráteru pro další Play (0 = jen osazení, 1 = EvalMacro, 2 = povrch po terasách) – pilotní A/B.
+                    Orivilon.World.Generation.WorldGenSettings.CraterMode = int.Parse(line.Substring(7).Trim());
+                    SessionState.SetInt(CraterKey, Orivilon.World.Generation.WorldGenSettings.CraterMode);   // statika se při vstupu do Play resetuje
+                    Out("crater mode " + Orivilon.World.Generation.WorldGenSettings.CraterMode); DiagNote("crater mode " + Orivilon.World.Generation.WorldGenSettings.CraterMode);
                 }
                 else if (line.StartsWith("massif "))
                 {
@@ -567,7 +577,7 @@ namespace Orivilon.EditorTools
                 if (d > radius) continue;
                 LOD[] lods = lg.GetLODs();
                 bool tree = false;
-                foreach (var l in lods) foreach (var r in l.renderers) if (r != null && r.gameObject.name.Contains("Leaves")) tree = true;
+                foreach (var l in lods) foreach (var r in l.renderers) if (r != null && (r.gameObject.name.Contains("Leaves") || r.sharedMaterials.Length > 1)) tree = true;   // kolo 31: jehličnan = 1 renderer, 2 materiály
                 if (!tree) continue;
                 string key = lg.gameObject.name.Replace("(Clone)", "").Trim();
                 if (!per.TryGetValue(key, out float[] v)) per[key] = v = new float[] { 0, 1e9f, 0, 0, 0, 0, 1e9f, 0 };
@@ -582,6 +592,7 @@ namespace Orivilon.EditorTools
                 {
                     if (r == null || r.gameObject.name == "Leaves_Shadow") continue;
                     bool leaf = r.gameObject.name.Contains("Leaves");
+                    if (r.sharedMaterials.Length > 1) { leafIn = true; leafOn |= r.enabled; leafVis |= r.isVisible; }   // kolo 31: kmen i jehličí v jednom
                     if (leaf) { leafIn = true; leafOn |= r.enabled; leafVis |= r.isVisible; }
                     else { trunkIn = true; trunkOn |= r.enabled; trunkVis |= r.isVisible; }
                 }

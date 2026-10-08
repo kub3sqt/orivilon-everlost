@@ -1481,6 +1481,7 @@ namespace Orivilon.EditorTools.StyleTest
                 s.Rock(0, q, V(1.0f, 0.3f, -0.5f), V(0.5f, 0.38f, 0.45f), 1, 0.15f, Quaternion.Euler(0, 60, 0), -0.05f, null, n => n.y > 0.6f ? Sw4.White : Sw4.Grey210);
             }));
             AddK28(L);
+            AddK29(L);   // kolo 29
             return L;
         }
     }

@@ -3007,10 +3007,10 @@ namespace Orivilon.World.Generation
             HydroFlow f = HydroSampler.Nearest(p, h, gp.riverMinAccum, gp.riverWidthMin, gp.riverWidthMax, gp.riverAccumFull);
             WorldGenMath.Climate(p, gp, out float temp, out float hum);
             surf = WorldGenMath.EvalSurface(p, gp, my, sh, c, e, v, slope, temp, hum, 1f, f, waterY, basin,
-                                            out _, out _, out cliffW, out _);
+                                            out _, out _, out cliffW, out _, CraterMath.ForPoint(p, gp, builder.Splines));
             GenParams g2 = gp; g2.cliffStrength = 0f;
             noTerrace = WorldGenMath.EvalSurface(p, g2, my, sh, c, e, v, slope, temp, hum, 1f, f, waterY, basin,
-                                                 out _, out _, out _, out _);
+                                                 out _, out _, out _, out _, CraterMath.ForPoint(p, gp, builder.Splines));
             macro = my;
             return true;
         }
@@ -3039,7 +3039,7 @@ namespace Orivilon.World.Generation
             WorldGenMath.Climate(p, gp, out float temp, out float hum);
             float y = WorldGenMath.EvalSurface(p, gp, my, sh, c, e, v, slope, temp, hum, sampleStep,
                                                f, waterY, basin, out float rc, out float rY,
-                                               out float cl, out float hl);
+                                               out float cl, out float hl, CraterMath.ForPoint(p, gp, builder.Splines));
             return string.Format(System.Globalization.CultureInfo.InvariantCulture,
                 "surf {0:0.00} macro {1:0.00} | river: found {2} dist {3:0.0} w {4:0.0} waterY {5:0.00} core {6:0.00} riverY {7:0.00} | " +
                 "hydro lake: depth {8:0.00} level {9:0.00} bed {10:0.00} -> lakeY {11:0.00} | worley basin {12:0.00} wY {13:0.00} | cliff {14:0.00} region {15}",
@@ -3283,15 +3283,16 @@ namespace Orivilon.World.Generation
             float slope = WorldGenMath.MacroSlopeAt(p, math.max(1f, gp.lakeCell * 0.01f), gp, builder.Splines);
             WorldGenMath.Climate(p, gp, out float temp, out float hum);
             HydroFlow none = HydroFlow.None;
+            CraterCell crater29 = CraterMath.ForPoint(p, gp, builder.Splines);   // kolo 29
             surf = WorldGenMath.EvalSurface(p, gp, my, sh, c, e, v, slope, temp, hum, 4f, none, ColumnField.NoLake, 0f,
-                                            out _, out _, out cliff, out _);
+                                            out _, out _, out cliff, out _, crater29);
             float rc = 1e4f, lakeDepth = 0f;
             // Kolo 17: hledání regionů musí vidět hydrologii všude, ne jen v 3×3 regionech kolem hráče.
             if (water) rc = RiverClearanceSearch(x, z, out lakeDepth);
             bool wet = rc < 30f || lakeDepth > 0.5f;
             float hW = wet ? math.max(0f, rc) * 0.25f + 0.5f : 1e4f;
             clim = BiomeMath.Climate(p, surf, temp, hum, gp.seaLevel, gp.offMicro);
-            return BiomeMath.Weights(p, surf, temp, hum, cliff, hW, wet, gp.seaLevel, gp.offMicro);
+            return BiomeMath.Weights(p, surf, temp, hum, cliff, hW, wet, gp.seaLevel, gp.offMicro, crater29);
         }
 
         /// <summary>Kolo 14b: váhy s danou výškou nad blízkou hladinou (z publikovaných sloupců, /biome tp mokrad).</summary>
@@ -3305,10 +3306,14 @@ namespace Orivilon.World.Generation
             float slope = WorldGenMath.MacroSlopeAt(p, math.max(1f, gp.lakeCell * 0.01f), gp, builder.Splines);
             WorldGenMath.Climate(p, gp, out float temp, out float hum);
             HydroFlow none = HydroFlow.None;
+            CraterCell crater29 = CraterMath.ForPoint(p, gp, builder.Splines);   // kolo 29
             surf = WorldGenMath.EvalSurface(p, gp, my, sh, c, e, v, slope, temp, hum, 4f, none, ColumnField.NoLake, 0f,
-                                            out _, out _, out float cliff, out _);
-            return BiomeMath.Weights(p, surf, temp, hum, cliff, hW, true, gp.seaLevel, gp.offMicro);
+                                            out _, out _, out float cliff, out _, crater29);
+            return BiomeMath.Weights(p, surf, temp, hum, cliff, hW, true, gp.seaLevel, gp.offMicro, crater29);
         }
+
+        /// <summary>Kolo 29: meteorický kráter zasahující do obdélníku (osazení sloupce, konzole). valid = 0 → žádný.</summary>
+        public CraterCell CraterFor(float2 mn, float2 mx) => builder != null ? CraterMath.ForBox(mn, mx, builder.Params, builder.Splines) : default;
 
         /// <summary>Kolo 14b: offset šumů regionů (gp.offMicro).</summary>
         public float3 MicroOffset => builder != null ? builder.Params.offMicro : default;
@@ -3375,7 +3380,7 @@ namespace Orivilon.World.Generation
             HydroFlow f = HydroSampler.Nearest(p, h, gp.riverMinAccum, gp.riverWidthMin, gp.riverWidthMax, gp.riverAccumFull);
             WorldGenMath.Climate(p, gp, out float temp, out float hum);
             surf = WorldGenMath.EvalSurface(p, gp, my, sh, c, e, v, slope, temp, hum, sampleStep,
-                                            f, waterY, basin, out riverCoreV, out riverYV, out float cl, out float hl);
+                                            f, waterY, basin, out riverCoreV, out riverYV, out float cl, out float hl, CraterMath.ForPoint(p, gp, builder.Splines));
             lakeYV = hl;
             return true;
         }

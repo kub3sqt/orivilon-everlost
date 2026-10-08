@@ -29,6 +29,14 @@ namespace Orivilon.World.Spawning
         /// <summary>Zapnuto (přepíná <c>/props daleko on|off</c>).</summary>
         public static bool Enabled = true;
 
+        /// <summary>
+        /// Kolo 31: vzdálené jehličnany. Jejich nejnižší LOD je jeden mesh se dvěma submeshi (kmen + jehličí),
+        /// který se dřív přeskakoval – jehličnany proto končily s LODGroup (~320 m), listnáče až v pásmu
+        /// 400–500 m. Oba submeshe mají stejnou matici i stejné pásmo mizení, takže kmen a koruna mizí
+        /// současně. A/B: <c>/props daleko jehlic on|off</c>.
+        /// </summary>
+        public static bool ConiferProxies = true;
+
         /// <summary>Do kterého LOD prstence se vzdálené stromy kreslí (LOD2 = do ~500 m).</summary>
         public const int MaxLod = 2;
 
@@ -41,6 +49,8 @@ namespace Orivilon.World.Spawning
             public Material mat, autumn;
             public Matrix4x4 offset;
             public int layer;
+            public int sub;      // kolo 31: submesh
+            public bool multi;   // kolo 31: díl víc-materiálového rendereru (jehličnan)
         }
 
         private struct Inst
@@ -50,29 +60,42 @@ namespace Orivilon.World.Spawning
             public bool autumn;
         }
 
-        private sealed class Group
+        /// <summary>
+        /// Kolo 31: dávka jednoho sloupce pro jeden (mesh, materiál, submesh). Každý sloupec se registruje
+        /// zvlášť se svým AABB a dosahem, takže VegetationRenderer ořeže sloupce mimo záběr a za koncem
+        /// pásma mizení (<see cref="ObjectSpawner.TreeFadeEnd"/>) – dřív se kreslilo celé prstencové okolí
+        /// (i za kamerou a za 500 m, kde shader strom stejně celý zahodí). Viditelné sloupce VegetationRenderer
+        /// dál slévá do plných dávek po 1023, počet volání kreslení se nemění.
+        /// </summary>
+        private sealed class Slot
         {
             public Mesh mesh;
             public Material mat;
-            public int layer;
-            public Matrix4x4[] arr = new Matrix4x4[256];
-            public int count;
-            public int handle;
+            public int layer, sub;
+            public Matrix4x4[] arr = new Matrix4x4[32];
+            public int count, handle;
         }
 
         private static readonly Dictionary<int, Part[]> parts = new Dictionary<int, Part[]>(16);
         private static readonly Dictionary<Material, Material> instanced = new Dictionary<Material, Material>(16);
-        private static readonly Dictionary<(Mesh, Material), Group> groups = new Dictionary<(Mesh, Material), Group>(32);
         private static readonly Dictionary<long, List<Inst>> columns = new Dictionary<long, List<Inst>>(256);
+        private static readonly Dictionary<long, List<Slot>> colSlots = new Dictionary<long, List<Slot>>(256);
         private static readonly Dictionary<long, float> releaseAt = new Dictionary<long, float>(64);
         private static readonly Stack<List<Inst>> pool = new Stack<List<Inst>>(64);
+        private static readonly Stack<List<Slot>> slotListPool = new Stack<List<Slot>>(64);
+        private static readonly Stack<Slot> slotPool = new Stack<Slot>(256);
         private static readonly List<long> scratchKeys = new List<long>(64);
         private static bool dirty;
+        private static float lastFadeEnd = -1f;
+
+        /// <summary>Kolo 31: ořez sloupců podle záběru a dosahu (A/B <c>/props daleko orez on|off</c>; off = stav kola 30).</summary>
+        public static bool Cull = true;
 
         /// <summary>Počet vzdálených stromů a sloupců (pro /props stat a report).</summary>
-        public static int Instances { get; private set; }
+        public static int Instances { get { Recount(); return instCount; } }
         public static int Columns => columns.Count;
-        public static int DrawGroups { get; private set; }
+        public static int DrawGroups { get { Recount(); return groupCount; } }
+        private static int instCount, groupCount;
 
         public static long Key(int x, int z, int lod)
             => ((long)(x & 0xFFFFFF) << 32) | ((long)(z & 0xFFFFFF) << 8) | (long)(lod & 0xFF);
@@ -93,8 +116,11 @@ namespace Orivilon.World.Spawning
                 if (GetParts(sp, p.spawnable).Length == 0) continue;
                 dst.Add(new Inst { m = Matrix4x4.TRS(p.position, p.rotation, p.scale), si = p.spawnable, autumn = (p.flags & 1) != 0 });
             }
-            dirty = true;
+            RegisterColumn(key, dst);
         }
+
+        /// <summary>Kolo 31: znovu zaregistruje všechny sloupce (po přepnutí jehličnanů nebo ořezu).</summary>
+        public static void MarkDirty() => dirty = true;
 
         /// <summary>Uvolní stromy sloupce – hned, nebo se zpožděním (přechod mezi prstenci).</summary>
         public static void Remove(long key, float delay)
@@ -107,23 +133,22 @@ namespace Orivilon.World.Spawning
         private static void Drop(long key)
         {
             if (!columns.TryGetValue(key, out List<Inst> l)) return;
+            UnregisterColumn(key);
             l.Clear();
             pool.Push(l);
             columns.Remove(key);
             releaseAt.Remove(key);
-            dirty = true;
         }
 
         public static void Clear()
         {
-            foreach (var kv in columns) { kv.Value.Clear(); pool.Push(kv.Value); }
+            foreach (var kv in columns) { UnregisterColumn(kv.Key); kv.Value.Clear(); pool.Push(kv.Value); }
             columns.Clear();
             releaseAt.Clear();
-            dirty = true;
-            Rebuild();
+            dirty = false;
         }
 
-        /// <summary>Volá streamer jednou za snímek: odložené uvolnění a přestavba dávek.</summary>
+        /// <summary>Volá streamer jednou za snímek: odložené uvolnění a přeregistrace po přepnutí.</summary>
         public static void Tick()
         {
             if (releaseAt.Count > 0)
@@ -133,59 +158,89 @@ namespace Orivilon.World.Spawning
                 foreach (var kv in releaseAt) if (now >= kv.Value) scratchKeys.Add(kv.Key);
                 for (int i = 0; i < scratchKeys.Count; i++) Drop(scratchKeys[i]);
             }
-            if (dirty) Rebuild();
+            // Dosah ořezu visí na pásmu mizení – když ho /atmo stromy změní, přeregistrovat.
+            if (ObjectSpawner.TreeFadeEnd != lastFadeEnd) dirty = true;
+            if (dirty)
+            {
+                dirty = false;
+                foreach (var kv in columns) RegisterColumn(kv.Key, kv.Value);
+            }
+        }
+
+        private static void UnregisterColumn(long key)
+        {
+            if (!colSlots.TryGetValue(key, out List<Slot> sl)) return;
+            VegetationRenderer vr = VegetationRenderer.Instance;
+            for (int i = 0; i < sl.Count; i++)
+            {
+                if (vr != null && sl[i].handle != 0) vr.Unregister(sl[i].handle);
+                sl[i].handle = 0; sl[i].count = 0;
+                slotPool.Push(sl[i]);
+            }
+            sl.Clear();
+            slotListPool.Push(sl);
+            colSlots.Remove(key);
         }
 
         /// <summary>
-        /// Přepočítá dávky. Pole matic se drží mezi přestavbami a jen rostou, takže běžná
-        /// přestavba nic nealokuje (jen malé záznamy dávek ve VegetationRenderer).
+        /// Zaregistruje stromy jednoho sloupce: dávka na (mesh, materiál, submesh), AABB sloupce
+        /// a dosah = konec pásma mizení. Bez alokací v ustáleném stavu (sloty i pole se recyklují).
         /// </summary>
-        private static void Rebuild()
+        private static void RegisterColumn(long key, List<Inst> l)
         {
-            dirty = false;
-            foreach (var g in groups.Values) g.count = 0;
-            int n = 0;
-            foreach (var kv in columns)
-            {
-                List<Inst> l = kv.Value;
-                for (int i = 0; i < l.Count; i++)
-                {
-                    Inst it = l[i];
-                    if (!parts.TryGetValue(it.si, out Part[] ps)) continue;
-                    for (int k = 0; k < ps.Length; k++)
-                    {
-                        Material m = it.autumn && ps[k].autumn != null ? ps[k].autumn : ps[k].mat;
-                        var key = (ps[k].mesh, m);
-                        if (!groups.TryGetValue(key, out Group g))
-                        {
-                            g = new Group { mesh = ps[k].mesh, mat = m, layer = ps[k].layer };
-                            groups[key] = g;
-                        }
-                        if (g.count == g.arr.Length) System.Array.Resize(ref g.arr, g.arr.Length * 2);
-                        g.arr[g.count++] = it.m * ps[k].offset;
-                    }
-                    n++;
-                }
-            }
-            Instances = n;
-
+            UnregisterColumn(key);
             VegetationRenderer vr = VegetationRenderer.Instance;
-            int drawn = 0;
-            var huge = new Bounds(Vector3.zero, new Vector3(1e6f, 1e5f, 1e6f));
-            foreach (var g in groups.Values)
+            if (vr == null) { dirty = true; return; }
+            List<Slot> sl = slotListPool.Count > 0 ? slotListPool.Pop() : new List<Slot>(8);
+            colSlots[key] = sl;
+            Vector3 lo = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue), hi = -lo;
+            for (int i = 0; i < l.Count; i++)
             {
-                if (vr == null) { g.handle = 0; continue; }
-                if (g.count == 0)
+                Inst it = l[i];
+                if (!parts.TryGetValue(it.si, out Part[] ps) || ps.Length == 0) continue;
+                if (ps[0].multi && !ConiferProxies) continue;
+                Vector3 pos = it.m.GetColumn(3);
+                lo = Vector3.Min(lo, pos); hi = Vector3.Max(hi, pos);
+                for (int k = 0; k < ps.Length; k++)
                 {
-                    if (g.handle != 0) vr.Unregister(g.handle);
-                    g.handle = 0;
-                    continue;
+                    Material m = it.autumn && ps[k].autumn != null ? ps[k].autumn : ps[k].mat;
+                    Slot s = null;
+                    for (int q = 0; q < sl.Count; q++)
+                        if (sl[q].mesh == ps[k].mesh && sl[q].mat == m && sl[q].sub == ps[k].sub) { s = sl[q]; break; }
+                    if (s == null)
+                    {
+                        s = slotPool.Count > 0 ? slotPool.Pop() : new Slot();
+                        s.mesh = ps[k].mesh; s.mat = m; s.sub = ps[k].sub; s.layer = ps[k].layer; s.count = 0; s.handle = 0;
+                        sl.Add(s);
+                    }
+                    if (s.count == s.arr.Length) System.Array.Resize(ref s.arr, s.arr.Length * 2);
+                    s.arr[s.count++] = it.m * ps[k].offset;
                 }
-                if (g.handle == 0 || !vr.Replace(g.handle, g.arr, g.count))
-                    g.handle = vr.Register(g.mesh, g.mat, g.arr, g.count, huge, ShadowCastingMode.Off, g.layer, 0f);
-                drawn++;
             }
-            DrawGroups = drawn;
+            lastFadeEnd = ObjectSpawner.TreeFadeEnd;
+            Bounds b;
+            float maxD = 0f;
+            if (Cull && sl.Count > 0)
+            {
+                // Rezerva na korunu (stromy jsou až ~120 m vysoké a široké desítky metrů).
+                b = new Bounds((lo + hi) * 0.5f, Vector3.zero);
+                b.SetMinMax(lo - new Vector3(60f, 10f, 60f), hi + new Vector3(60f, 160f, 60f));
+                if (lastFadeEnd > 0f) maxD = lastFadeEnd + 10f;
+            }
+            else b = new Bounds(Vector3.zero, new Vector3(1e6f, 1e5f, 1e6f));
+            for (int q = 0; q < sl.Count; q++)
+                sl[q].handle = vr.Register(sl[q].mesh, sl[q].mat, sl[q].arr, sl[q].count, b, ShadowCastingMode.Off, sl[q].layer, maxD, sl[q].sub);
+        }
+
+        private static void Recount()
+        {
+            int n = 0, g = 0;
+            foreach (var kv in columns)
+                for (int i = 0; i < kv.Value.Count; i++)
+                    if (parts.TryGetValue(kv.Value[i].si, out Part[] ps) && ps.Length > 0 && (!ps[0].multi || ConiferProxies)) n++;
+            foreach (var kv in colSlots) g += kv.Value.Count;
+            instCount = n;
+            groupCount = g;
         }
 
         /// <summary>
@@ -209,17 +264,30 @@ namespace Orivilon.World.Spawning
                     {
                         if (!(r is MeshRenderer mr) || mr == null) continue;
                         MeshFilter f = mr.GetComponent<MeshFilter>();
-                        if (f == null || f.sharedMesh == null || mr.sharedMaterials.Length != 1 || mr.sharedMaterial == null) continue;
-                        Material src = mr.sharedMaterial;
-                        Material leaf = ObjectSpawner.AutumnLeafVariant(src);
-                        list.Add(new Part
+                        if (f == null || f.sharedMesh == null) continue;
+                        Material[] mats = mr.sharedMaterials;
+                        // Kolo 31: jehličnan = jeden mesh, submesh na materiál (kmen + jehličí). Bere se jen celý –
+                        // chybí-li jediný díl, nekreslí se nic (žádná koruna bez kmene ani kmen bez koruny).
+                        bool multi = mats.Length > 1;
+                        if (mats.Length == 0 || (multi && mats.Length != f.sharedMesh.subMeshCount)) continue;
+                        bool complete = true;
+                        for (int s = 0; s < mats.Length; s++) if (mats[s] == null) complete = false;
+                        if (!complete) continue;
+                        for (int s = 0; s < mats.Length; s++)
                         {
-                            mesh = f.sharedMesh,
-                            mat = Instanced(src),
-                            autumn = leaf != src ? Instanced(leaf) : null,
-                            offset = toRoot * mr.transform.localToWorldMatrix,
-                            layer = mr.gameObject.layer,
-                        });
+                            Material src = mats[s];
+                            Material leaf = ObjectSpawner.AutumnLeafVariant(src);
+                            list.Add(new Part
+                            {
+                                mesh = f.sharedMesh,
+                                mat = Instanced(src),
+                                autumn = leaf != src ? Instanced(leaf) : null,
+                                offset = toRoot * mr.transform.localToWorldMatrix,
+                                layer = mr.gameObject.layer,
+                                sub = s,
+                                multi = multi,
+                            });
+                        }
                     }
             }
             Part[] arr = list.ToArray();

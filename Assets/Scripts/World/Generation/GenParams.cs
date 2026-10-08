@@ -270,6 +270,9 @@ namespace Orivilon.World.Generation
 
         /// <summary>Offset šumu pro mikro-variace barvy fasety. Čte ho jen marching cubes.</summary>
         public float3 offMicro;
+
+        /// <summary>Kolo 29: meteorický kráter – 0 vyp (jen osazení), 1 v EvalMacro (pilotní A/B), 2 na povrchu po terasách (výchozí).</summary>
+        public int craterMode;
     }
 
     /// <summary>

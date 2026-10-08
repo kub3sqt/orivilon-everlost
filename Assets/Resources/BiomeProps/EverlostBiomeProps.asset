@@ -2283,3 +2283,239 @@ MonoBehaviour:
     densityThreshold: 0.5
     rotateToTerrain: 1
     maxViewDistanceChunks: 0
+  - name: SM_Meteorit_Jadro
+    prefab: {fileID: 2654825558247106952, guid: d888c959138ea428da17acbcb7ae3296,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.26592305, y: 0.31285062}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 2.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Kraterovy_Balvan
+    prefab: {fileID: 1906072322582363335, guid: 512162e51a179469bb1956da43d17f16,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.26000294, y: 0.30588582}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 2.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Tektit_Sklo
+    prefab: {fileID: 4032220158352820804, guid: 5c5e126881fb5437a81a5cec663d32e6,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.19011623, y: 0.22366615}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 2.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Ruda_Shluk
+    prefab: {fileID: 8853995431905206722, guid: 33a31fbbe69a347618c1106e7b1ade97,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.18399115, y: 0.21646017}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 2.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Tektit_Strepy
+    prefab: {fileID: 3378933379912510231, guid: 4b13395f1d853404f96fc0885167af0b,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.19946606, y: 0.23466596}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Koral_Vetevnaty
+    prefab: {fileID: 417625304734713216, guid: 3339bdcf0274442809d6fdd66c506a02, type: 3}
+    category: 1
+    spawnChance: 0.004
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 5
+    maxSlope: 70
+    scaleRange: {x: 0.23193589, y: 0.27286574}
+    allowedBiomes: 0600000001000000070000000a00000003000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Koral_Stolovy
+    prefab: {fileID: 869559092449073060, guid: 956127f26fe764d1a906e332a1bf9522, type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.21282008, y: 0.25037655}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 2.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Koral_Mozkovy
+    prefab: {fileID: 8824968451920219430, guid: 1910c92745d7a42ef81056ce2ef41d40,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.17765233, y: 0.20900273}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 2.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Koral_Brana
+    prefab: {fileID: 8759986598739405724, guid: 853bd7747367a48fd9b3647645698a12,
+      type: 3}
+    category: 1
+    spawnChance: 0.004
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 5
+    maxSlope: 70
+    scaleRange: {x: 0.14994499, y: 0.17640586}
+    allowedBiomes: 0600000001000000070000000a00000003000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Koral_Kostra
+    prefab: {fileID: 9106067922177541680, guid: 7413b50fb013244a09c458230a063aac,
+      type: 3}
+    category: 1
+    spawnChance: 0.004
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 5
+    maxSlope: 70
+    scaleRange: {x: 0.15529242, y: 0.18269695}
+    allowedBiomes: 0600000001000000070000000a00000003000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Koral_Ulomky
+    prefab: {fileID: 921615666435518479, guid: 1a5efd3d3ccc84d55b3e342a4c7e11fc, type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.3543867, y: 0.41692552}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Bahenni_Kuzel
+    prefab: {fileID: 4292088556193861761, guid: 198993c1c001c489e9e127e525a34891,
+      type: 3}
+    category: 1
+    spawnChance: 0.005
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.204, y: 0.24}
+    allowedBiomes: 050000000600000001000000030000000a000000070000000400000009000000
+    usePerlinDensity: 0
+    densityScale: 2.5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Bahenni_Kuzel_Velky
+    prefab: {fileID: 1704029227082313251, guid: 29f2c6e4617a840b0adbc2351bef403d,
+      type: 3}
+    category: 1
+    spawnChance: 0.004
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 5
+    maxSlope: 70
+    scaleRange: {x: 0.31733334, y: 0.37333333}
+    allowedBiomes: 0600000001000000070000000a00000003000000
+    usePerlinDensity: 0
+    densityScale: 0.05
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Sirne_Krystaly
+    prefab: {fileID: 215890280715243062, guid: 303c1a4e52ddf4659b068bbbdc08db92, type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.13837785, y: 0.16279747}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0
+  - name: SM_Bahenni_Krusta
+    prefab: {fileID: 4816428425144816992, guid: 3d57a01a526a74459805e40d7bc65e76,
+      type: 3}
+    category: 1
+    spawnChance: 0.02
+    minHeight: 0
+    maxHeight: 1
+    minSlope: 0
+    maxSlope: 70
+    scaleRange: {x: 0.39893338, y: 0.46933338}
+    allowedBiomes: 050000000600000008000000
+    usePerlinDensity: 1
+    densityScale: 5
+    densityThreshold: 0.5
+    rotateToTerrain: 1
+    maxViewDistanceChunks: 0

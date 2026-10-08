@@ -263,7 +263,7 @@ namespace Orivilon.World.Biomes
             if (m == MicroBiome.None && RegionAshEnabled && WorldGenSettings.BiomesEnabled)
             {
                 RegionWeights rw = t.RegionAt(p.x, p.z, false, out _, out _);
-                ash = rw.volcanic > 0.5f ? 2 : rw.burnt > 0.5f ? 1 : rw.geothermal > 0.5f ? 3 : rw.mushroom > 0.5f ? 4 : rw.alabaster > 0.5f ? 5 : 0;   // kolo 28: 5 = jemný bílý prach alabastru; kolo 20: 3 = střídmá pára; kolo 21: 4 = výtrusy a opar houbového lesa
+                ash = rw.volcanic > 0.5f ? 2 : rw.burnt > 0.5f ? 1 : rw.geothermal > 0.5f ? 3 : rw.mushroom > 0.5f ? 4 : rw.alabaster > 0.5f ? 5 : rw.mud > 0.5f ? 6 : 0;   // kolo 29: 6 = šedožlutý opar a pára bahenních sopek   // kolo 28: 5 = jemný bílý prach alabastru; kolo 20: 3 = střídmá pára; kolo 21: 4 = výtrusy a opar houbového lesa
             }
 
             if (m != active || ash != regionAsh)
@@ -390,6 +390,26 @@ namespace Orivilon.World.Biomes
                 system.Play();
                 return;
             }
+            if (level == 6)
+            {
+                // Kolo 29: bahenní sopky a solfatary – řídké nízké chomáče páry s lehce sírovým, šedožlutým nádechem, pomalu
+                // stoupající (stejný systém a strop jako geotermál, žádná mlha, postprocess ani nová mechanika).
+                main.startLifetime = new ParticleSystem.MinMaxCurve(4f, 8f);
+                main.startSize = new ParticleSystem.MinMaxCurve(0.4f, 1.1f);
+                main.startSpeed = new ParticleSystem.MinMaxCurve(0.2f, 0.55f);
+                main.gravityModifier = new ParticleSystem.MinMaxCurve(-0.03f, -0.012f);
+                main.startColor = new ParticleSystem.MinMaxGradient(new Color(0.90f, 0.88f, 0.76f, 0.20f), new Color(0.80f, 0.79f, 0.72f, 0.30f));
+                shape.position = Vector3.zero;
+                rot.x = new ParticleSystem.MinMaxCurve(-0.2f, 0.2f);
+                rot.y = new ParticleSystem.MinMaxCurve(-0.2f, 0.2f);
+                rot.z = new ParticleSystem.MinMaxCurve(-0.2f, 0.2f);
+                noise.strength = 0.3f;
+                noise.frequency = 0.22f;
+                // 4/s × 4–8 s ≈ 25 živých chomáčů (strop 220) – střídmě.
+                emission.rateOverTime = 4f;
+                system.Play();
+                return;
+            }
             if (level == 3)
             {
                 // Kolo 20: geotermální pole – řídké chomáče páry stoupající od země (stejný systém, žádná mlha ani postprocess).
@@ -433,7 +453,7 @@ namespace Orivilon.World.Biomes
         /// <summary>Popis pro konzoli.</summary>
         public string Describe()
             => active == MicroBiome.None
-                ? (regionAsh > 0 ? string.Format("particles: region ash {0}, {1} alive", regionAsh == 5 ? "alabaster dust" : regionAsh == 4 ? "mushroom spores" : regionAsh == 3 ? "geothermal steam" : regionAsh == 2 ? "volcanic" : "burnt", LiveParticles)
+                ? (regionAsh > 0 ? string.Format("particles: region ash {0}, {1} alive", regionAsh == 6 ? "mud volcano steam" : regionAsh == 5 ? "alabaster dust" : regionAsh == 4 ? "mushroom spores" : regionAsh == 3 ? "geothermal steam" : regionAsh == 2 ? "volcanic" : "burnt", LiveParticles)
                                  : string.Format("particles: idle ({0} still falling)", LiveParticles))
                 : string.Format("particles: {0}, {1} alive", active, LiveParticles);
     }

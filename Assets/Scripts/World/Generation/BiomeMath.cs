@@ -50,6 +50,10 @@ namespace Orivilon.World.Generation
         BasaltCoast = 31,      // čedičové pobřeží: šestiboké čedičové sloupy, černý písek, sloupy i v mělčině (chladnější mírné pobřeží)
         ObsidianPlain = 32,    // obsidiánová pláň: leskle černé ostré formace, pukliny, skoro bez porostu (jádro horkého pásma, suché roviny)
         AlabasterPlateau = 33, // alabastrové plato: světlé erodované plato, hladké formace, oblouky, bílý prach (suché jádro teplého pásma)
+        // kolo 29 – sedmý balík (geologické 2); jen na konec
+        MeteorCrater = 34,     // meteorický kráter: vzácná kruhová impaktní zóna, val, tektity a černé sklo, rudy, spálený prstenec (jádro teplého/horkého pásma)
+        FossilReef = 35,       // zkamenělý korálový útes: vyschlé dávné mořské dno, kalcitové korály, porézní vápenec, kostry, průchody (teplé nížiny)
+        MudVolcanoes = 36,     // bahenní sopky a solfatary: šedé kužely, praskající krusty, sírové krystaly, střídmá pára (teplé/horké suché nížiny)
     }
 
     /// <summary>Spojité váhy regionů v bodě, součet 1.</summary>
@@ -61,6 +65,7 @@ namespace Orivilon.World.Generation
         public float snowPeaks, glacier, frozenOcean, mangrove, saltFlat, geothermal;          // kolo 20
         public float crystal, mushroom, cliffs;                                                // kolo 21
         public float basalt, obsidian, alabaster;                                              // kolo 28
+        public float meteor, coral, mud;                                                       // kolo 29
 
         public float Get(int i)
         {
@@ -75,7 +80,8 @@ namespace Orivilon.World.Generation
                 case 22: return snowPeaks; case 23: return glacier; case 24: return frozenOcean; case 25: return mangrove;
                 case 26: return saltFlat; case 27: return geothermal;
                 case 28: return crystal; case 29: return mushroom; case 30: return cliffs;
-                case 31: return basalt; case 32: return obsidian; case 33: return alabaster; default: return 0f;
+                case 31: return basalt; case 32: return obsidian; case 33: return alabaster;
+                case 34: return meteor; case 35: return coral; case 36: return mud; default: return 0f;
             }
         }
 
@@ -151,7 +157,7 @@ namespace Orivilon.World.Generation
     /// </summary>
     public static class BiomeMath
     {
-        public const int Count = 34;
+        public const int Count = 37;
 
         /// <summary>Síla regionálního posunu teploty a vlhkosti (kolo 14b: menší a delší vlna → širší pásma).</summary>
         public const float ShiftT = 0.04f, ShiftH = 0.15f;
@@ -237,12 +243,12 @@ namespace Orivilon.World.Generation
         }
 
         public static RegionWeights Weights(float2 xz, float y, float temp, float hum, float cliff,
-                                            float hW, bool hasWater, float sea, float3 off)
-            => WeightsC(xz, y, temp, hum, cliff, hW, hasWater, sea, off, out _);
+                                            float hW, bool hasWater, float sea, float3 off, in CraterCell crater)
+            => WeightsC(xz, y, temp, hum, cliff, hW, hasWater, sea, off, crater, out _);
 
         /// <summary>Kolo 20: váhy i s klimatickým vzorkem (barva terénu potřebuje c.t pro sněžnou čáru).</summary>
         public static RegionWeights WeightsC(float2 xz, float y, float temp, float hum, float cliff,
-                                             float hW, bool hasWater, float sea, float3 off, out ClimateSample c)
+                                             float hW, bool hasWater, float sea, float3 off, in CraterCell crater, out ClimateSample c)
         {
             c = Climate(xz, y, temp, hum, sea, off);
             float n3 = GenNoise.Fbm2(xz * (1f / 1700f), 2, off.xz + new float2(23.9f, 77.1f));
@@ -528,13 +534,61 @@ namespace Orivilon.World.Generation
                 }
             }
 
+            // ── kolo 29: sedmý balík – meteorický kráter, zkamenělý korálový útes, bahenní sopky. Všechny tři patří do TEPLÉHO
+            // pásma katalogu a vznikají jen v jádru teplého/horkého pásma (t ≥ 0,55–0,60): v horkém pásmu tak horký region jen
+            // ubývá (odstup horký↔chladný se nemůže zkrátit) a od chladného pásma je dělí celé mírné. Podíl K29 ≤ teplé + horké,
+            // ostatní regiony (i kolo 28) × (1 − K29). Kde jsou nové váhy nulové, zůstávají váhy kola 28 bitově stejné.
+            // Kráter má tvar terénu (CraterMath, krok 9b) – váha i tvar čtou tutéž funkci; korály a sopky jsou jen barva a osazení.
+            float meteor = 0f, coral = 0f, mud = 0f;
+            float hw29 = c.hot + c.warm;
+            float deep29 = smoothstep(0.55f, 0.60f, c.t);
+            if (hw29 > 1e-4f && deep29 > 1e-4f)
+            {
+                float2 o29 = off.xz;
+                float cx = CraterMath.X(xz, crater);
+                if (cx < CraterMath.ReachX)
+                {
+                    // celý kráter + val + spálený prstenec do ~1,9 R; ×3 – v kráteru převládne vždy. Brána (klima, výška, reliéf)
+                    // je táž jako u tvaru terénu (CraterCell z makra), takže barva a region nikdy nejsou bez kráteru.
+                    float hg = smoothstep(0f, 4f, above) * (1f - smoothstep(240f, 300f, above));
+                    meteor = 3f * crater.gate * hg * (1f - smoothstep(1.55f, 2.25f, cx));
+                }
+                float nCo = GenNoise.Fbm2(xz * (1f / 1800f), 2, o29 + new float2(-29.3f, 57.7f));
+                float nMv = GenNoise.Fbm2(xz * (1f / 1500f), 2, o29 + new float2(83.1f, -45.9f));
+                float flat29 = 1f - smoothstep(0.15f, 0.35f, cliff);
+                // korálový útes: dávné mělké moře – teplé nížiny a nízké pahorky 14–120 m, suché až střední (i vlhčí okraj)
+                // (pilot 3 seedů: 3 % souše a překryv s bahenními sopkami → užší maska, spíš střední vlhkost než sucho)
+                coral = 2.0f * c.warm * deep29 * (c.mid + 0.5f * c.wet + 0.25f * c.dry) * smoothstep(14f, 24f, above) * (1f - smoothstep(80f, 120f, above))
+                      * smoothstep(0.26f, 0.42f, nCo) * (0.6f + 0.4f * flat29) * (1f - mesa);
+                // bahenní sopky: ploché teplé/horké nížiny 10–100 m, suché až střední, vzácnější maska
+                // (pilot: 4 % souše → vzácnější maska a jen suché nížiny – solfatary polopouští)
+                mud = 2.2f * (c.warm + 0.6f * c.hot) * deep29 * (c.dry + 0.35f * c.mid) * smoothstep(10f, 18f, above) * (1f - smoothstep(65f, 90f, above))
+                    * smoothstep(0.33f, 0.47f, nMv) * flat29 * (1f - mesa);
+                meteor = min(meteor, hw29); coral = min(coral, hw29); mud = min(mud, hw29);
+                float s29 = meteor + coral + mud;
+                if (s29 > 1e-5f)
+                {
+                    float K29 = min(s29, hw29);
+                    float k29 = K29 / s29;
+                    meteor *= k29; coral *= k29; mud *= k29;
+                    float keep = 1f - K29;
+                    meadow *= keep; boreal *= keep; birch *= keep; steppe *= keep; desert *= keep; mesa *= keep; swamp *= keep; tundra *= keep;
+                    sequoia *= keep; blackForest *= keep; heath *= keep; flowers *= keep; fernGorge *= keep; sakura *= keep; bamboo *= keep; jungle *= keep;
+                    volcanic *= keep; burnt *= keep; karst *= keep; petrified *= keep; ruins *= keep; oasis *= keep;
+                    snowPeaks *= keep; glacier *= keep; frozenOcean *= keep; mangrove *= keep; saltFlat *= keep; geothermal *= keep;
+                    crystal *= keep; mushroom *= keep; cliffs *= keep;
+                    basalt *= keep; obsidian *= keep; alabaster *= keep;
+                }
+            }
+
             RegionWeights w;
             float sum = meadow + boreal + birch + steppe + desert + mesa + swamp + tundra
                       + sequoia + blackForest + heath + flowers + fernGorge + sakura + bamboo + jungle
                       + volcanic + burnt + karst + petrified + ruins + oasis
                       + snowPeaks + glacier + frozenOcean + mangrove + saltFlat + geothermal
                       + crystal + mushroom + cliffs
-                      + basalt + obsidian + alabaster;
+                      + basalt + obsidian + alabaster
+                      + meteor + coral + mud;
             float inv = sum > 1e-5f ? 1f / sum : 0f;
             w.meadow = sum > 1e-5f ? meadow * inv : 1f;
             w.boreal = boreal * inv; w.birch = birch * inv; w.steppe = steppe * inv; w.desert = desert * inv;
@@ -547,11 +601,12 @@ namespace Orivilon.World.Generation
             w.mangrove = mangrove * inv; w.saltFlat = saltFlat * inv; w.geothermal = geothermal * inv;
             w.crystal = crystal * inv; w.mushroom = mushroom * inv; w.cliffs = cliffs * inv;
             w.basalt = basalt * inv; w.obsidian = obsidian * inv; w.alabaster = alabaster * inv;
+            w.meteor = meteor * inv; w.coral = coral * inv; w.mud = mud * inv;
             return w;
         }
 
         /// <summary>Barva povrchu podle regionů. Louku (dosavadní barvu) dostává hotovou.</summary>
-        public static float3 Ground(in RegionWeights w, float3 meadow, float3 p, float nBig, float nMid)
+        public static float3 Ground(in RegionWeights w, float3 meadow, float3 p, float nBig, float nMid, float3 off, in CraterCell crater)
         {
             float pm = saturate(0.5f + 0.9f * nMid);
 
@@ -603,6 +658,8 @@ namespace Orivilon.World.Generation
             if (w21 >= 0.002f) g += Ground21(w, p, nBig, nMid, pm);   // kolo 21 (mimo nové biomy beze změny)
             float w28 = w.basalt + w.obsidian + w.alabaster;
             if (w28 >= 0.002f) g += Ground28(w, p, nBig, nMid, pm);   // kolo 28 (mimo nové biomy beze změny)
+            float w29 = w.meteor + w.coral + w.mud;
+            if (w29 >= 0.002f) g += Ground29(w, p, nBig, nMid, pm, off, crater);   // kolo 29 (mimo nové biomy beze změny)
             if (w20 < 0.002f) return g;   // kolo 20: mimo nové biomy beze změny (a bez nákladu)
 
             // kolo 20 (tóny jako kolo 19 – sníh a sůl o stupeň tmavší, na slunci se zesvětlí)
@@ -647,6 +704,109 @@ namespace Orivilon.World.Generation
             float3 ala = lerp(new float3(0.44f, 0.41f, 0.34f), new float3(0.39f, 0.36f, 0.29f), pm * 0.7f);
             ala = lerp(ala, new float3(0.50f, 0.47f, 0.40f), smoothstep(0.35f, 0.80f, nBig) * 0.5f);         // jemný bílý prach
             return basalt * w.basalt + obs * w.obsidian + ala * w.alabaster;
+        }
+
+        /// <summary>
+        /// Kolo 29: barvy povrchu. Kráter: cizorodá fialovošedá půda s rezavými a tyrkysovými minerálními skvrnami na dně,
+        /// černé sklo (tektity) na stěnách a valu, spálený uhelný prstenec za valem přecházející v popel. Korály: krémový
+        /// vápencový písek s lososovými skvrnami a bílými úlomky. Bahenní sopky: šedá bahenní krusta s puklinami, okrové a
+        /// sírově žluté prstence kolem výduchů (MudVent – na týchž bodech stojí kužely). Tóny lineární jako v kole 28.
+        /// </summary>
+        private static float3 Ground29(in RegionWeights w, float3 p, float nBig, float nMid, float pm, float3 off, in CraterCell crater)
+        {
+            float3 g = 0f;
+            if (w.meteor > 0.002f)
+            {
+                float3 floorC = lerp(new float3(0.13f, 0.085f, 0.14f), new float3(0.18f, 0.11f, 0.12f), pm * 0.8f);                 // fialovošedá impaktní drť
+                floorC = lerp(floorC, new float3(0.28f, 0.11f, 0.05f), smoothstep(0.30f, 0.70f, nBig) * 0.55f);                      // rezavé oxidy železa
+                floorC = lerp(floorC, new float3(0.05f, 0.17f, 0.15f), smoothstep(0.45f, 0.85f, nMid) * 0.45f);                      // tyrkysové minerální skvrny
+                float3 glass = lerp(new float3(0.016f, 0.018f, 0.020f), new float3(0.05f, 0.045f, 0.06f), pm);                     // černé sklo
+                float3 burnt = lerp(new float3(0.035f, 0.030f, 0.027f), new float3(0.11f, 0.10f, 0.09f), smoothstep(0.2f, 0.8f, pm)); // uhel → popel
+                float3 met = floorC;
+                float cx = CraterMath.X(p.xz, crater);
+                if (cx < CraterMath.ReachX)
+                {
+                    met = lerp(floorC, glass, smoothstep(0.55f, 0.85f, cx) * 0.85f);
+                    met = lerp(met, burnt, smoothstep(1.08f, 1.30f, cx));
+                    met = lerp(met, lerp(burnt, new float3(0.16f, 0.14f, 0.11f), 0.5f), smoothstep(1.75f, 2.2f, cx));
+                }
+                g += met * w.meteor;
+            }
+            if (w.coral > 0.002f)
+            {
+                float3 co = lerp(new float3(0.44f, 0.39f, 0.31f), new float3(0.40f, 0.35f, 0.28f), pm * 0.7f);                    // krémový vápencový písek
+                co = lerp(co, new float3(0.50f, 0.31f, 0.26f), smoothstep(0.35f, 0.75f, nBig) * 0.45f);                             // lososové skvrny
+                co = lerp(co, new float3(0.52f, 0.50f, 0.45f), smoothstep(0.55f, 0.90f, nMid) * 0.5f);                              // bílé úlomky schránek
+                g += co * w.coral;
+            }
+            if (w.mud > 0.002f)
+            {
+                float3 mu = lerp(new float3(0.17f, 0.165f, 0.155f), new float3(0.13f, 0.125f, 0.12f), pm * 0.7f);                  // šedá bahenní krusta
+                mu = lerp(mu, new float3(0.06f, 0.058f, 0.055f), MudCrack(p.xz) * 0.8f);                                             // pukliny
+                mu = MudRings(p.xz, off, mu, nMid);                                                                                  // okr a síra kolem výduchů
+                g += mu * w.mud;
+            }
+            return g;
+        }
+
+        /// <summary>Kolo 29: 1 na puklině bahenní krusty (Voronoi desky ~8 j., spára ~0,6–1,4 j.).</summary>
+        public static float MudCrack(float2 xz)
+        {
+            float2 g = xz * (1f / 8f);
+            float2 gf = floor(g), f = g - gf;
+            int2 gi = (int2)gf;
+            float d1 = 9f, d2 = 9f;
+            for (int j = -1; j <= 1; j++)
+            for (int i = -1; i <= 1; i++)
+            {
+                uint h = GenNoise.Hash(unchecked((uint)(gi.x + i) * 40503103u ^ (uint)(gi.y + j) * 15485863u ^ 0x3D29u));
+                float2 o = new float2(GenNoise.Hash01(h), GenNoise.Hash01(GenNoise.Hash(h)));
+                float2 r = new float2(i, j) + o - f;
+                float d = dot(r, r);
+                if (d < d1) { d2 = d1; d1 = d; } else if (d < d2) d2 = d;
+            }
+            return 1f - smoothstep(0.06f, 0.15f, sqrt(d2) - sqrt(d1));
+        }
+
+        /// <summary>Kolo 29: buňka výduchu bahenních sopek (mřížka 48 j., výduch v ~55 % buněk, střed ve vnitřních 60 %).</summary>
+        public const float MudVentCell = 48f;
+
+        public static bool MudVentInCell(int2 cell, float3 off, out float2 center, out float size)
+        {
+            uint h = GenNoise.Hash(cell, unchecked((int)(asuint(off.x) * 0x2545F491u ^ asuint(off.z) * 0x9E3779B9u ^ 0x00B4D5u)));
+            center = 0f; size = 0f;
+            if (GenNoise.Hash01(h) > 0.55f) return false;
+            uint h2 = GenNoise.Hash(h ^ 0x68E31DA4u);
+            center = ((float2)cell + 0.2f + 0.6f * new float2(GenNoise.Hash01(h2), GenNoise.Hash01(GenNoise.Hash(h2)))) * MudVentCell;
+            size = 0.7f + 0.6f * GenNoise.Hash01(GenNoise.Hash(h2 ^ 0x1B873593u));
+            return true;
+        }
+
+        /// <summary>Kolo 29: vzdálenost k nejbližšímu výduchu (3×3 buňky) dělená velikostí výduchu; 1e4 = žádný.</summary>
+        public static float MudVentDist(float2 xz, float3 off)
+        {
+            int2 home = (int2)floor(xz / MudVentCell);
+            float best = 1e4f;
+            for (int j = -1; j <= 1; j++)
+            for (int i = -1; i <= 1; i++)
+            {
+                if (!MudVentInCell(home + new int2(i, j), off, out float2 c, out float sz)) continue;
+                best = min(best, distance(xz, c) / sz);
+            }
+            return best;
+        }
+
+        /// <summary>Kolo 29: okrové a sírové prstence kolem výduchů (dál šedá krusta). Žádná voda ani bahno – jen barva.</summary>
+        public static float3 MudRings(float2 xz, float3 off, float3 baseC, float nMid)
+        {
+            float d = MudVentDist(xz, off);
+            if (d > 1e3f) return baseC;
+            d *= 1f + 0.2f * nMid;
+            float3 c = baseC;
+            c = lerp(c, new float3(0.36f, 0.27f, 0.10f), 1f - smoothstep(13f, 18f, d));    // okrový lem
+            c = lerp(c, new float3(0.62f, 0.52f, 0.08f), 1f - smoothstep(7.5f, 10.5f, d));  // síra
+            c = lerp(c, new float3(0.26f, 0.25f, 0.23f), 1f - smoothstep(4.0f, 5.5f, d));   // šedé čerstvé bahno u kuželu
+            return c;
         }
 
         /// <summary>Kolo 28: 1 na puklině obsidiánové pláně (Voronoi desky ~22 j., spára ~1,5–3,5 j.), 0 uvnitř desky.</summary>
@@ -809,6 +969,24 @@ namespace Orivilon.World.Generation
                 float3 al = lerp(new float3(0.48f, 0.45f, 0.38f), new float3(0.41f, 0.38f, 0.31f), frac((y + 1.6f * nMid) / 4.4f) < 0.5f ? 0f : 1f);
                 rock = lerp(rock, al, saturate(w.alabaster * 1.15f));
             }
+            // Kolo 29: tmavá impaktní brekcie s rezavými pásy (kráter), porézní krémový vápenec s růžovými vrstvami (korály),
+            // šedé vrstvené bahno s okrovými proužky (bahenní sopky). Nízký kontrast vrstev – žádné výrazné pruhy.
+            if (w.meteor > 0.002f)
+            {
+                // skvrny podle šumu (ne vodorovné vrstvy – žádné pruhy na stěně kráteru)
+                float3 mb = lerp(new float3(0.075f, 0.065f, 0.075f), new float3(0.16f, 0.08f, 0.05f), smoothstep(0.15f, 0.55f, nMid) * 0.7f);
+                rock = lerp(rock, mb, saturate(w.meteor * 1.15f));
+            }
+            if (w.coral > 0.002f)
+            {
+                float3 cb = lerp(new float3(0.50f, 0.45f, 0.37f), new float3(0.50f, 0.40f, 0.34f), smoothstep(0.1f, 0.6f, nMid) * 0.8f);   // porézní vápenec, růžové skvrny (bez vrstev)
+                rock = lerp(rock, cb, saturate(w.coral * 1.15f));
+            }
+            if (w.mud > 0.002f)
+            {
+                float3 db = lerp(new float3(0.20f, 0.19f, 0.18f), new float3(0.30f, 0.25f, 0.13f), smoothstep(0.25f, 0.65f, nMid) * 0.6f);   // šedé bahno s okrovými skvrnami
+                rock = lerp(rock, db, saturate(w.mud * 1.15f));
+            }
             float a = w.mesa + w.desert;
             if (a < 0.002f) return rock;
             float yy = y + 3f * nMid;
@@ -842,7 +1020,8 @@ namespace Orivilon.World.Generation
                  + w.frozenOcean * new float3(0.75f, 0.88f, 0.95f) + w.mangrove * new float3(0.25f, 0.35f, 0.15f)
                  + w.saltFlat * new float3(1.00f, 0.97f, 0.90f) + w.geothermal * new float3(0.95f, 0.55f, 0.15f)
                  + w.crystal * new float3(0.55f, 0.35f, 0.85f) + w.mushroom * new float3(0.85f, 0.25f, 0.35f) + w.cliffs * new float3(0.92f, 0.92f, 0.85f)
-                 + w.basalt * new float3(0.22f, 0.25f, 0.33f) + w.obsidian * new float3(0.37f, 0.14f, 0.47f) + w.alabaster * new float3(1.00f, 0.84f, 0.63f);
+                 + w.basalt * new float3(0.22f, 0.25f, 0.33f) + w.obsidian * new float3(0.37f, 0.14f, 0.47f) + w.alabaster * new float3(1.00f, 0.84f, 0.63f)
+                 + w.meteor * new float3(0.85f, 0.10f, 0.55f) + w.coral * new float3(1.00f, 0.55f, 0.45f) + w.mud * new float3(0.62f, 0.60f, 0.30f);
         }
 
         public static string Name(int r) => r switch
@@ -854,7 +1033,8 @@ namespace Orivilon.World.Generation
             16 => "vulkanická oblast", 17 => "spálený les", 18 => "kras", 19 => "zkamenělý les", 20 => "ruiny", 21 => "oáza",
             22 => "zasněžené štíty", 23 => "ledovcové údolí", 24 => "zamrzlý oceán", 25 => "mangrovy", 26 => "solné pláně", 27 => "geotermální pole",
             28 => "krystalová oblast", 29 => "houbový les", 30 => "útesové pobřeží",
-            31 => "čedičové pobřeží", 32 => "obsidiánová pláň", 33 => "alabastrové plato", _ => "?",
+            31 => "čedičové pobřeží", 32 => "obsidiánová pláň", 33 => "alabastrové plato",
+            34 => "meteorický kráter", 35 => "zkamenělý korálový útes", 36 => "bahenní sopky", _ => "?",
         };
     }
 
@@ -872,9 +1052,9 @@ namespace Orivilon.World.Generation
 
         [BurstCompile]
         public static void Weights(in float2 xz, float y, float temp, float hum, float cliff,
-                                   float hW, int hasWater, float sea, in float3 off, out RegionWeights w)
+                                   float hW, int hasWater, float sea, in float3 off, in CraterCell crater, out RegionWeights w)
         {
-            w = BiomeMath.Weights(xz, y, temp, hum, cliff, hW, hasWater != 0, sea, off);
+            w = BiomeMath.Weights(xz, y, temp, hum, cliff, hW, hasWater != 0, sea, off, crater);
         }
     }
 }

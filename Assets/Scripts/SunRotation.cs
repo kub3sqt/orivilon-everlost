@@ -156,6 +156,21 @@ namespace Orivilon
         /// <summary>Kolo 9: násobič ZAČÁTKU mlhy (konec zůstává). Nad 1 = blízké a střední plány čistší, konec dohledu dál schovaný.</summary>
         public static float BiomeFogNearScale = 1f;
 
+        /// <summary>
+        /// Kolo 30: výhled z výšky, 0–1 (plynule; píše <c>BiomeAtmosphere</c> z nadmořské výšky kamery
+        /// a její výšky nad okolím). 0 = mlha přesně jako dřív (údolí, les, pobřeží u hladiny),
+        /// 1 = dálkový opar až k <see cref="VistaFarFraction"/> dohledu terénu. Mění jen mlhu,
+        /// ne dosah stínů (ten zůstává z biomových čísel).
+        /// </summary>
+        public static float VistaFactor;
+
+        /// <summary>Kolo 30: A/B přepínač výškové mlhy (<c>/atmo vyhled on|off</c>).</summary>
+        public static bool VistaEnabled = true;
+
+        /// <summary>Kolo 30: začátek a konec mlhy při plném výhledu jako podíl dohledu terénu (2048 m → ~270 / ~1740 m).
+        /// Konec musí zůstat pod 1, jinak se ukáže useknutý okraj posledního LOD prstence.</summary>
+        public static float VistaNearFraction = 0.13f, VistaFarFraction = 0.85f;
+
         /// <summary>Kolo 10 diagnostika: vypne stíny slunce (/folaz stiny off).</summary>
         public static bool DiagNoShadows;
 
@@ -453,6 +468,7 @@ namespace Orivilon
                 // nemělo za běhu žádný účinek – dohled se zvedl na 2 km a hráč dál viděl
                 // 450 m. Dvě čísla pro tutéž věc na dvou místech se vždycky rozejdou.
                 ResolveFogDistances(out float fogNear, out float fogFar);
+                ApplyVista(ref fogNear, ref fogFar);
                 RenderSettings.fogStartDistance = fogNear;
                 RenderSettings.fogEndDistance = fogFar;
 
@@ -488,6 +504,27 @@ namespace Orivilon
             near *= range;
             far *= range;
             near = Mathf.Min(near * Mathf.Clamp(BiomeFogNearScale, 0.5f, 2f), far * 0.8f);
+        }
+
+        /// <summary>
+        /// Kolo 30: výšková mlha. Z vrcholu se dosah mlhy plynule natáhne k dohledu terénu, v údolí
+        /// (<see cref="VistaFactor"/> = 0) zůstane biomová. Dohled se bere přímo z terénu, ne z
+        /// <see cref="ResolveBaseFogDistances"/> – tam je jednorázově zachycený odkaz, který se po
+        /// startu přes menu nenajde, a základní mlha proto stojí na 150–450 m (stav, na kterém je
+        /// naladěná nálada i pásmo stromů z kola 26; nemění se).
+        /// </summary>
+        private static void ApplyVista(ref float near, ref float far)
+        {
+            if (!VistaEnabled || VistaFactor <= 0.001f) return;
+            var t = Orivilon.World.Generation.VoxelTerrain.instance;
+            if (t == null) return;
+            float view = t.ViewDistance;
+            if (view <= 1f) return;
+            float v = Mathf.Clamp01(VistaFactor);
+            float farV = Mathf.Max(far, view * VistaFarFraction);
+            float nearV = Mathf.Max(near, view * VistaNearFraction);
+            far = Mathf.Lerp(far, farV, v);
+            near = Mathf.Min(Mathf.Lerp(near, nearV, v), far * 0.8f);
         }
 
         /// <summary>Dosah mlhy bez vlivu biomu – čisté číslo z dohledu terénu nebo ze scény.</summary>

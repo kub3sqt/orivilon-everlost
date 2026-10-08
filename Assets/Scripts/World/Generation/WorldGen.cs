@@ -129,6 +129,7 @@ namespace Orivilon.World.Generation
                 waterGate = field.waterGate,
                 overhang = field.overhang,
                 seamLine = seamLine,
+                crater = CraterMath.ForBox(origin, origin + extent, gp, spl),   // kolo 29: jednou na výřez
             };
 
             var archJob = new ArchJob
@@ -220,7 +221,7 @@ namespace Orivilon.World.Generation
             // kde je potřeba ta výška, na které hráč a objekty opravdu stojí.
             return WorldGenMath.EvalSurface(p, gp, my, sh, c, e, v, slope, temp, hum, 1f,
                                             flow, waterY, basin,
-                                            out _, out _, out _, out _);
+                                            out _, out _, out _, out _, CraterMath.ForPoint(p, gp, spl));
         }
 
         private static NativeArray<float> Alloc(int n, Allocator a)

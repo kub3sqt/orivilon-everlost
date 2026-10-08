@@ -101,6 +101,10 @@ namespace Orivilon.World.Generation
             sb.Append("\n  kolo 28 formace (mřížky 72/34 j.): kandidátů ").Append(EcologyPlacer.FormStat[0]).Append(", region/souš ").Append(EcologyPlacer.FormStat[1])
               .Append(", hustota ").Append(EcologyPlacer.FormStat[2]).Append(", terén/odstup ").Append(EcologyPlacer.FormStat[3]).Append(", osazeno ").Append(EcologyPlacer.FormStat[4])
               .Append(", rezervace z okraje sousedů ").Append(EcologyPlacer.FormStat[5]);
+            var k29 = EcologyPlacer.K29Stat;
+            sb.Append("\n  kolo 29 výduchy bahenních sopek: v poli ").Append(k29[0]).Append(", region/souš ").Append(k29[1]).Append(", terén ").Append(k29[2])
+              .Append(", rezervace z okraje ").Append(k29[3]).Append(", kuželů osazeno ").Append(k29[4])
+              .Append(" | jádra meteoritů: v poli ").Append(k29[5]).Append(", osazeno ").Append(k29[6]).Append(", odmítnuto ").Append(k29[7]);
             sb.Append("\n  balvany odmítnuty: ");
             for (int i = 0; i < EcologyPlacer.RockRejectName.Length; i++)
                 sb.AppendFormat(CultureInfo.InvariantCulture, "{0} {1}; ", EcologyPlacer.RockRejectName[i], EcologyPlacer.RockReject[i]);

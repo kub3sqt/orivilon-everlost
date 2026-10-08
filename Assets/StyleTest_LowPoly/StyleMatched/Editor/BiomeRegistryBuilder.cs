@@ -198,6 +198,26 @@ namespace Orivilon.EditorTools.StyleTest
             ("SM_Alabastr_Kamen", "Stone 04", 1.4f),
         };
 
+        /// <summary>Kolo 29: sedmý balík (Biomy7) – výška ve světě (hráč ≈ 8,5 j.). Jen na konec registru.</summary>
+        private static readonly (string name, string analog, float height)[] MapK29 =
+        {
+            ("SM_Meteorit_Jadro", "Large Rock 02", 7f),
+            ("SM_Kraterovy_Balvan", "Large Rock 02", 7f),
+            ("SM_Tektit_Sklo", "Large Rock 02", 2.6f),
+            ("SM_Ruda_Shluk", "Large Rock 02", 4.5f),
+            ("SM_Tektit_Strepy", "Stone 04", 1.0f),
+            ("SM_Koral_Vetevnaty", "Rock Cliff 01", 16f),
+            ("SM_Koral_Stolovy", "Large Rock 02", 8f),
+            ("SM_Koral_Mozkovy", "Large Rock 02", 4f),
+            ("SM_Koral_Brana", "Rock Cliff 02", 17f),   // pilot: při 0,85× měřítku otvor ≥ 8 j.
+            ("SM_Koral_Kostra", "Rock Cliff 02", 15.5f),   // pilot: otvor 7,6 j. < hráč 8 j.
+            ("SM_Koral_Ulomky", "Stone 04", 1.2f),
+            ("SM_Bahenni_Kuzel", "Large Rock 02", 4.5f),
+            ("SM_Bahenni_Kuzel_Velky", "Rock Cliff 02", 7f),
+            ("SM_Sirne_Krystaly", "Stone 04", 1.8f),
+            ("SM_Bahenni_Krusta", "Stone 04", 0.6f),
+        };
+
         /// <summary>Kolo 20: kolo 19 a pak kolo 20 – pořadí položek (a tím indexy) se nemění, nové jen na konec.</summary>
         private static IEnumerable<(string name, string analog, float height, string folder)> Concat(
             (string name, string analog, float height)[] a, string fa, (string name, string analog, float height)[] b, string fb)
@@ -251,6 +271,7 @@ namespace Orivilon.EditorTools.StyleTest
             var all = new List<(string name, string analog, float height, string folder)>(Concat(MapK19, "Biomy3", MapK20, "Biomy4"));
             foreach (var m21 in MapK21) all.Add((m21.name, m21.analog, m21.height, "Biomy5"));   // kolo 21: jen na konec
             foreach (var m28 in MapK28) all.Add((m28.name, m28.analog, m28.height, "Biomy6"));   // kolo 28: jen na konec
+            foreach (var m29 in MapK29) all.Add((m29.name, m29.analog, m29.height, "Biomy7"));   // kolo 29: jen na konec
             foreach (var m in all)
             {
                 var prefab = AssetDatabase.LoadAssetAtPath<GameObject>(PrefabRoot + m.folder + "/" + m.name + ".prefab");
@@ -278,7 +299,8 @@ namespace Orivilon.EditorTools.StyleTest
             Directory.CreateDirectory(Path.Combine(StyleMatchedTools.Dir, "..", "kolo20"));
             Directory.CreateDirectory(Path.Combine(StyleMatchedTools.Dir, "..", "kolo21"));
             Directory.CreateDirectory(Path.Combine(StyleMatchedTools.Dir, "..", "kolo28"));
-            File.WriteAllText(Path.Combine(StyleMatchedTools.Dir, "..", "kolo28", "registry.txt"), log.ToString());
+            Directory.CreateDirectory(Path.Combine(StyleMatchedTools.Dir, "..", "kolo29"));
+            File.WriteAllText(Path.Combine(StyleMatchedTools.Dir, "..", "kolo29", "registry.txt"), log.ToString());
             StyleMatchedTools.Out("DONE registry: " + set.entries.Count + " položek");
         }
     }

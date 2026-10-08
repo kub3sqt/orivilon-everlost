@@ -1438,6 +1438,13 @@ namespace Orivilon.World.Spawning
         /// </summary>
         public static float TreeFogFade = 0.3f;
 
+        /// <summary>
+        /// Kolo 30: pásmo (m od kamery), ve kterém strom zmizí i bez mlhy. TreeProxies sahají jen do LOD2
+        /// prstence (zaručeně ~512 m); výšková mlha z vrcholu by jinak odkryla jejich useknutý okraj.
+        /// Stejná funkce jako mlhové pásmo, takže kmen nikdy nezmizí dřív než listí. 0 = vypnuto.
+        /// </summary>
+        public static float TreeFadeStart = 400f, TreeFadeEnd = 500f;
+
         private static readonly Dictionary<Material, Material> trunkVariants = new Dictionary<Material, Material>(4);
         private static readonly List<Material> trunkMaterials = new List<Material>(8);
         private static Shader trunkShader;
@@ -1520,6 +1527,7 @@ namespace Orivilon.World.Spawning
             Shader.SetGlobalFloat("_TrunkDiag", TrunkDiagMask);
             Shader.SetGlobalFloat("_TrunkAlbedoFloor", TrunkLook ? TrunkAlbedoFloor : 0f);
             Shader.SetGlobalFloat("_TreeFogFade", TreeFogFade);
+            Shader.SetGlobalVector("_TreeFadeDist", new Vector4(TreeFadeStart, TreeFadeEnd, 0f, 0f));
         }
 
         /// <summary>Diagnostika pro konzoli.</summary>

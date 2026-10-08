@@ -130,6 +130,14 @@ namespace Orivilon.World.Generation
                 shape *= 1f + gp.upliftShape * uplift;
                 if (massif > 0f) shape *= 1f + gp.massifShape * massif;
             }
+
+            // Kolo 29, A/B varianta B1 (craterMode 1): kráter přímo v makru. Hydrologie (HydroHeightJob) ho pak vidí jako
+            // bezodtokou pánev a terasy suchého pásma ho zasáhnou – jen pro pilotní měření, výchozí je craterMode 2 (krok 9b).
+            if (gp.craterMode == 1 && CraterMath.Near(p, gp.offMicro, out _, out _, out _))
+            {
+                Climate(p, gp, out float cT, out float cH);
+                macroY += CraterMath.TerrainDelta(p, macroY, cT, cH, gp.seaLevel, gp.offMicro, 1f);
+            }
         }
 
         /// <summary>Sklon makro terénu spočtený analyticky (4 vzorky). Pro body mimo mřížku.</summary>
@@ -263,7 +271,7 @@ namespace Orivilon.World.Generation
                                         in HydroFlow flow,
                                         float lakeWaterY, float lakeBasin,
                                         out float riverCore, out float riverY, out float cliff,
-                                        out float hydroLakeY)
+                                        out float hydroLakeY, in CraterCell crater)
         {
             float e01 = eros * 0.5f + 0.5f;
 
@@ -272,6 +280,7 @@ namespace Orivilon.World.Generation
             float grain = GenNoise.Fbm2(p * gp.grainFreq, gp.grainOct, gp.offGrain);
             // Detail se škáluje bezrozměrným shape – ridgeAmp a grainAmp jsou už v metrech.
             float y = macroY + shape * (gp.ridgeAmp * rock + gp.grainAmp * grain);
+            float detail29 = y - macroY;   // kolo 29: jemný povrchový detail pro dno kráteru (bez teras a koryt)
 
             // ── 6) řeky ────────────────────────────────────────────────
             //
@@ -563,6 +572,21 @@ namespace Orivilon.World.Generation
                                                  gp.seaLevel, gp.seed);
             }
 
+            // ── 9b) kolo 29: meteorický kráter (craterMode 2) ──────────────
+            //
+            // Až na hotovém povrchu po terasách (jako čedičové pole): v suchu by terasování z valu udělalo schody a
+            // pruhy. Hydrologie čte jen EvalMacro, takže řeky, jezera a jejich povodí zůstávají bitově stejné – kráter
+            // je čistě lokální (mimo 2,35 R přesně 0). Do koryta a jezera se nesahá (shield).
+            if (gp.craterMode == 2 && crater.valid != 0)
+            {
+                // u řeky se kráter plynule vytrácí (osa ± pól šířky + 6 → 40 m): koryto, břehy i hladina zůstanou přesně jako dřív,
+                // řeka teče přirozeným průlomem ve valu
+                float riverGap = flow.width > 0.01f ? smoothstep(0.5f * flow.width + 6f, 0.5f * flow.width + 40f, flow.distance) : 1f;
+                float cShield = (1f - riverCore) * riverGap * (1f - saturate(lakeBasin * 4f)) * (1f - smoothstep(0f, 1.5f, flow.lakeDepth));
+                float bw29 = CraterMath.Shape(ref y, p, detail29, crater, cShield);
+                cliff *= 1f - bw29;   // vyrovnaný kráter nemá terasy – ani v barvě
+            }
+
             // ── 10a) jezera z bezodtokých pánví ────────────────────────
             //
             // Priority-Flood je vrací zadarmo: kde je zaplněná výška nad surovou, tam by se
@@ -709,6 +733,9 @@ namespace Orivilon.World.Generation
     [BurstCompile]
     public struct SurfaceFieldJob : IJobParallelFor
     {
+        /// <summary>Kolo 29: meteorický kráter zasahující do výřezu (nejvýš jeden; valid = 0 → žádný). Počítá se jednou na výřez.</summary>
+        public CraterCell crater;
+
         public float2 origin;
         public float step;
         public int side;
@@ -843,7 +870,7 @@ namespace Orivilon.World.Generation
             float y = WorldGenMath.EvalSurface(p, gp, macroY[i], shape[i], cont[i], eros[i], pv[i],
                                                sl, temp[i], hum[i], effStep, flow, waterY, basin,
                                                out float rc, out float rY, out float cl,
-                                               out float hydroLakeY);
+                                               out float hydroLakeY, crater);
 
             // Maska 3D vrstvy: nízká eroze a strmý svah. Do koryta ani do jezera převisy nechceme.
             // Okno sklonu je pevné – síla se ladí přes overhangAmp, ne dalším prahem.

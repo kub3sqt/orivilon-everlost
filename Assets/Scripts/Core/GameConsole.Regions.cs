@@ -21,7 +21,8 @@ namespace Orivilon.Core
             "vulkan", "spaleny", "kras", "zkamenely", "ruiny", "oaza",
             "zasnezene_stity", "ledovec", "zamrzly_ocean", "mangrovy", "solne_plane", "geotermal",   // kolo 20
             "krystaly", "houby", "utesy",   // kolo 21
-            "cedicove_pobrezi", "obsidianova_plan", "alabastrove_plato" };   // kolo 28 (skrytá kompatibilita, kanonická id jsou anglická)
+            "cedicove_pobrezi", "obsidianova_plan", "alabastrove_plato",   // kolo 28 (skrytá kompatibilita, kanonická id jsou anglická)
+            "meteoricky_krater", "koralovy_utes", "bahenni_sopky" };   // kolo 29
 
         /// <summary>
         /// Kolo 25: veřejná anglická ID biomů (index = <see cref="BiomeRegion"/>). Hráčský seznam,
@@ -33,14 +34,16 @@ namespace Orivilon.Core
             "volcanic", "burnt_forest", "karst", "petrified_forest", "ruins", "oasis",
             "snowy_peaks", "glacier_valley", "frozen_ocean", "mangroves", "salt_flats", "geothermal_springs",
             "crystal_caves", "mushroom_forest", "cliff_coast",
-            "basalt_columns_coast", "obsidian_plain", "alabaster_plateau" };   // kolo 28
+            "basalt_columns_coast", "obsidian_plain", "alabaster_plateau",   // kolo 28
+            "meteor_crater", "fossilized_coral_reef", "mud_volcanoes" };   // kolo 29
 
         private static readonly string[] RegionNamesEn = { "Meadow", "Conifer Forest", "Birch Grove", "Steppe & Savanna", "Desert", "Mesa Badlands", "Swamp", "Tundra",
             "Black Forest", "Giant Sequoia Forest", "Flower Meadow", "Windswept Heath", "Sakura Valley", "Bamboo Valley", "Tropical Jungle", "Primeval Fern Gorge",
             "Volcanic Lands", "Burnt Forest", "Karst Towers", "Petrified Forest", "Overgrown Ruins", "Oasis",
             "Snowy Peaks", "Glacier Valley", "Frozen Ocean", "Coastal Mangroves", "Salt Flats", "Geothermal Springs",
             "Crystal Caves", "Mushroom Forest", "Cliff Coast",
-            "Basalt Columns Coast", "Obsidian Plain", "Alabaster Plateau" };
+            "Basalt Columns Coast", "Obsidian Plain", "Alabaster Plateau",
+            "Meteor Crater", "Fossilized Coral Reef", "Mud Volcanoes & Solfataras" };
 
         private static string RegionId(int r) => r >= 0 && r < RegionIds.Length ? RegionIds[r] : "?";
         private static string RegionLabel(int r) => r >= 0 && r < RegionNamesEn.Length ? RegionNamesEn[r] + " [" + RegionIds[r] + "]" : "?";
@@ -98,6 +101,7 @@ namespace Orivilon.Core
             new Color32(60, 95, 40, 255), new Color32(255, 248, 230, 255), new Color32(240, 140, 40, 255),   // kolo 20
             new Color32(140, 90, 215, 255), new Color32(215, 60, 90, 255), new Color32(235, 235, 220, 255),  // kolo 21
             new Color32(55, 65, 85, 255), new Color32(95, 35, 120, 255), new Color32(255, 214, 160, 255),    // kolo 28
+            new Color32(215, 25, 140, 255), new Color32(255, 140, 115, 255), new Color32(160, 155, 75, 255),   // kolo 29
         };
 
         /// <summary>Kolo 14b: podpříkazy, které /biome předá regionům (bez nich zůstává původní /biome).</summary>
@@ -145,6 +149,10 @@ namespace Orivilon.Core
                 case "basalt": case "basalt_coast": case "basalt_columns": case "cedic": case "cedicove": return 31;
                 case "obsidian": case "obsidian_plains": case "obsidian_plane": case "obsidianova": return 32;
                 case "alabaster": case "alabaster_plateaus": case "alabastr": case "alabastrove": return 33;
+                // kolo 29
+                case "meteor": case "crater": case "impact": case "impact_crater": case "meteor_craters": case "krater": case "meteoricky": return 34;
+                case "coral": case "coral_reef": case "fossil_reef": case "fossil_coral_reef": case "fossilized_reef": case "koraly": return 35;
+                case "mud": case "mud_volcano": case "mudvolcano": case "solfatara": case "solfataras": case "bahno": case "bahenni": return 36;
             }
             return -1;
         }
@@ -186,8 +194,8 @@ namespace Orivilon.Core
                     t.RegionAt(v.x, v.z, false, out float sf, out float clf);
                     t.ClimateAt(v.x, v.z, out float tt, out float hh);
                     TerrainPalette pal = t.Palette;
-                    float3 rgb = pal.EvaluateArt(new float3(v.x, sf, v.z), 1f, tt, hh, TerrainPalette.NoShore, t.MicroOffset, clf);
-                    float3 rgbS = pal.EvaluateArt(new float3(v.x, sf, v.z), 0.5f, tt, hh, TerrainPalette.NoShore, t.MicroOffset, clf);
+                    float3 rgb = pal.EvaluateArt(new float3(v.x, sf, v.z), 1f, tt, hh, TerrainPalette.NoShore, t.MicroOffset, clf, t.CraterFor(new float2(v.x, v.z), new float2(v.x, v.z)));
+                    float3 rgbS = pal.EvaluateArt(new float3(v.x, sf, v.z), 0.5f, tt, hh, TerrainPalette.NoShore, t.MicroOffset, clf, t.CraterFor(new float2(v.x, v.z), new float2(v.x, v.z)));
                     string txt = string.Format(CultureInfo.InvariantCulture, "[biome barva] ({0:0},{1:0}) y {2:0.0}: rovina ({3:0.00}, {4:0.00}, {5:0.00}) svah ({6:0.00}, {7:0.00}, {8:0.00}) | grassTop {9:0} sandTop {10:0} snow {11:0}",
                         v.x, v.z, sf, rgb.x, rgb.y, rgb.z, rgbS.x, rgbS.y, rgbS.z, pal.grassTop, pal.sandTop, pal.snowTop);
                     Diag(txt); Ok(txt);
@@ -253,9 +261,12 @@ namespace Orivilon.Core
                     var swF = System.Diagnostics.Stopwatch.StartNew();
                     // Kolo 17: u /biome tp bez poloměru se synchronně hledá jen do 3 km (hra nezamrzne),
                     // zbytek po snímcích ve FarRegionTp – pořadí bodů je stejné, výsledek také.
-                    bool asyncTp = sub == "tp" && autoR;
+                    bool crater29 = want == (int)BiomeRegion.MeteorCrater;   // kolo 29: středy kráterů jsou analytické – celé hledání synchronně (levné)
+                    if (crater29 && autoR) maxR = FarSearchR;
+                    bool asyncTp = sub == "tp" && autoR && !crater29;
                     bool found = FindRegion(t, v.x, v.z, want, asyncTp ? NearSyncR : maxR, out Vector3 at, !asyncTp);
                     float findMs = (float)swF.Elapsed.TotalMilliseconds;
+                    if (crater29) Diag("[biomy] meteor_crater: " + LastCraterSearch);
                     if (found)
                     {
                         Diag(string.Format(CultureInfo.InvariantCulture, "[biomy] {0}: nejbližší oblast ({1:0}, {2:0}), {3:0} m od hráče ({4:0.0},{5:0.0}) | hledání {6:0} ms, z toho hydrologie {7} regionů {8:0} ms",
@@ -322,10 +333,12 @@ namespace Orivilon.Core
                     float yawN = a.Length > 2 && TryNumber(a[2], out float yn) ? yn : 0f;
                     float yrn = yawN * Mathf.Deg2Rad;
                     Vector3 backN = new Vector3(-Mathf.Sin(yrn), 0f, -Mathf.Cos(yrn));
-                    t.RegionAt(v.x + backN.x * 140f, v.z + backN.z * 140f, false, out float sCam, out _);
-                    Vector3 camN = new Vector3(v.x, 0f, v.z) + backN * 140f + Vector3.up * (Mathf.Max(v.y, sCam) + 90f);
+                    // kolo 29: volitelně [vzdálenost] [výška] – celý kráter (průměr ~450 m) se do výchozích 140/90 m nevejde
+                    float backD = a.Length > 3 && TryNumber(a[3], out float bd3) ? bd3 : 140f, upD = a.Length > 4 && TryNumber(a[4], out float ud4) ? ud4 : 90f;
+                    t.RegionAt(v.x + backN.x * backD, v.z + backN.z * backD, false, out float sCam, out _);
+                    Vector3 camN = new Vector3(v.x, 0f, v.z) + backN * backD + Vector3.up * (Mathf.Max(v.y, sCam) + upD);
                     CmdFly(new[] { "let", "on" });
-                    pendingYaw = yawN; pendingPitch = 28f; pendingLook = true; pendingSince = Time.unscaledTime;
+                    pendingYaw = yawN; pendingPitch = a.Length > 3 ? Mathf.Clamp(Mathf.Atan2(upD, backD) * Mathf.Rad2Deg * 0.85f, 28f, 70f) : 28f; pendingLook = true; pendingSince = Time.unscaledTime;
                     t.Teleport(camN, false);
                     Ok("nadhled");
                     break;
@@ -454,9 +467,10 @@ namespace Orivilon.Core
                 float y = sea + 300f * ry * rw, cliff = rx * 0.6f;
                 bool water = (i & 3) == 0; float hW = water ? 12f * rz : 1e4f;
                 long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
-                RegionWeights wm = BiomeMath.Weights(xz, y, temp, hum, cliff, hW, water, sea, off);
+                CraterCell ccB = default;   // kolo 29: burstcheck porovnává obě cesty se stejným vstupem (bez kráteru)
+                RegionWeights wm = BiomeMath.Weights(xz, y, temp, hum, cliff, hW, water, sea, off, ccB);
                 long t1 = System.Diagnostics.Stopwatch.GetTimestamp();
-                BiomeBurst.Weights(in xz, y, temp, hum, cliff, hW, water ? 1 : 0, sea, in off, out RegionWeights wb);
+                BiomeBurst.Weights(in xz, y, temp, hum, cliff, hW, water ? 1 : 0, sea, in off, in ccB, out RegionWeights wb);
                 long t2 = System.Diagnostics.Stopwatch.GetTimestamp();
                 tm += t1 - t0; tb += t2 - t1;
                 for (int k = 0; k < BiomeMath.Count; k++) maxD = Mathf.Max(maxD, Mathf.Abs(wm.Get(k) - wb.Get(k)));
@@ -611,6 +625,10 @@ namespace Orivilon.Core
             // Kolo 20: cílový biom musí převládat i s hydrologií – stejný odhad, jaký ukáže /biome kde v cíli
             // (regrese s2026: „poušť" přistála u vody, kde /biome kde správně hlásí oázu).
             if (!WaterBiome(want) && t.RegionAt(x, z, true, out _, out _).Dominant() != want) { why = "other biome (hydrology)"; return false; }
+            // Kolo 31: mikro-biom (čedičové pole, zlatý háj) překreslí povrch, osazení i atmosféru – s42 „glacier_valley"
+            // přistál v čedičových sloupcích, ač region hlásil ledovec 100 %. Bod i okolí 40 m musí být bez skvrny
+            // (atmosféra ji míchá už od váhy 0,01, a hráč by stál na jejím okraji).
+            if (MicroNear(t, x, z)) { why = "micro-biome overlay"; return false; }
             // …a i 4 m kolem: na hraně jezera přepíná váhy skokově a hráč po dopadu stojí o 1–2 m vedle.
             if (WaterBiome(want))
                 for (int d = 0; d < 4; d++)
@@ -629,6 +647,17 @@ namespace Orivilon.Core
             if (Mathf.Abs(hit.point.y - surf) > 1.6f || hit.normal.y < 0.8f) { why = "cave/overhang/object"; return false; }
             groundY = hit.point.y;
             return true;
+        }
+
+        /// <summary>Kolo 31: mikro-biom v bodě nebo 40 m kolem (5 hashů; výška jen uvnitř zlatého háje).</summary>
+        private static bool MicroNear(VoxelTerrain t, float x, float z)
+        {
+            for (int d = 0; d < 5; d++)
+            {
+                float ox = d == 1 ? 40f : d == 2 ? -40f : 0f, oz = d == 3 ? 40f : d == 4 ? -40f : 0f;
+                if (t.MicroAt(x + ox, z + oz, out float mw) != Orivilon.World.Generation.MicroBiome.None && mw > 0.001f) return true;
+            }
+            return false;
         }
 
         /// <summary>Kolo 17: dosah synchronního hledání /biome tp (m) – do 3 km stojí nejvýš ~0,3 s.</summary>
@@ -973,10 +1002,12 @@ namespace Orivilon.Core
                 + " svisle (nejmenší výška pod sněžnou čarou, horké/teplé): před {4:0} m u ({5:0},{6:0}) → po {7:0} m u ({8:0},{9:0}), nové {10:0} m; nejvyšší horký/teplý povrch {11:0} m;"
                 + " nové chladné (štíty/ledovec/zamrzlý) ↔ horké/teplé regiony {12} | podíl souše: zasnezene_stity {13:0.00}% ledovec {14:0.00}% zamrzly_ocean {15:0.00}% (zamrzlé moře {19:0.0}% moře) mangrovy {16:0.00}% solne_plane {17:0.00}% geotermal {18:0.00}%"
                 + " | kolo 21 podíl souše: krystaly {21:0.00}% houby {22:0.00}% utesy {23:0.00}%"
-                + " | kolo 28 podíl souše: basalt_columns_coast {24:0.00}% obsidian_plain {25:0.00}% alabaster_plateau {26:0.00}%",
+                + " | kolo 28 podíl souše: basalt_columns_coast {24:0.00}% obsidian_plain {25:0.00}% alabaster_plateau {26:0.00}%"
+                + " | kolo 29 podíl souše: meteor_crater {27:0.000}% fossilized_coral_reef {28:0.00}% mud_volcanoes {29:0.00}%",
                 Fmt(dOld), Fmt(dNew), Fmt(dNKold), Fmt(dNK), vOld, vOldAt.x, vOldAt.y, vNew, vNewAt.x, vNewAt.y, vNewK, maxHW, Fmt(dCold),
                 Pct(cnt[0], land), Pct(cnt[1], land), Pct(cnt[2], land), Pct(cnt[3], land), Pct(cnt[4], land), Pct(cnt[5], land), Pct(seaFrozen, seaAll), Fmt(dSnow),
-                Pct(cnt[6], land), Pct(cnt[7], land), Pct(cnt[8], land), Pct(cnt[9], land), Pct(cnt[10], land), Pct(cnt[11], land));
+                Pct(cnt[6], land), Pct(cnt[7], land), Pct(cnt[8], land), Pct(cnt[9], land), Pct(cnt[10], land), Pct(cnt[11], land),
+                Pct(cnt[12], land), Pct(cnt[13], land), Pct(cnt[14], land));
         }
 
         private static float Pct(int a, int b) => b > 0 ? 100f * a / b : 0f;
@@ -1128,6 +1159,7 @@ namespace Orivilon.Core
                         || want == (int)BiomeRegion.BasaltCoast;   // kolo 21: útesy, kolo 28: čedičové pobřeží
             bool high20 = want == (int)BiomeRegion.SnowPeaks || want == (int)BiomeRegion.Glacier || want == (int)BiomeRegion.Crystal;   // kolo 21: krystaly na pahorkatinách
             if (coast20) return CoastPoint20(t, want, x, z, w, surf, cl, out at);
+            if (want == (int)BiomeRegion.MeteorCrater) return false;   // kolo 29: kráter hledá CraterPoint (analytické středy) – viz FindRegion
             float lo = sea + (water ? 1f : 12f);
             float hi = pal.grassTop + (want == 7 ? 30f : want == 5 ? 40f : -15f);
             if (want == (int)BiomeRegion.SnowPeaks) hi = 5000f;
@@ -1136,6 +1168,8 @@ namespace Orivilon.Core
             else if (want == (int)BiomeRegion.Crystal) hi = sea + 230f;   // kolo 21
             else if (want == (int)BiomeRegion.ObsidianPlain) hi = sea + 175f;   // kolo 28
             else if (want == (int)BiomeRegion.AlabasterPlateau) hi = sea + 420f;   // kolo 28: plošiny a teplé masivy
+            else if (want == (int)BiomeRegion.FossilReef) hi = sea + 125f;   // kolo 29
+            else if (want == (int)BiomeRegion.MudVolcanoes) hi = sea + 105f;   // kolo 29
             if (surf < lo || surf > hi) return false;
             if (want == 5 ? cl < 0.25f : cl > (high20 ? 0.5f : 0.2f)) return false;
             float need = want == 5 ? 0.65f : high20 ? 0.7f : 0.8f;
@@ -1146,7 +1180,7 @@ namespace Orivilon.Core
             if (!water && t.RiverClearanceSearch(x, z, out float ldF) < 14f) return false;
             bool ok = true;
             // kolo 20: geotermální pole a solné pláně jsou menší ostrůvky – okolí 70 m
-            float ring = want == (int)BiomeRegion.Geothermal || want == (int)BiomeRegion.SaltFlat ? 70f : 120f;
+            float ring = want == (int)BiomeRegion.Geothermal || want == (int)BiomeRegion.SaltFlat || want == (int)BiomeRegion.MudVolcanoes ? 70f : 120f;   // kolo 29: bahenní sopky jsou menší ostrůvky
             for (int d = 0; d < 4 && ok; d++)
             {
                 float dx = d == 0 ? ring : d == 1 ? -ring : 0f, dz = d == 2 ? ring : d == 3 ? -ring : 0f;
@@ -1189,12 +1223,103 @@ namespace Orivilon.Core
             return true;
         }
 
+        /// <summary>Kolo 29: diagnostika posledního hledání kráteru (kandidáti, klima/výška, voda, převaha, nalezený střed).</summary>
+        internal static string LastCraterSearch = "";
+
+        /// <summary>
+        /// Kolo 29: nejbližší meteorický kráter – středy jsou analytické (CraterMath), takže se neprochází spirála: buňky 2,4 km
+        /// podle vzdálenosti, kráter musí převládat ve středu (≥ 80 %) i na dně 0,3 R do 4 stran, mít tvar (dno ≥ 5 m pod
+        /// valem) a ve středu ani v okolí 60 m žádnou řeku/jezero. Cíl = bod dna 0,25 R od středu (ne na centrálním balvanu).
+        /// </summary>
+        private static bool CraterPoint(VoxelTerrain t, float x0, float z0, float maxR, out Vector3 at)
+        {
+            at = default;
+            float3 off = t.MicroOffset;
+            int c0x = Mathf.FloorToInt(x0 / CraterMath.Cell), c0z = Mathf.FloorToInt(z0 / CraterMath.Cell);
+            int rc = Mathf.CeilToInt(maxR / CraterMath.Cell) + 1;
+            var cand = new System.Collections.Generic.List<(float d, float2 c, float r)>();
+            for (int j = -rc; j <= rc; j++)
+            for (int i = -rc; i <= rc; i++)
+            {
+                if (!CraterMath.CellCrater(new int2(c0x + i, c0z + j), off, out float2 cc, out float cr)) continue;
+                float d = math.distance(cc, new float2(x0, z0));
+                if (d <= maxR) cand.Add((d, cc, cr));
+            }
+            cand.Sort((a, b) => a.d.CompareTo(b.d));
+            int nClim = 0, nShape = 0, nWater = 0;
+            bool shapeOn = WorldGenSettings.CraterMode != 0;   // A/B varianta A (jen osazení) nemá tvar – kontrola valu se přeskočí
+            string firstProf = "";
+            foreach (var k in cand)
+            {
+                RegionWeights w = t.RegionAt(k.c.x, k.c.y, false, out float sFloor, out _);
+                if (w.Dominant() != (int)BiomeRegion.MeteorCrater || w.meteor < 0.8f) { nClim++; continue; }
+                bool ok = true;
+                float rimMin = 1e9f, wallCliff = 0f, ringMin = 1e9f, ringMax = -1e9f;
+                for (int d = 0; d < 4 && ok; d++)
+                {
+                    float ang = d * Mathf.PI * 0.5f + 0.4f;
+                    var wf = t.RegionAt(k.c.x + Mathf.Cos(ang) * 0.3f * k.r, k.c.y + Mathf.Sin(ang) * 0.3f * k.r, false, out _, out _);
+                    ok = wf.meteor >= 0.75f;
+                }
+                // profil: výšky podél 8 paprsků (x = 0 / 0,5 / 0,72 / 1 / 1,5 / 2,6) a největší terasa (cliff) na vnitřní stěně
+                var prof = new float[6]; float[] xs = { 0f, 0.5f, 0.72f, 1f, 1.5f, 2.6f };
+                for (int d = 0; d < 8; d++)
+                {
+                    float ang = d * Mathf.PI * 0.25f + 0.2f;
+                    for (int q = 0; q < xs.Length; q++)
+                    {
+                        t.RegionAt(k.c.x + Mathf.Cos(ang) * xs[q] * k.r, k.c.y + Mathf.Sin(ang) * xs[q] * k.r, false, out float sh, out float cl);
+                        prof[q] += sh / 8f;
+                        if (q == 3) rimMin = Mathf.Min(rimMin, sh);
+                        if (q == 5) { ringMin = Mathf.Min(ringMin, sh); ringMax = Mathf.Max(ringMax, sh); }
+                        if (q == 2 || q == 3) wallCliff = Mathf.Max(wallCliff, cl);
+                    }
+                }
+                float rcl = t.RiverClearanceSearch(k.c.x, k.c.y, out float ld);
+                string prof6 = string.Format(CultureInfo.InvariantCulture, "profile x0 {0:0.0} | x0.5 {1:0.0} | x0.72 {2:0.0} | rim {3:0.0} | x1.5 {4:0.0} | x2.6 {5:0.0} m, max terrace on wall {6:0.00}, lake depth at centre {7:0.0} m, river clearance {8:0} m, surroundings spread {9:0.0} m",
+                    prof[0], prof[1], prof[2], prof[3], prof[4], prof[5], wallCliff, ld, rcl, ringMax - ringMin);
+                if (firstProf.Length == 0) firstProf = string.Format(CultureInfo.InvariantCulture, " | first candidate ({0:0},{1:0}) R {2:0}: {3}", k.c.x, k.c.y, k.r, prof6);
+                // tp vede k čitelnému kráteru: val ≥ 5 m nad dnem, okolí (2,6 R) ne na svahu kopce (rozptyl ≤ 85 m)
+                if (!ok || ringMax - ringMin > 85f || (shapeOn && rimMin - sFloor < Mathf.Max(5f, 0.08f * k.r))) { nShape++; continue; }   // mělký kráter (částečná brána) není ukázkový; finál s90210: 0,12 R / 70 m nenašlo do 30 km nic
+                if (WorldGenSettings.CraterMode != 1 && (rcl < 1.3f * k.r || ld > 0.05f)) { nWater++; continue; }   // žádná řeka kráterem (val i dno)   // A/B B1: voda se jen hlásí (měří se, zda makro kráter zaplní hydrologie)
+                at = new Vector3(k.c.x + 0.25f * k.r, 0f, k.c.y);
+                CraterCell ccI = t.CraterFor(k.c, k.c);
+                prof6 += string.Format(CultureInfo.InvariantCulture, ", gate {0:0.00}, ref {1:0.0} m", ccI.gate, ccI.refY);
+                // hladkost tvaru (pruhy/terasy/schody): 4 radiální profily 0 → 2,5 R po 1 m – největší skok mezi sousedními vzorky
+                // a největší změna sklonu (2. diference); C1 profil má obojí malé a plynulé
+                float maxStep = 0f, maxCurv = 0f, maxSlopeDeg = 0f;
+                for (int d = 0; d < 4; d++)
+                {
+                    float ang = d * Mathf.PI * 0.5f + 0.1f, ca = Mathf.Cos(ang), sa = Mathf.Sin(ang);
+                    float h0 = float.NaN, h1 = float.NaN;
+                    for (float rr = 0f; rr <= 2.5f * k.r; rr += 1f)
+                    {
+                        t.RegionAt(k.c.x + ca * rr, k.c.y + sa * rr, false, out float hh, out _);
+                        if (!float.IsNaN(h1))
+                        {
+                            maxStep = Mathf.Max(maxStep, Mathf.Abs(hh - h1));
+                            maxSlopeDeg = Mathf.Max(maxSlopeDeg, Mathf.Atan(Mathf.Abs(hh - h1)) * Mathf.Rad2Deg);
+                            if (!float.IsNaN(h0)) maxCurv = Mathf.Max(maxCurv, Mathf.Abs(hh - 2f * h1 + h0));
+                        }
+                        h0 = h1; h1 = hh;
+                    }
+                }
+                prof6 += string.Format(CultureInfo.InvariantCulture, ", radial profiles 4×{0:0} m @1 m: max step {1:0.00} m (steepest {2:0} deg), max 2nd diff {3:0.00} m", 2.5f * k.r, maxStep, maxSlopeDeg, maxCurv);
+                LastCraterSearch = string.Format(CultureInfo.InvariantCulture, "crater mode {11} centre ({0:0},{1:0}) R {2:0} m, floor {3:0.0} m, lowest rim {4:0.0} m (rim−floor {5:0.0} m) | {10} | candidates {6}, rejected: climate/height {7}, shape {8}, water {9}",
+                    k.c.x, k.c.y, k.r, sFloor, rimMin, rimMin - sFloor, cand.Count, nClim, nShape, nWater, prof6, WorldGenSettings.CraterMode);
+                return true;
+            }
+            LastCraterSearch = string.Format(CultureInfo.InvariantCulture, "crater mode {5}: no crater within {0:0} m | candidates {1}, rejected: climate/height {2}, shape {3}, water {4}{6}", maxR, cand.Count, nClim, nShape, nWater, WorldGenSettings.CraterMode, firstProf);
+            return false;
+        }
+
         private static bool FindRegion(VoxelTerrain t, float x0, float z0, int want, float maxR, out Vector3 at, bool waterFallback = true)
         {
             at = default;
             const float step = 96f;
             float sea = t.SeaLevel;
             bool water = WaterBiome(want);
+            if (want == (int)BiomeRegion.MeteorCrater) return CraterPoint(t, x0, z0, maxR, out at);   // kolo 29
             for (float r = 0f; r <= maxR; r += step)
             {
                 int n = Mathf.Max(1, Mathf.CeilToInt(2f * Mathf.PI * r / step));

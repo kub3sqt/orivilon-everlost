@@ -25,8 +25,8 @@ namespace Orivilon.EditorTools.StyleTest
         private const string SrcMat = "Assets/Models/Materials/";
         internal static readonly Vector3 Origin = new Vector3(200f, 0f, 0f);
 
-        private static readonly string[] Cats = { "Stromy", "Rostliny", "Skaly", "Detaily", "Biomy", "Biomy2", "Biomy3", "Biomy4", "Biomy5", "Biomy6" };
-        private static readonly string[] CatTitles = { "STROMY", "KERE, TRAVA, KAPRADI", "KAMENY", "DREVO A DETAILY", "BIOMY (KOLO 14)", "BIOMY 2 (KOLO 16)", "BIOMY 3 (KOLO 19)", "BIOMY 4 (KOLO 20)", "BIOMY 5 (KOLO 21)", "BIOMY 6 (KOLO 28)" };
+        private static readonly string[] Cats = { "Stromy", "Rostliny", "Skaly", "Detaily", "Biomy", "Biomy2", "Biomy3", "Biomy4", "Biomy5", "Biomy6", "Biomy7" };
+        private static readonly string[] CatTitles = { "STROMY", "KERE, TRAVA, KAPRADI", "KAMENY", "DREVO A DETAILY", "BIOMY (KOLO 14)", "BIOMY 2 (KOLO 16)", "BIOMY 3 (KOLO 19)", "BIOMY 4 (KOLO 20)", "BIOMY 5 (KOLO 21)", "BIOMY 6 (KOLO 28)", "BIOMY 7 (KOLO 29)" };
 
         private static void EnsureFolder(string path)
         {
@@ -341,7 +341,7 @@ namespace Orivilon.EditorTools.StyleTest
         private static readonly (float z, string cat, bool reference)[] Rows =
         {
             (26f, "Stromy", true), (10f, "Stromy", false), (-4f, "Rostliny", true), (-12f, "Rostliny", false),
-            (-20f, "Skaly", true), (-27f, "Skaly", false), (44f, "Detaily", true), (-36f, "Detaily", false), (62f, "Biomy", true), (-48f, "Biomy", false), (78f, "Biomy2", true), (-60f, "Biomy2", false), (88f, "Biomy3", true), (-72f, "Biomy3", false), (98f, "Biomy4", true), (-86f, "Biomy4", false), (108f, "Biomy5", true), (-98f, "Biomy5", false), (118f, "Biomy6", true), (-110f, "Biomy6", false)
+            (-20f, "Skaly", true), (-27f, "Skaly", false), (44f, "Detaily", true), (-36f, "Detaily", false), (62f, "Biomy", true), (-48f, "Biomy", false), (78f, "Biomy2", true), (-60f, "Biomy2", false), (88f, "Biomy3", true), (-72f, "Biomy3", false), (98f, "Biomy4", true), (-86f, "Biomy4", false), (108f, "Biomy5", true), (-98f, "Biomy5", false), (118f, "Biomy6", true), (-110f, "Biomy6", false), (128f, "Biomy7", true), (-122f, "Biomy7", false)
         };
 
         private static void BuildGallery(List<Built> built)

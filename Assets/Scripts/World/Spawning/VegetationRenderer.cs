@@ -41,6 +41,9 @@ namespace Orivilon.World.Spawning
             public ShadowCastingMode shadows;
             public int layer;
 
+            /// <summary>Kolo 31: submesh (jehličnan = kmen i jehličí v jednom meshi). Běžně 0.</summary>
+            public int subMesh;
+
             /// <summary>Za jak daleko se dávka přestane kreslit. 0 = bez omezení.</summary>
             public float maxDistance;
         }
@@ -69,8 +72,8 @@ namespace Orivilon.World.Spawning
         /// <para>Slovník i seznamy se drží mezi snímky a jen čistí – alokovat je každý
         /// snímek by byla práce pro GC přesně tam, kde se šetří.</para>
         /// </summary>
-        private readonly Dictionary<(Mesh, Material), List<Batch>> groups =
-            new Dictionary<(Mesh, Material), List<Batch>>(64);
+        private readonly Dictionary<(Mesh, Material, int), List<Batch>> groups =
+            new Dictionary<(Mesh, Material, int), List<Batch>>(64);
 
         private readonly Stack<List<Batch>> groupPool = new Stack<List<Batch>>(64);
 
@@ -128,7 +131,7 @@ namespace Orivilon.World.Spawning
         /// Kopie by při desítkách sloupců znamenala megabajty práce navíc pro nic.
         /// </param>
         public int Register(Mesh mesh, Material material, Matrix4x4[] matrices, int count,
-                            Bounds bounds, ShadowCastingMode shadows, int layer, float maxDistance)
+                            Bounds bounds, ShadowCastingMode shadows, int layer, float maxDistance, int subMesh = 0)
         {
             if (mesh == null || material == null || matrices == null || count <= 0) return 0;
 
@@ -143,6 +146,7 @@ namespace Orivilon.World.Spawning
                 shadows = shadows,
                 layer = layer,
                 maxDistance = maxDistance,
+                subMesh = subMesh,
             };
             return handle;
         }
@@ -201,7 +205,7 @@ namespace Orivilon.World.Spawning
 
                 if (!GeometryUtility.TestPlanesAABB(frustum, b.bounds)) continue;
 
-                var key = (b.mesh, b.material);
+                var key = (b.mesh, b.material, b.subMesh);
                 if (!groups.TryGetValue(key, out List<Batch> list))
                 {
                     list = groupPool.Count > 0 ? groupPool.Pop() : new List<Batch>(16);
@@ -211,7 +215,7 @@ namespace Orivilon.World.Spawning
             }
 
             // ── 2) každou skupinu poslat plnými dávkami napříč sloupci ──
-            foreach (KeyValuePair<(Mesh, Material), List<Batch>> g in groups)
+            foreach (KeyValuePair<(Mesh, Material, int), List<Batch>> g in groups)
             {
                 List<Batch> list = g.Value;
                 int filled = 0;
@@ -235,7 +239,7 @@ namespace Orivilon.World.Spawning
 
                         if (filled == BatchLimit)
                         {
-                            Graphics.DrawMeshInstanced(g.Key.Item1, 0, g.Key.Item2, slice, filled,
+                            Graphics.DrawMeshInstanced(g.Key.Item1, g.Key.Item3, g.Key.Item2, slice, filled,
                                                        null, shadows, true, layer);
                             LastDrawCalls++;
                             LastInstances += filled;
@@ -246,7 +250,7 @@ namespace Orivilon.World.Spawning
 
                 if (filled > 0)
                 {
-                    Graphics.DrawMeshInstanced(g.Key.Item1, 0, g.Key.Item2, slice, filled,
+                    Graphics.DrawMeshInstanced(g.Key.Item1, g.Key.Item3, g.Key.Item2, slice, filled,
                                                null, shadows, true, layer);
                     LastDrawCalls++;
                     LastInstances += filled;
@@ -260,7 +264,7 @@ namespace Orivilon.World.Spawning
         /// <summary>Vyprázdní skupiny a vrátí seznamy do zásobníku k dalšímu použití.</summary>
         private void ClearGroups()
         {
-            foreach (KeyValuePair<(Mesh, Material), List<Batch>> g in groups)
+            foreach (KeyValuePair<(Mesh, Material, int), List<Batch>> g in groups)
             {
                 g.Value.Clear();
                 groupPool.Push(g.Value);

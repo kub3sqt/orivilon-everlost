@@ -154,6 +154,9 @@ namespace Orivilon.World.Generation
             public float sharp, basePart, outside, upliftBoost, shape, top, topRange;
         }
 
+        /// <summary>Kolo 29: tvar meteorického kráteru (0 = jen osazení a barva, 1 = v EvalMacro – A/B, 2 = povrch po terasách). Mění jen masku kráteru.</summary>
+        public static int CraterMode = 2;
+
         /// <summary>Kolo 27: masivy zap/vyp (vyp = generace bitově jako kolo 26). Mění svět – nový seed vypadá jinak než v K26.</summary>
         public static bool MassifEnabled = true;
 
@@ -510,6 +513,7 @@ namespace Orivilon.World.Generation
             p.offCave3      = GenNoise.ChannelOffset3(seed, 30);
             p.offCave4      = GenNoise.ChannelOffset3(seed, 31);
             ApplyMassif(ref p, MassifEnabled, Massif, seed);   // kolo 27
+            p.craterMode = CraterMode;   // kolo 29
 
             return p;
         }
