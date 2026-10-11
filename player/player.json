@@ -1,20 +1,20 @@
 {
     "position": {
-        "x": -796.526611328125,
-        "y": 59.0571403503418,
-        "z": 698.798583984375
+        "x": -4819.10107421875,
+        "y": 21.520959854125978,
+        "z": 201.4295196533203
     },
     "playerRotation": {
         "x": 0.0,
-        "y": 0.8808686137199402,
+        "y": 0.9961718320846558,
         "z": 0.0,
-        "w": 0.4733608663082123
+        "w": 0.08741670101881027
     },
     "cameraRotation": {
-        "x": 0.10366055369377136,
+        "x": 0.0867210105061531,
         "y": 0.0,
         "z": 0.0,
-        "w": 0.9946127533912659
+        "w": 0.9962326288223267
     },
     "inventory": {
         "slots": [
@@ -27,24 +27,36 @@
                 "amount": 1
             },
             {
-                "itemID": "everlost:berries",
-                "amount": 25
+                "itemID": "everlost:stone_pickaxe",
+                "amount": 1
             },
             {
-                "itemID": "everlost:grass",
-                "amount": 25
+                "itemID": "everlost:berries",
+                "amount": 24
             },
             {
                 "itemID": "everlost:rope",
+                "amount": 4
+            },
+            {
+                "itemID": "everlost:stick",
+                "amount": 64
+            },
+            {
+                "itemID": "everlost:log",
+                "amount": 8
+            },
+            {
+                "itemID": "everlost:stone",
+                "amount": 3
+            },
+            {
+                "itemID": "everlost:log",
                 "amount": 5
             },
             {
                 "itemID": "everlost:stick",
-                "amount": 52
-            },
-            {
-                "itemID": "everlost:log",
-                "amount": 3
+                "amount": 23
             },
             {
                 "itemID": "",
@@ -59,20 +71,8 @@
                 "amount": 0
             },
             {
-                "itemID": "",
-                "amount": 0
-            },
-            {
-                "itemID": "",
-                "amount": 0
-            },
-            {
-                "itemID": "",
-                "amount": 0
-            },
-            {
-                "itemID": "",
-                "amount": 0
+                "itemID": "everlost:grass",
+                "amount": 20
             },
             {
                 "itemID": "",

@@ -46,6 +46,15 @@ namespace Orivilon.Core
             "Meteor Crater", "Fossilized Coral Reef", "Mud Volcanoes & Solfataras" };
 
         private static string RegionId(int r) => r >= 0 && r < RegionIds.Length ? RegionIds[r] : "?";
+        /// <summary>UI refresh (F3): kanonické anglické ID regionu – stejná tabulka jako /biome.</summary>
+        public static string RegionCanonicalId(int r) => RegionId(r);
+
+        /// <summary>UI refresh (F3): anglický zobrazovaný název regionu – stejná tabulka jako /biome.</summary>
+        public static string RegionDisplayName(int r) => r >= 0 && r < RegionNamesEn.Length ? RegionNamesEn[r] : "Unknown";
+
+        /// <summary>UI refresh (F3): anglický název klimatického pásma.</summary>
+        public static string ClimateBandEn(ClimateBand b) => BandEn(b);
+
         private static string RegionLabel(int r) => r >= 0 && r < RegionNamesEn.Length ? RegionNamesEn[r] + " [" + RegionIds[r] + "]" : "?";
 
         private static string BandEn(ClimateBand b) => b switch

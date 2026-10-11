@@ -43,7 +43,7 @@ namespace Orivilon.UI.Arcanum
     {
         public const int NodesPerCategory = 30;
 
-        public static readonly ArcanumCategory[] Categories =
+        public static readonly ArcanumCategory[] DefaultCategories =
         {
             new ArcanumCategory { name = "Smithing", color = Hex("e59b38"), materialItemId = "everlost:stone", iconItemId = "everlost:stone_sword",
                 tierNames = new[] { "Copper Smelting", "Bronze Tools", "Iron Forge", "Tempered Steel", "Master Alloy", "Starmetal" },
@@ -65,7 +65,18 @@ namespace Orivilon.UI.Arcanum
                 tierRecipes = new[] { "Crafting Kit", "Cogwheel", "Fine Cloth", "Precision Mechanism", "Master Kit", "Perfect Machine" } },
         };
 
-        public const string RootIconItemId = "everlost:stone_pickaxe";
+        public const string DefaultRootIconItemId = "everlost:stone_pickaxe";
+
+        private static ArcanumCategory[] categories;
+        private static string rootIconItemId;
+
+        /// <summary>Disciplines – from the serialized tree asset when present, else the built-in defaults.</summary>
+        public static ArcanumCategory[] Categories { get { if (nodes == null) Build(); return categories; } }
+
+        public static string RootIconItemId { get { if (nodes == null) Build(); return rootIconItemId; } }
+
+        /// <summary>Resources path of the serialized tree (ArcanumTreeAsset).</summary>
+        public const string AssetPath = "Arcanum/ArcanumTree";
 
         // Šablona jednoho oboru z prototypu: { rodič v rámci oboru, poloměr, úhlový posun, úroveň }.
         private static readonly float[,] Layout =
@@ -92,8 +103,62 @@ namespace Orivilon.UI.Arcanum
 
         public static float CategoryCenterAngle(int c) => Mathf.PI * (c + 0.5f) / Categories.Length;
 
+        /// <summary>Drops the cached tree (editor tools call this after changing the asset).</summary>
+        public static void Reload() { nodes = null; categories = null; }
+
         private static void Build()
         {
+            var asset = Resources.Load<ArcanumTreeAsset>(AssetPath);
+            if (asset != null && TryBuildFromAsset(asset)) return;
+            BuildDefault();
+        }
+
+        private static bool TryBuildFromAsset(ArcanumTreeAsset a)
+        {
+            if (a.categories == null || a.categories.Count == 0 || a.nodes == null || a.nodes.Count != 1 + a.categories.Count * NodesPerCategory)
+            {
+                Debug.LogWarning("[Arcanum] ArcanumTree asset is incomplete – using the built-in tree.");
+                return false;
+            }
+            var cats = new ArcanumCategory[a.categories.Count];
+            for (int c = 0; c < cats.Length; c++)
+            {
+                var s = a.categories[c];
+                cats[c] = new ArcanumCategory { name = s.name, color = s.color, materialItemId = s.materialItemId, iconItemId = s.iconItemId, tierNames = s.tierNames, tierRecipes = s.tierRecipes };
+            }
+            var list = new List<ArcanumNode>(a.nodes.Count);
+            for (int i = 0; i < a.nodes.Count; i++)
+            {
+                var s = a.nodes[i];
+                if (s.id != i) { Debug.LogWarning("[Arcanum] ArcanumTree node ids must be 0.." + (a.nodes.Count - 1) + " in order – using the built-in tree."); return false; }
+                list.Add(new ArcanumNode
+                {
+                    id = s.id, category = s.category, tier = s.tier, parent = s.parent, major = s.major,
+                    name = s.name, recipe = s.recipe, materialCost = s.materialCost, pos = s.position,
+                    angle = Mathf.Atan2(s.position.y, s.position.x), radius = s.position.magnitude,
+                });
+            }
+            foreach (var n in list) if (n.parent >= 0 && n.parent < list.Count) list[n.parent].children.Add(n.id);
+            categories = cats;
+            rootIconItemId = string.IsNullOrEmpty(a.rootIconItemId) ? DefaultRootIconItemId : a.rootIconItemId;
+            nodes = list;
+            return true;
+        }
+
+        /// <summary>The built-in placeholder tree (also used by the editor to create the asset).</summary>
+        public static List<ArcanumNode> GenerateDefault()
+        {
+            BuildDefault();
+            var r = nodes;
+            nodes = null; categories = null;
+            return r;
+        }
+
+        private static void BuildDefault()
+        {
+            categories = DefaultCategories;
+            rootIconItemId = DefaultRootIconItemId;
+            var Categories = categories;
             nodes = new List<ArcanumNode>(1 + Categories.Length * NodesPerCategory);
             nodes.Add(new ArcanumNode
             {

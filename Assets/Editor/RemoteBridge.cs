@@ -172,6 +172,8 @@ namespace Orivilon.EditorTools
                     var ui = UnityEngine.Object.FindFirstObjectByType<Orivilon.UI.Menu.MainMenuUI>(FindObjectsInactive.Include);
                     var world = wm != null ? wm.worlds.Find(w => w.worldName == name) : null;
                     if (world == null || ui == null) { Out("ERR launch: svět nebo MainMenuUI chybí"); return; }
+                    string why = Orivilon.UI.Refresh.EditorTools.QaSaveGuard.Reject(world);
+                    if (why != null) { Out("ERR launch refused: " + why); return; }
                     var mi = typeof(Orivilon.UI.Menu.MainMenuUI).GetMethod("LaunchWorld",
                         System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
                     mi.Invoke(ui, new object[] { world, false });
@@ -322,6 +324,7 @@ namespace Orivilon.EditorTools
                     ScreenCapture.CaptureScreenshot(path);
                     Out("shot " + path);
                 }
+                else if (UiQaBridge.TryRun(line, Out)) { }   // UI refresh QA (uidump, loadwatch)
                 else if (line.StartsWith("/"))
                 {
                     var c = Orivilon.Core.GameConsole.Instance;

@@ -205,6 +205,16 @@ namespace Orivilon.SaveSystem
         public float totalPlayTime;
 
         /// <summary>
+        /// Zvolený režim hraní tohoto světa ("single" / "multi"). Prázdné = starší svět bez volby → singleplayer.
+        /// Ukládá se v indexu světů u záznamu světa, takže volba patří světu (ne jménu ani pozici v seznamu)
+        /// a přežije restart hry. Terén ani postup hráče neovlivňuje.
+        /// </summary>
+        public string playMode = "";
+
+        /// <summary>True, když má svět uloženou volbu Multiplayer.</summary>
+        public bool PrefersMultiplayer => playMode == "multi";
+
+        /// <summary>
         /// Numerická reprezentace seedu používaná generátory terénu a spawnu.
         /// Vypočtená z textového sedu pomocí jednoduchého hash algoritmu.
         /// </summary>

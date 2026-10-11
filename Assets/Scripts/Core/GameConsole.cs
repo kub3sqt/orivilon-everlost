@@ -160,6 +160,7 @@ namespace Orivilon.Core
         {
             bool showLog = open || Time.unscaledTime - lastPrint < fadeAfter;
             if (!showLog) return;
+            if (!open && Orivilon.UI.Refresh.CleanView.Active) return;   // F1 clean view hides the log overlay
 
             EnsureStyles();
 

@@ -40,11 +40,21 @@ namespace Orivilon.Core
         private bool allowAutoHide = false;
 
         /// <summary>
+        /// UI refresh: loading screen musí ležet nad herním UI aditivně načtené Game scény
+        /// (oba canvasy měly order 0, takže o pořadí rozhodovalo načtení scén).
+        /// </summary>
+        private const int LoadingSortingOrder = 1000;
+
+        /// <summary>
         /// Inicializuje instanci, zajistí aktivitu panelu a resetuje UI hodnoty na výchozí.
         /// </summary>
         private void Awake()
         {
             instance = this;
+
+            var canvas = loadingPanel != null ? loadingPanel.GetComponentInParent<Canvas>(true) : GetComponentInParent<Canvas>(true);
+            if (canvas != null && canvas.rootCanvas.sortingOrder < LoadingSortingOrder)
+                canvas.rootCanvas.sortingOrder = LoadingSortingOrder;
 
             if (loadingPanel != null)
                 loadingPanel.SetActive(true);

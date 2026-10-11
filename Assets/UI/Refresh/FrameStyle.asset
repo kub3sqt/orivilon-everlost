@@ -1,0 +1,27 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b282d13eaad064443a17e6c0fedbb484, type: 3}
+  m_Name: FrameStyle
+  m_EditorClassIdentifier: Orivilon::Orivilon.UI.Refresh.FrameStyle
+  radius: 18
+  rimWidth: 2.2
+  glowWidth: 8
+  fillColor: {r: 0, g: 0, b: 0, a: 1}
+  rimColor: {r: 0.6862745, g: 0.7058824, b: 0.6745098, a: 0.55}
+  glowColor: {r: 1, g: 1, b: 1, a: 0.05}
+  panelFill: {fileID: 21300000, guid: d69e95fc757a74ba6adea446729fd1d1, type: 3}
+  panelEdge: {fileID: 21300000, guid: e344533704b7d4334bc0048b67469486, type: 3}
+  joinFill: {fileID: 21300000, guid: ff1e63769ea55444fb0be51d0a5f58b8, type: 3}
+  joinEdge: {fileID: 21300000, guid: 6874a557db77b4ef3b3be53e8cb65a56, type: 3}
+  fillMaterial: {fileID: 2100000, guid: 7d2a671b21aaa48298830379374c4bdc, type: 2}
+  edgeMaterial: {fileID: 2100000, guid: 7c96af773d0e842e2ae6d05440d8ee58, type: 2}
+  resetMaterial: {fileID: 2100000, guid: 1c1f9e9fadbbc4ed084392a785a95db1, type: 2}

@@ -31,10 +31,17 @@ namespace Orivilon
         /// Zjistí jejich celkový počet z EndlessTerrain.instance nebo záložním výpočtem,
         /// a deleguje samotné generování na EndlessTerrain s callbacky pro průběh a dokončení.
         /// </summary>
+        /// <summary>Počet spuštění StartLoadingChunks – loading screen podle něj pozná, že čísla patří k aktuálnímu načítání.</summary>
+        public static int StartCount { get; private set; }
+
+        /// <summary>True, dokud streamer generuje úvodní chunky.</summary>
+        public static bool IsLoadingNow => loading;
+
         public static void StartLoadingChunks()
         {
             loading = true;
             loaded = 0;
+            StartCount++;
 
             if (VoxelTerrain.instance != null)
             {

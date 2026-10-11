@@ -117,6 +117,8 @@ namespace Orivilon.UI.HUD
             foreach (Canvas c in canvases)
             {
                 if (c == null) continue;
+                // UI refresh: the Game scene now also holds the Arcanum, F3 and blur canvases – use the HUD canvas.
+                if (c.isRootCanvas && c.GetComponent<Orivilon.UI.Refresh.HudController>() != null) return c;
                 Scene cs = c.gameObject.scene;
 
                 if (cs == gameScene)

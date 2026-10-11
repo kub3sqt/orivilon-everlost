@@ -1,0 +1,21 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 52ada2cabdf7a4f5aa4bbbc2ad9e7565, type: 3}
+  m_Name: HoverStyle
+  m_EditorClassIdentifier: Orivilon::Orivilon.UI.Refresh.HoverStyle
+  hoverColor: {r: 0.3372549, g: 0.3372549, b: 0.3372549, a: 1}
+  lightLabel: {r: 0.9137255, g: 0.9254902, b: 0.9019608, a: 1}
+  darkLabelLuminance: 0.45
+  fillSmall: {fileID: 21300000, guid: d32d5c348047f49829c80fccd90b2c3d, type: 3}
+  fillLarge: {fileID: 21300000, guid: 7cfef50b39b0047bb8e075f378816b04, type: 3}
+  slotOutline: {fileID: 21300000, guid: 930cb00e9ecff42ff9fb94317427bb17, type: 3}
+  slotOutlineColor: {r: 0.9137255, g: 0.9254902, b: 0.9019608, a: 1}

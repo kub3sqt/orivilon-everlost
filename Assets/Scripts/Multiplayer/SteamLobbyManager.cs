@@ -22,6 +22,7 @@ using Steamworks.Data;
 using Unity.Netcode;
 #endif
 
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -76,11 +77,30 @@ namespace Orivilon.Multiplayer
         private bool   quitting;
         private float  nextInitAttempt;
 
+        // Multiplayer start inside the loading flow (SceneLoader network step).
+        private int    hostAttempt;     // a failed/cancelled start must not bring a lobby up later
+        private bool   hostStarted;     // NGO host start was attempted for the current lobby
+        private bool   clientStep;      // ClientJoinStep owns the scene load (Update must not load it raw)
+        private bool   joinFailed;
+
+#if UNITY_EDITOR
+        /// <summary>QA only (editor): host/join over the existing LAN route of MultiplayerManager on this
+        /// machine instead of creating/joining a Steam lobby, so the multiplayer loading lifecycle can be
+        /// tested without publishing a lobby to real players.</summary>
+        public static bool QaLocalRoute;
+        /// <summary>QA only: seconds the local route waits before starting the host (stands in for lobby creation
+        /// time, so the network stage can be observed).</summary>
+        public static float QaLocalDelay;
+#endif
+
         /// <summary>Stavový text pro HUD/UI.</summary>
         public string Status { get; private set; } = "Steam: inicializace…";
 
         /// <summary>Je Steam API připravené?</summary>
         public bool SteamReady => SteamClient.IsValid;
+
+        /// <summary>True from HostLobby until the lobby/host start failed or the lobby was left.</summary>
+        public bool IsHosting => hosting;
 
         /// <summary>ID aktuální lobby jako string (pro zkopírování kamarádovi), nebo null.</summary>
         public string CurrentLobbyIdString =>
@@ -137,13 +157,15 @@ namespace Orivilon.Multiplayer
 
             // Klient: jakmile dorazí WorldState (NetworkWorldSync nastaví
             // GameManager.selectedWorld), načti herní scénu.
-            if (clientJoining &&
+            if (clientJoining && !clientStep &&
                 GameManager.selectedWorld != null &&
                 SceneManager.GetActiveScene().name != gameSceneName)
             {
                 clientJoining = false;
                 Status = "Svět přijat, načítám hru…";
-                SceneManager.LoadScene(gameSceneName);
+                // through the loading screen like every other world start (local load; NGO scene management is off)
+                if (SceneLoader.Instance != null && !SceneLoader.IsLoading) SceneLoader.Instance.LoadGameDelayed();
+                else if (!SceneLoader.IsLoading) SceneManager.LoadScene(gameSceneName);
             }
         }
 
@@ -209,12 +231,16 @@ namespace Orivilon.Multiplayer
         /// Vytvoří Steam lobby (friends-only), spustí NGO hosta přes Steam relay
         /// a načte herní scénu. Kamarádi se pak připojí přes pozvánku/Lobby ID.
         /// </summary>
-        public async void HostLobby(WorldData world)
+        public async void HostLobby(WorldData world) => await HostLobbyAsync(world, true);
+
+        private async System.Threading.Tasks.Task HostLobbyAsync(WorldData world, bool loadScene)
         {
             if (!SteamClient.IsValid) { Status = "Steam není připraven."; return; }
             if (MultiplayerManager.Instance == null) { Status = "CHYBA: MultiplayerManager není ve scéně."; return; }
             if (world == null) { Status = "CHYBA: není vybrán svět."; return; }
 
+            int attempt = ++hostAttempt;
+            hostStarted = false;
             hosting = true;
             Status  = "Vytvářím Steam lobby…";
 
@@ -228,6 +254,13 @@ namespace Orivilon.Multiplayer
                 hosting = false;
                 Status  = $"Vytvoření lobby selhalo: {e.Message}";
                 Debug.LogError($"[SteamLobbyManager] CreateLobbyAsync: {e}");
+                return;
+            }
+
+            if (attempt != hostAttempt)
+            {
+                // the start was cancelled or failed meanwhile (back in the menu) – don't bring the lobby up
+                if (lobby.HasValue) lobby.Value.Leave();
                 return;
             }
 
@@ -250,12 +283,133 @@ namespace Orivilon.Multiplayer
                 MultiplayerManager.Instance.localPlayerName = SteamClient.Name;
 
             MultiplayerManager.Instance.StartHostSteam(world, steamAppId);
+            hostStarted = true;
 
             Status = $"Lobby vytvořena (ID {l.Id.Value}). Načítám hru…";
             Debug.Log($"[SteamLobbyManager] Lobby {l.Id.Value} vytvořena, host běží přes Steam relay.");
 
-            if (SceneManager.GetActiveScene().name != gameSceneName)
+            if (loadScene && SceneManager.GetActiveScene().name != gameSceneName)
                 SceneManager.LoadScene(gameSceneName);
+        }
+
+        // ── Multiplayer start inside the loading screen (SceneLoader network steps) ─────────────
+
+        /// <summary>
+        /// Host step for <see cref="SceneLoader.LoadGameDelayed(IEnumerator)"/>: creates the friends-only lobby and
+        /// starts the NGO host while the loading screen is up. Succeeds only when the lobby exists and the host
+        /// is listening; otherwise it cleans the session up and reports an English error (back to the menu).
+        /// </summary>
+        public IEnumerator HostForLoading(WorldData world)
+        {
+            var loader = SceneLoader.Instance;
+            bool local = false;
+#if UNITY_EDITOR
+            local = QaLocalRoute;
+#endif
+            SceneLoader.NetworkStage = local ? "Starting local test host…" : "Creating Steam lobby…";
+            yield return null;
+
+            string pre = world == null ? "Couldn't start multiplayer: no world is selected."
+                : MultiplayerManager.Instance == null ? "Couldn't start multiplayer: the network manager is missing."
+                : !local && !SteamClient.IsValid ? "Steam isn't running or isn't signed in. Start Steam to host this world, or switch to Singleplayer."
+                : null;
+            if (pre != null) { CleanupFailedStart(); loader?.FailNetworkLoading(pre); yield break; }
+
+            if (local)
+            {
+#if UNITY_EDITOR
+                for (float t = 0f; t < QaLocalDelay; t += Time.unscaledDeltaTime) yield return null;
+#endif
+                ++hostAttempt;
+                hosting = true;
+                MultiplayerManager.Instance.StartHost(world);
+                hostStarted = true;
+            }
+            else
+            {
+                _ = HostLobbyAsync(world, false);
+            }
+
+            float until = Time.unscaledTime + 20f;
+            while (true)
+            {
+                var nm = NetworkManager.Singleton;
+                if (hosting && hostStarted && nm != null && nm.IsHost && nm.IsListening) break;
+                bool hostDown = hostStarted && (nm == null || !nm.IsListening);
+                if (!hosting || hostDown || Time.unscaledTime > until)
+                {
+                    CleanupFailedStart();
+                    loader?.FailNetworkLoading(local ? "Couldn't start the local test host."
+                        : "Couldn't create the Steam lobby for this world. Check that Steam is online and try again.");
+                    yield break;
+                }
+                if (hostStarted || currentLobby.HasValue) SceneLoader.NetworkStage = "Starting host…";
+                yield return null;
+            }
+            SceneLoader.NetworkStage = "Preparing world…";
+        }
+
+        /// <summary>
+        /// Client step: joins (lobby → host connection) while the loading screen is up and waits for the host's
+        /// world state; then the normal scene/world loading continues. Failure, disconnect or timeout cleans up
+        /// and returns to the menu.
+        /// </summary>
+        private IEnumerator ClientJoinStep(Action begin)
+        {
+            var loader = SceneLoader.Instance;
+            clientStep = true;
+            joinFailed = false;
+            var before = GameManager.selectedWorld;
+            SceneLoader.NetworkWorldPending = true;
+            SceneLoader.NetworkStage = "Joining lobby…";
+            yield return null;
+            begin();
+
+            float until = Time.unscaledTime + 30f;
+            bool started = false;
+            string fail = null;
+            while (true)
+            {
+                var w = GameManager.selectedWorld;
+                if (w != null && !ReferenceEquals(w, before)) break;        // host's world state arrived
+                var nm = NetworkManager.Singleton;
+                if (clientJoining)
+                {
+                    started = true;
+                    SceneLoader.NetworkStage = nm != null && nm.IsConnectedClient ? "Receiving world…" : "Connecting to host…";
+                }
+                if (joinFailed) { fail = "Couldn't join this lobby. It may have closed."; break; }
+                if (started && (nm == null || !nm.IsListening)) { fail = "Lost the connection to the host."; break; }
+                if (Time.unscaledTime > until) { fail = "The host didn't respond. Try joining again."; break; }
+                yield return null;
+            }
+            clientJoining = false;
+            clientStep = false;
+            SceneLoader.NetworkWorldPending = false;
+            if (fail != null) { CleanupFailedStart(); loader?.FailNetworkLoading(fail); yield break; }
+            SceneLoader.NetworkStage = "Preparing world…";
+        }
+
+#if UNITY_EDITOR
+        /// <summary>QA only: the client step over the LAN route (127.0.0.1) – no Steam lobby is joined.</summary>
+        public IEnumerator QaLocalJoinStep(ushort port) => ClientJoinStep(() =>
+        {
+            MultiplayerManager.Instance.StartClient("127.0.0.1", port);
+            clientJoining = true;
+        });
+#endif
+
+        /// <summary>Undo a multiplayer start that did not complete: leave the lobby, stop NGO, reset the flags.</summary>
+        private void CleanupFailedStart()
+        {
+            ++hostAttempt;
+            hostStarted = false;
+            clientStep = false;
+            LeaveLobby();
+            if (MultiplayerManager.Instance != null) MultiplayerManager.Instance.Shutdown();
+            else if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening) NetworkManager.Singleton.Shutdown();
+            GameManager.IsMultiplayer = false;
+            GameManager.IsHost = false;
         }
 
         /// <summary>
@@ -319,20 +473,36 @@ namespace Orivilon.Multiplayer
         /// Připojí se do lobby podle číselného Lobby ID (kamarád ho pošle třeba chatem).
         /// Zbytek řeší OnLobbyEntered.
         /// </summary>
-        public async void JoinLobby(ulong lobbyId)
+        public void JoinLobby(ulong lobbyId)
         {
             if (!SteamClient.IsValid) { Status = "Steam není připraven."; return; }
 
+            // From the menu the join runs inside the loading screen (shown before any lobby/connection work).
+            if (SceneLoader.Instance != null && !SceneLoader.IsLoading &&
+                SceneManager.GetActiveScene().name != gameSceneName)
+            {
+                SceneLoader.Instance.LoadGameDelayed(ClientJoinStep(() => JoinLobbyCore(lobbyId)));
+                return;
+            }
+            JoinLobbyCore(lobbyId);
+        }
+
+        private async void JoinLobbyCore(ulong lobbyId)
+        {
             Status = $"Připojuji se do lobby {lobbyId}…";
             try
             {
                 var result = await SteamMatchmaking.JoinLobbyAsync(lobbyId);
                 if (!result.HasValue)
+                {
                     Status = "Nepodařilo se vstoupit do lobby (existuje ještě?).";
+                    joinFailed = true;
+                }
             }
             catch (Exception e)
             {
                 Status = $"Join selhal: {e.Message}";
+                joinFailed = true;
                 Debug.LogError($"[SteamLobbyManager] JoinLobbyAsync: {e}");
             }
         }
@@ -372,6 +542,7 @@ namespace Orivilon.Multiplayer
             if (MultiplayerManager.Instance == null)
             {
                 Status = "CHYBA: MultiplayerManager není ve scéně.";
+                joinFailed = true;
                 return;
             }
 
@@ -398,6 +569,7 @@ namespace Orivilon.Multiplayer
 
         public string Status => "Steam podpora není nainstalovaná (balíček com.community.netcode.transport.facepunch).";
         public bool   SteamReady => false;
+        public bool   IsHosting => false;
         public string LocalSteamName => null;
         public string CurrentLobbyIdString => null;
 
@@ -410,6 +582,12 @@ namespace Orivilon.Multiplayer
 
         public void HostLobby(WorldData world) =>
             Debug.LogWarning("[SteamLobbyManager] Facepunch transport není nainstalován.");
+
+        public System.Collections.IEnumerator HostForLoading(WorldData world)
+        {
+            SceneLoader.Instance?.FailNetworkLoading("Couldn't start multiplayer: Steam support is missing from this build.");
+            yield break;
+        }
 
         public void JoinLobby(ulong lobbyId) { }
         public void LeaveLobby() { }

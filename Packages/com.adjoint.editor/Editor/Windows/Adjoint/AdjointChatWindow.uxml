@@ -1,0 +1,398 @@
+<ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="True">
+    <ui:VisualElement name="chat-root" class="chat-root">
+        
+        <!-- Header Bar -->
+        <ui:VisualElement name="header" class="chat-header">
+            <ui:VisualElement class="header-left">
+                <ui:Button name="new-chat-button" tooltip="New Chat" class="icon-button">
+                    <ui:VisualElement name="new-chat-icon" class="button-icon plus-icon" />
+                </ui:Button>
+                <ui:Button name="history-button" tooltip="Chat History" class="icon-button">
+                    <ui:VisualElement name="history-icon" class="button-icon history-icon" />
+                </ui:Button>
+                <ui:VisualElement name="header-logo" class="header-logo" />
+                <ui:Label text="ADJOINT" class="header-title" />
+            </ui:VisualElement>
+            
+            <ui:VisualElement class="header-center">
+                <!-- Model selector moved to input area -->
+            </ui:VisualElement>
+            
+            <ui:VisualElement class="header-right">
+                <ui:Button name="run-analysis-button" tooltip="Run with Performance Analysis" class="icon-button">
+                    <ui:VisualElement name="run-analysis-icon" class="button-icon play-icon" />
+                </ui:Button>
+                <ui:Button name="gen-panel-toggle" tooltip="Generation Queue" class="icon-button">
+                    <ui:VisualElement name="gen-panel-icon" class="button-icon boxes-icon" />
+                </ui:Button>
+                <ui:Button name="project-rules-button" tooltip="Project Rules" class="icon-button">
+                    <ui:VisualElement name="project-rules-icon" class="button-icon document-icon" />
+                </ui:Button>
+                <ui:Button name="settings-button" tooltip="Settings" class="icon-button">
+                    <ui:VisualElement name="settings-icon" class="button-icon settings-icon" />
+                </ui:Button>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Status Bar (hidden - model info shown in input footer) -->
+        <ui:VisualElement name="status-bar" class="status-bar" style="display: none;">
+            <ui:VisualElement name="connection-indicator" class="connection-indicator connected" />
+            <ui:Label name="status-label" text="Ready" class="status-label" />
+        </ui:VisualElement>
+
+        <!-- Agent Task Panel (collapsible) -->
+        <ui:VisualElement name="agent-task-panel" class="agent-task-panel" style="display: none;">
+            <ui:VisualElement name="task-panel-header" class="task-panel-header">
+                <ui:VisualElement class="task-panel-title-row">
+                    <ui:VisualElement class="task-panel-icon" />
+                    <ui:Label name="task-panel-title" text="TASKS" class="task-panel-title" />
+                    <ui:Label name="task-panel-progress" text="" class="task-panel-progress" />
+                </ui:VisualElement>
+                <ui:Button name="task-panel-toggle" text="v" tooltip="Collapse/Expand" class="task-panel-toggle" />
+            </ui:VisualElement>
+            <ui:VisualElement name="task-panel-content" class="task-panel-content">
+                <ui:ScrollView name="task-list-scroll" class="task-list-scroll" horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Auto">
+                    <ui:VisualElement name="task-list" class="task-list" />
+                </ui:ScrollView>
+                <ui:VisualElement name="current-task-status" class="current-task-status">
+                    <ui:Label name="current-task-label" text="" class="current-task-label" />
+                    <ui:VisualElement name="task-progress-bar" class="task-progress-bar">
+                        <ui:VisualElement name="task-progress-fill" class="task-progress-fill" />
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Main Content Area -->
+        <ui:VisualElement name="main-content" class="main-content">
+            
+            <!-- Chat Area (vertical) -->
+            <ui:VisualElement name="chat-area" class="chat-area">
+                <!-- Messages Area -->
+                <ui:ScrollView name="messages-scroll" class="messages-scroll">
+                    <ui:VisualElement name="messages-container" class="messages-container" />
+                </ui:ScrollView>
+
+            </ui:VisualElement>
+
+            <!-- Generation Panel (Slide-out) -->
+            <ui:VisualElement name="generation-panel" class="side-panel generation-panel" style="display: none;" />
+
+            <!-- Settings Panel (Slide-out) -->
+            <ui:VisualElement name="settings-panel" class="side-panel settings-panel" style="display: none;" />
+
+            <!-- History Panel (Slide-out) -->
+            <ui:VisualElement name="history-panel" class="side-panel history-panel" style="display: none;" />
+
+            <!-- Project Rules Overlay (full content replacement) -->
+            <ui:VisualElement name="project-rules-overlay" class="project-rules-overlay" style="display: none;" />
+        </ui:VisualElement>
+
+        <!-- Change Log Panel (tracks mutating tool calls across the session) -->
+        <ui:VisualElement name="change-log-panel" class="change-log-panel" style="display: none;">
+            <ui:VisualElement name="change-log-header" class="change-log-header">
+                <ui:VisualElement class="change-log-title-row">
+                    <ui:Label name="change-log-chevron" text="›" class="change-log-chevron" />
+                    <ui:Label name="change-log-title" text="Edited 0 Files" class="change-log-title" />
+                </ui:VisualElement>
+                <ui:VisualElement class="change-log-actions">
+                    <ui:Button name="change-log-reject-btn" text="Undo all" class="change-log-reject-btn" style="display: none;" />
+                    <ui:Button name="change-log-accept-btn" text="Keep all" class="change-log-accept-btn" style="display: none;" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement name="change-log-content" class="change-log-content" style="display: none;">
+                <ui:ScrollView name="change-log-scroll" class="change-log-scroll"
+                               horizontal-scroller-visibility="Hidden" vertical-scroller-visibility="Auto">
+                    <ui:VisualElement name="change-log-entries" class="change-log-entries" />
+                </ui:ScrollView>
+            </ui:VisualElement>
+            <ui:VisualElement name="change-log-status" class="change-log-status" style="display: none;">
+                <ui:Label name="change-log-status-label" class="change-log-status-label" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Input Area -->
+        <ui:VisualElement name="input-area" class="input-area">
+            <!-- Context Attachment Bar (Cursor-style) -->
+            <ui:VisualElement name="attachment-bar" class="attachment-bar" style="display: none;">
+                <ui:VisualElement name="attachment-chips" class="attachment-chips" />
+                <ui:Button name="clear-attachments-button" text="Clear all" tooltip="Remove all attachments" class="clear-attachments-button" />
+                <ui:Label name="attachment-summary" class="attachment-summary" style="display: none;" />
+            </ui:VisualElement>
+
+            <ui:VisualElement class="input-glow-wrapper">
+                <!-- Glow edge elements for rotating blue aura during processing -->
+                <ui:VisualElement name="glow-top" class="input-glow-edge glow-top" />
+                <ui:VisualElement name="glow-right" class="input-glow-edge glow-right" />
+                <ui:VisualElement name="glow-bottom" class="input-glow-edge glow-bottom" />
+                <ui:VisualElement name="glow-left" class="input-glow-edge glow-left" />
+
+                <ui:VisualElement class="input-container">
+                    <ui:TextField name="chat-input" multiline="true" class="chat-input"
+                        placeholder-text="Ask to build, debug, @mention, drag context or images" />
+                    <ui:VisualElement class="input-buttons">
+                        <ui:Button name="image-button" tooltip="Add image" class="image-button">
+                            <ui:Label text="+" class="image-button-label" />
+                        </ui:Button>
+                        <ui:Button name="send-button" tooltip="Send" class="send-button">
+                            <ui:Label name="send-arrow" text="↑" class="send-arrow" />
+                        </ui:Button>
+                        <ui:Button name="stop-button" tooltip="Stop" class="stop-button" style="display: none;">
+                            <ui:VisualElement name="stop-icon" class="button-icon x-icon" />
+                        </ui:Button>
+                    </ui:VisualElement>
+                </ui:VisualElement>
+            </ui:VisualElement>
+            <ui:VisualElement class="input-footer">
+                <ui:VisualElement class="input-footer-left">
+                    <ui:VisualElement name="context-icon-container" class="context-icon-container">
+                        <ui:Button name="context-icon-button" class="context-icon-button-circular">
+                            <ui:VisualElement name="context-icon-arc" class="context-icon-arc" picking-mode="Ignore" />
+                        </ui:Button>
+                        <ui:VisualElement name="context-icon-popup" class="context-icon-popup" picking-mode="Ignore" />
+                    </ui:VisualElement>
+                    <ui:VisualElement name="mode-switcher" class="mode-switcher">
+                        <ui:Button name="mode-btn-agent" class="mode-switcher-btn mode-switcher-agent">
+                            <ui:Label text="Agent" class="mode-switcher-btn-label" />
+                        </ui:Button>
+                        <ui:Button name="mode-btn-plan" class="mode-switcher-btn mode-switcher-plan">
+                            <ui:Label text="Plan" class="mode-switcher-btn-label" />
+                        </ui:Button>
+                        <ui:Button name="mode-btn-ask" class="mode-switcher-btn mode-switcher-ask">
+                            <ui:Label text="Ask" class="mode-switcher-btn-label" />
+                        </ui:Button>
+                    </ui:VisualElement>
+                    <ui:Button name="model-selector-button" class="model-selector-button">
+                        <ui:Label name="model-selector-label" class="model-selector-label" />
+                        <ui:VisualElement class="model-selector-arrow" />
+                    </ui:Button>
+                </ui:VisualElement>
+                <ui:VisualElement name="input-footer-right" class="input-footer-right">
+                    <ui:Button name="mode-modifier-button" class="mode-modifier-btn" tooltip="Mode modifier">
+                        <ui:VisualElement name="mode-modifier-icon-cube" class="cube-icon">
+                            <ui:VisualElement class="cube-icon-back" />
+                            <ui:VisualElement class="cube-icon-front" />
+                        </ui:VisualElement>
+                    </ui:Button>
+                    <ui:Button name="auto-accept-toggle" class="auto-accept-toggle" tooltip="Toggle between auto-accept and manual approval of changes">
+                        <ui:Label name="auto-accept-label" class="auto-accept-label" text="Auto-Accept" />
+                        <ui:VisualElement name="auto-accept-track" class="auto-accept-track">
+                            <ui:VisualElement name="auto-accept-thumb" class="auto-accept-thumb" />
+                        </ui:VisualElement>
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Accept/Reject Prompt (replaces input area when changes need approval) -->
+        <ui:VisualElement name="accept-reject-prompt" class="accept-reject-prompt" style="display: none;">
+            <ui:Label text="Accept these changes?" class="accept-reject-prompt-title" />
+            <ui:VisualElement class="accept-reject-prompt-options">
+                <ui:Button name="accept-yes-btn" class="accept-reject-option accept-reject-yes">
+                    <ui:Label text="1" class="accept-reject-option-number" />
+                    <ui:Label text="Yes" class="accept-reject-option-text" />
+                </ui:Button>
+                <ui:Button name="accept-no-btn" class="accept-reject-option accept-reject-no">
+                    <ui:Label text="2" class="accept-reject-option-number" />
+                    <ui:Label text="No" class="accept-reject-option-text" />
+                </ui:Button>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Plan Review Prompt (replaces input area when plan needs review in Plan mode) -->
+        <ui:VisualElement name="plan-review-prompt" class="plan-review-prompt" style="display: none;">
+            <ui:Label text="Execute this plan?" class="plan-review-title" />
+            <ui:VisualElement class="plan-review-options">
+                <ui:Button name="plan-execute-btn" class="plan-review-btn plan-btn-selected">
+                    <ui:Label text="Execute" class="plan-review-btn-label" />
+                </ui:Button>
+                <ui:Button name="plan-revise-btn" class="plan-review-btn plan-btn-unselected">
+                    <ui:Label text="Revise" class="plan-review-btn-label" />
+                </ui:Button>
+                <ui:Button name="plan-discard-btn" class="plan-review-btn plan-discard-btn">
+                    <ui:Label text="Discard" class="plan-review-btn-label" />
+                </ui:Button>
+            </ui:VisualElement>
+            <ui:VisualElement name="plan-revision-container" class="plan-revision-container" style="display: none;">
+                <ui:TextField name="plan-revision-input" class="plan-revision-input" placeholder-text="Describe your revisions..." />
+                <ui:Button name="plan-revision-send-btn" class="plan-revision-send-btn" tooltip="Send revision" />
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- 3D Model Clarification Prompt (replaces input area during model generation) -->
+        <ui:VisualElement name="model-clarification-prompt" class="clarification-prompt" style="display: none;">
+
+            <!-- Header with title and close button -->
+            <ui:VisualElement class="clarification-header">
+                <ui:Label name="clarification-title" text="Customize 3D Model" class="clarification-title" />
+                <ui:Button name="clarification-cancel" class="clarification-close-btn">
+                    <ui:Label text="&#x2715;" class="clarification-close-icon" />
+                </ui:Button>
+            </ui:VisualElement>
+
+            <!-- Prompt preview -->
+            <ui:VisualElement class="clarification-prompt-preview">
+                <ui:Label name="clarification-prompt-text" text="" class="clarification-prompt-text" />
+            </ui:VisualElement>
+
+            <!-- Style -->
+            <ui:VisualElement class="clarification-section">
+                <ui:Label text="STYLE" class="clarification-section-label" />
+                <ui:VisualElement class="clarification-row">
+                    <ui:Button name="style-toon" class="clarification-option">
+                        <ui:Label text="1" class="clarification-option-key" />
+                        <ui:Label text="Toon" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="style-realistic" class="clarification-option">
+                        <ui:Label text="2" class="clarification-option-key" />
+                        <ui:Label text="Realistic" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="style-stylized" class="clarification-option">
+                        <ui:Label text="3" class="clarification-option-key" />
+                        <ui:Label text="Stylized" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="style-other" class="clarification-option">
+                        <ui:Label text="4" class="clarification-option-key" />
+                        <ui:Label text="Other..." class="clarification-option-label" />
+                    </ui:Button>
+                </ui:VisualElement>
+                <ui:TextField name="style-custom-input" class="clarification-text-input" style="display: none;" />
+            </ui:VisualElement>
+
+            <!-- Poly Count -->
+            <ui:VisualElement class="clarification-section">
+                <ui:VisualElement class="clarification-section-header">
+                    <ui:Label text="POLY COUNT" class="clarification-section-label" />
+                    <ui:Button name="polycount-skip" class="clarification-skip-btn">
+                        <ui:Label text="Auto" class="clarification-skip-label" />
+                    </ui:Button>
+                </ui:VisualElement>
+                <ui:VisualElement class="clarification-slider-row">
+                    <ui:Slider name="polycount-slider" low-value="3" high-value="5.7" value="4.9"
+                               class="clarification-slider" />
+                    <ui:Label name="polycount-value" text="80K" class="clarification-value-label" />
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <!-- Rigged? -->
+            <ui:VisualElement class="clarification-section">
+                <ui:Label text="RIGGED?" class="clarification-section-label" />
+                <ui:VisualElement class="clarification-row">
+                    <ui:Button name="rig-yes" class="clarification-option">
+                        <ui:Label text="Yes" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="rig-no" class="clarification-option">
+                        <ui:Label text="No" class="clarification-option-label" />
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <!-- Generate button -->
+            <ui:VisualElement class="clarification-actions">
+                <ui:Button name="clarification-confirm" class="clarification-generate-btn">
+                    <ui:Label text="Generate" class="clarification-generate-label" />
+                </ui:Button>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- 3D Preview Picker (3 candidate images + regenerate/pick) -->
+        <ui:VisualElement name="model-preview-picker" class="clarification-prompt" style="display: none;">
+
+            <!-- Header with title and close button -->
+            <ui:VisualElement class="clarification-header">
+                <ui:Label name="preview-title" text="Pick a reference" class="clarification-title" />
+                <ui:Button name="preview-cancel" class="clarification-close-btn">
+                    <ui:Label text="&#x2715;" class="clarification-close-icon" />
+                </ui:Button>
+            </ui:VisualElement>
+
+            <!-- Subtitle -->
+            <ui:Label name="preview-subtitle" class="preview-subtitle"
+                text="Click to select. Use this to commit, or type a change and regenerate." />
+
+            <!-- Thumbnail row (populated at runtime) -->
+            <ui:VisualElement name="preview-thumbs-row" class="preview-thumbs-row" />
+
+            <!-- Revision text input -->
+            <ui:TextField name="preview-revision" class="preview-revision-input" />
+
+            <!-- Actions: Regenerate + Use this -->
+            <ui:VisualElement class="clarification-actions preview-actions-row">
+                <ui:Button name="preview-regenerate" class="clarification-generate-btn preview-regen-btn">
+                    <ui:Label name="preview-regenerate-label" text="Regenerate (3 left)" class="clarification-generate-label" />
+                </ui:Button>
+                <ui:Button name="preview-pick" class="clarification-generate-btn preview-pick-btn">
+                    <ui:Label text="Use this" class="clarification-generate-label" />
+                </ui:Button>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+        <!-- Sprite Sheet Clarification Prompt (replaces input area during sprite sheet generation) -->
+        <ui:VisualElement name="spritesheet-clarification-prompt" class="clarification-prompt" style="display: none;">
+
+            <!-- Header with title and close button -->
+            <ui:VisualElement class="clarification-header">
+                <ui:Label name="ss-clarification-title" text="Customize Sprite Sheet" class="clarification-title" />
+                <ui:Button name="ss-clarification-cancel" class="clarification-close-btn">
+                    <ui:Label text="&#x2715;" class="clarification-close-icon" />
+                </ui:Button>
+            </ui:VisualElement>
+
+            <!-- Prompt preview -->
+            <ui:VisualElement class="clarification-prompt-preview">
+                <ui:Label name="ss-clarification-prompt-text" text="" class="clarification-prompt-text" />
+            </ui:VisualElement>
+
+            <!-- Style -->
+            <ui:VisualElement class="clarification-section">
+                <ui:Label text="STYLE" class="clarification-section-label" />
+                <ui:VisualElement class="clarification-row-wrap">
+                    <ui:Button name="ss-style-toon" class="clarification-option">
+                        <ui:Label text="1" class="clarification-option-key" />
+                        <ui:Label text="Toon" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="ss-style-realistic" class="clarification-option">
+                        <ui:Label text="2" class="clarification-option-key" />
+                        <ui:Label text="Realistic" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="ss-style-stylized" class="clarification-option">
+                        <ui:Label text="3" class="clarification-option-key" />
+                        <ui:Label text="Stylized" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="ss-style-other" class="clarification-option">
+                        <ui:Label text="4" class="clarification-option-key" />
+                        <ui:Label text="Other..." class="clarification-option-label" />
+                    </ui:Button>
+                </ui:VisualElement>
+                <ui:TextField name="ss-style-custom-input" class="clarification-text-input" style="display: none;" />
+            </ui:VisualElement>
+
+            <!-- Frame Count / Layout -->
+            <ui:VisualElement class="clarification-section">
+                <ui:Label text="FRAMES &amp; LAYOUT" class="clarification-section-label" />
+                <ui:VisualElement class="clarification-row-wrap">
+                    <ui:Button name="ss-layout-4x1" class="clarification-option">
+                        <ui:Label text="1" class="clarification-option-key" />
+                        <ui:Label text="4 frames (4&#x00D7;1)" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="ss-layout-4x2" class="clarification-option">
+                        <ui:Label text="2" class="clarification-option-key" />
+                        <ui:Label text="8 frames (4&#x00D7;2)" class="clarification-option-label" />
+                    </ui:Button>
+                    <ui:Button name="ss-layout-4x3" class="clarification-option">
+                        <ui:Label text="3" class="clarification-option-key" />
+                        <ui:Label text="12 frames (4&#x00D7;3)" class="clarification-option-label" />
+                    </ui:Button>
+                </ui:VisualElement>
+            </ui:VisualElement>
+
+            <!-- Generate button -->
+            <ui:VisualElement class="clarification-actions">
+                <ui:Button name="ss-clarification-confirm" class="clarification-generate-btn">
+                    <ui:Label text="Generate" class="clarification-generate-label" />
+                </ui:Button>
+            </ui:VisualElement>
+        </ui:VisualElement>
+
+    </ui:VisualElement>
+</ui:UXML>

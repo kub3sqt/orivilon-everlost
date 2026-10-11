@@ -37,6 +37,21 @@ namespace Orivilon.Core
         /// <summary>Odkaz na aktuálně běžící načítací coroutinu pro možnost přerušení.</summary>
         private Coroutine currentLoadRoutine;
 
+        /// <summary>Multiplayer start: network stage text shown on the loading screen while the host/lobby or
+        /// client connection is being set up (null = no network stage). Read by LoadingController.</summary>
+        public static string NetworkStage { get; set; }
+
+        /// <summary>Error from a failed multiplayer start, shown in the world details after returning to the menu.</summary>
+        public static string PendingMenuError { get; set; }
+
+        /// <summary>A joining client has not received the host's world yet (the loading screen shows no world name).</summary>
+        public static bool NetworkWorldPending { get; set; }
+
+        /// <summary>True while a network start step runs inside the loading flow.</summary>
+        public static bool NetworkStepActive { get; private set; }
+
+        private string networkFailure;
+
         /// <summary>
         /// Singleton inicializace. Resetuje příznaky a ChunkLoaderAPI při startu.
         /// </summary>
@@ -60,14 +75,46 @@ namespace Orivilon.Core
         /// <summary>
         /// Spustí načítací coroutinu. Pokud již běží, nejprve ji zastaví.
         /// </summary>
-        public void LoadGameDelayed()
+        public void LoadGameDelayed() => LoadGameDelayed(null);
+
+        /// <summary>
+        /// Same loading flow with a network start step (multiplayer host / client join): the loading screen is
+        /// shown and rendered first, then <paramref name="networkStep"/> runs (it creates the lobby / host or
+        /// connects and waits for the world). Only after it succeeds the Game scene is loaded – locally, as before
+        /// (NGO scene management is off in this game). A step that fails calls <see cref="FailNetworkLoading"/>;
+        /// the flow then returns to the main menu with the error.
+        /// </summary>
+        public void LoadGameDelayed(IEnumerator networkStep)
         {
             if (currentLoadRoutine != null)
             {
                 StopCoroutine(currentLoadRoutine);
             }
 
-            currentLoadRoutine = StartCoroutine(LoadGameRoutine());
+            // the first visible frame already names the network stage (the step refines it)
+            NetworkStage = networkStep != null ? "Starting multiplayer…" : null;
+            currentLoadRoutine = StartCoroutine(LoadGameRoutine(networkStep));
+        }
+
+        /// <summary>Called by a network start step that could not complete (it cleans up its own session first).</summary>
+        public void FailNetworkLoading(string message)
+        {
+            networkFailure = string.IsNullOrEmpty(message) ? "Couldn't start the multiplayer session." : message;
+        }
+
+        /// <summary>Leaves a failed multiplayer start: no loading overlay, input unlocked, back to the main menu.</summary>
+        private void AbortToMenu(string message)
+        {
+            Debug.LogWarning("[SceneLoader] Multiplayer start failed: " + message);
+            NetworkStage = null;
+            NetworkStepActive = false;
+            NetworkWorldPending = false;
+            PendingMenuError = message;
+            IsLoading = false;
+            InputBlocked = false;
+            IsLoadingGameScene = false;
+            currentLoadRoutine = null;
+            SceneManager.LoadScene("MainMenu");
         }
 
         /// <summary>
@@ -85,7 +132,7 @@ namespace Orivilon.Core
         /// 11. Odlepí LoadingScreen scénu asynchronně.
         /// 12. Nastaví IsLoading a InputBlocked na false.
         /// </summary>
-        private IEnumerator LoadGameRoutine()
+        private IEnumerator LoadGameRoutine(IEnumerator networkStep = null)
         {
             IsLoading = true;
             InputBlocked = true;
@@ -105,6 +152,22 @@ namespace Orivilon.Core
             {
                 loadingManager.SetProgress(0f);
                 loadingManager.SetStatus("Loading game world...");
+            }
+
+            if (networkStep != null)
+            {
+                // the loading screen has to be on screen before any lobby / host / connection work
+                yield return new WaitForEndOfFrame();
+                networkFailure = null;
+                NetworkStepActive = true;
+                yield return networkStep;
+                NetworkStepActive = false;
+                if (networkFailure != null)
+                {
+                    AbortToMenu(networkFailure);
+                    yield break;
+                }
+                NetworkStage = null;
             }
 
             Debug.Log("[SceneLoader] Loading game scene in background...");
@@ -202,18 +265,25 @@ namespace Orivilon.Core
         /// </summary>
         public static void CompleteGameLoading()
         {
+            // UI refresh: loading screen dojede na 100 % a krátce se rozplyne (nečasovaný čas) až teď,
+            // na skutečný signál připravenosti; teprve po fade se scéna odlepí.
+            bool fading = false;
             if (LoadingScreenManager.instance != null)
             {
                 LoadingScreenManager.SetProgressStatic(1f);
                 LoadingScreenManager.SetStatusStatic("Ready!");
-                LoadingScreenManager.SetVisible(false);
+                var presenter = Orivilon.UI.Refresh.LoadingController.Instance;
+                if (presenter != null && Instance != null)
+                    fading = presenter.CompleteAndFade(Instance.UnloadLoadingScreenSafely);
+                if (!fading)
+                    LoadingScreenManager.SetVisible(false);
             }
 
             IsLoadingGameScene = false;
             InputBlocked = false;
             IsLoading = false;
 
-            if (Instance != null)
+            if (!fading && Instance != null)
                 Instance.UnloadLoadingScreenSafely();
 
             Debug.Log("[SceneLoader] Game loading complete, input enabled");
@@ -232,6 +302,8 @@ namespace Orivilon.Core
                 IsLoading = false;
                 InputBlocked = false;
                 IsLoadingGameScene = false;
+                NetworkStage = null;
+                NetworkStepActive = false;
                 Debug.Log("[SceneLoader] Loading cancelled, input enabled");
             }
         }

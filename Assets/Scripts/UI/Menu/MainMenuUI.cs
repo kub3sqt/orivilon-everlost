@@ -71,6 +71,20 @@ namespace Orivilon.UI.Menu
         [Tooltip("Panel se seznamem hrajících kamarádů (MP tlačítko bez označeného světa)")]
         [SerializeField] private FriendsListUI friendsList;
 
+        [Header("Play mode (per world)")]
+        [Tooltip("Shown on the Singleplayer selector while that mode is selected (independent of hover).")]
+        [SerializeField] private GameObject singleplayerSelected;
+        [Tooltip("Shown on the Multiplayer selector while that mode is selected (independent of hover).")]
+        [SerializeField] private GameObject multiplayerSelected;
+        [Tooltip("Error line above PLAY (empty unless starting the selected mode failed).")]
+        [SerializeField] private TMP_Text playModeText;
+        [Tooltip("Small subtitle inside the PLAY button: 'Singleplayer' / 'Multiplayer' of the selected world.")]
+        [SerializeField] private TMP_Text playModeSubtitle;
+        [SerializeField] private Color playModeColor = new Color32(0xa8, 0xb0, 0xa6, 0xff);
+        [SerializeField] private Color playModeErrorColor = new Color32(0xff, 0x8a, 0x80, 0xff);
+
+        private bool launching;
+
         /// <summary>Aktuálně označený svět v seznamu (null = žádný).</summary>
         private WorldData selectedWorldData;
 
@@ -83,15 +97,63 @@ namespace Orivilon.UI.Menu
         /// </summary>
         private void Awake()
         {
+            // Singleplayer / Multiplayer jsou přepínače režimu vybraného světa – svět spouští až PLAY.
             if (singleplayerButton != null)
-                singleplayerButton.onClick.AddListener(PlaySelectedWorldSingleplayer);
+                singleplayerButton.onClick.AddListener(SelectSingleplayerMode);
             else
                 Debug.LogWarning("[MainMenuUI] Singleplayer Button není přiřazen v Inspectoru!");
 
             if (multiplayerButton != null)
-                multiplayerButton.onClick.AddListener(PlaySelectedWorldMultiplayer);
+                multiplayerButton.onClick.AddListener(SelectMultiplayerMode);
             else
                 Debug.LogWarning("[MainMenuUI] Multiplayer Button není přiřazen v Inspectoru!");
+            UpdatePlayModeVisuals();
+        }
+
+        /// <summary>Selects Singleplayer for the selected world (persisted per world). Does not launch.</summary>
+        public void SelectSingleplayerMode() => SetPlayMode("single");
+
+        /// <summary>Selects Multiplayer for the selected world (persisted per world). Without a selected
+        /// world it opens the friends list as before (joining a friend).</summary>
+        public void SelectMultiplayerMode()
+        {
+            if (selectedWorldData == null)
+            {
+                if (friendsList != null) friendsList.Open();
+                return;
+            }
+            SetPlayMode("multi");
+        }
+
+        private void SetPlayMode(string mode)
+        {
+            if (selectedWorldData == null) return;
+            if (selectedWorldData.playMode != mode)
+            {
+                selectedWorldData.playMode = mode;
+                WorldSaveManager.instance?.SaveWorldIndex();
+            }
+            UpdatePlayModeVisuals();
+        }
+
+        /// <summary>Launches the selected world in its saved mode (PLAY button).</summary>
+        public void PlaySelectedWorld()
+        {
+            if (selectedWorldData == null) return;
+            LaunchWorld(selectedWorldData, selectedWorldData.PrefersMultiplayer);
+        }
+
+        private void UpdatePlayModeVisuals(string error = null)
+        {
+            bool has = selectedWorldData != null;
+            bool multi = has && selectedWorldData.PrefersMultiplayer;
+            if (singleplayerSelected != null) singleplayerSelected.SetActive(has && !multi);
+            if (multiplayerSelected != null) multiplayerSelected.SetActive(has && multi);
+            if (playModeSubtitle != null) playModeSubtitle.text = !has ? "" : multi ? "Multiplayer" : "Singleplayer";
+            if (playModeText == null) return;
+            // the line above PLAY is only used for errors now; the mode itself is the subtitle inside PLAY
+            playModeText.color = playModeErrorColor;
+            playModeText.text = string.IsNullOrEmpty(error) ? "" : error;
         }
 
         /// <summary>Manuálně vynutí okamžitý refresh seznamu (volatelné z externího tlačítka).</summary>
@@ -103,6 +165,7 @@ namespace Orivilon.UI.Menu
         private void OnEnable()
         {
             SetDefaultState();
+            UpdatePlayModeVisuals();
 
             // Otevírací animace se spouští odsud – Play tlačítko panel jen aktivuje
             // přes SetActive a neaktivní objekt nemůže spustit vlastní metodu.
@@ -146,6 +209,29 @@ namespace Orivilon.UI.Menu
             }
 
             RefreshList();
+            ShowPendingLaunchError();
+        }
+
+        /// <summary>
+        /// After a multiplayer start failed inside the loading screen the menu is reloaded: reselect that world
+        /// and show the error in its details (the same line that shows launch errors).
+        /// </summary>
+        private void ShowPendingLaunchError()
+        {
+            string error = SceneLoader.PendingMenuError;
+            if (string.IsNullOrEmpty(error)) return;
+            SceneLoader.PendingMenuError = null;
+            var want = GameManager.selectedWorld;
+            if (want != null && listContent != null)
+            {
+                foreach (var el in listContent.GetComponentsInChildren<WorldListElement>(true))
+                {
+                    var label = el.GetComponentInChildren<TMP_Text>();
+                    var btn = el.GetComponentInChildren<Button>();
+                    if (label != null && btn != null && label.text == want.worldName) { btn.onClick.Invoke(); break; }
+                }
+            }
+            UpdatePlayModeVisuals(error);
         }
 
         /// <summary>
@@ -433,6 +519,7 @@ namespace Orivilon.UI.Menu
 
             UpdateWorldStatsPanel();
             UpdateLaunchButtons();
+            UpdatePlayModeVisuals();
         }
 
         /// <summary>
@@ -444,6 +531,7 @@ namespace Orivilon.UI.Menu
             selectedWorldElement = null;
             UpdateWorldStatsPanel();
             UpdateLaunchButtons();
+            UpdatePlayModeVisuals();
         }
 
         /// <summary>
@@ -497,7 +585,8 @@ namespace Orivilon.UI.Menu
                 return;
             }
 
-            LaunchWorld(selectedWorldData, multiplayer: false);
+            // UI refresh: PLAY spouští svět v jeho uloženém režimu (výchozí singleplayer).
+            PlaySelectedWorld();
         }
 
         /// <summary>
@@ -525,23 +614,44 @@ namespace Orivilon.UI.Menu
         /// </summary>
         private void LaunchWorld(WorldData worldData, bool multiplayer)
         {
-            worldData.lastPlayed = DateTime.Now.ToString("o");
-            WorldSaveManager.instance?.SaveWorldIndex();
-
-            GameManager.selectedWorld = worldData;
+            if (launching) return;
 
             if (multiplayer)
             {
-                if (SteamLobbyManager.Instance == null)
+                // Multiplayer = hostování světa přes existující Steam lobby (friends-only) + NGO host.
+                // Žádný tichý návrat do singleplayeru: chyba se ukáže v detailu světa a svět se nespustí.
+                var steam = SteamLobbyManager.Instance;
+                string error = null;
+                if (steam == null) error = "Couldn't start multiplayer: Steam support is missing from this scene.";
+                else if (!steam.SteamReady) error = "Steam isn't running or isn't signed in. Start Steam to host this world, or switch to Singleplayer.";
+                else if (MultiplayerManager.Instance == null) error = "Couldn't start multiplayer: the network manager is missing.";
+                if (error != null)
                 {
-                    Debug.LogWarning("[MainMenuUI] SteamLobbyManager není ve scéně – multiplayer nelze spustit.");
+                    Debug.LogWarning("[MainMenuUI] " + error);
+                    UpdatePlayModeVisuals(error);
                     return;
                 }
-
-                // Lobby, nastavení multiplayer flagů i načtení scény řeší SteamLobbyManager.
-                SteamLobbyManager.Instance.HostLobby(worldData);
+                if (MultiplayerManager.IsActive) MultiplayerManager.Instance.Shutdown();
+                StampAndSelect(worldData);
+                launching = true;
+                if (SceneLoader.Instance != null)
+                {
+                    // Same loading screen as singleplayer: shown first, then lobby + host start, then the
+                    // Game scene and world. A failure returns here with the error (SceneLoader.PendingMenuError).
+                    SceneLoader.Instance.LoadGameDelayed(steam.HostForLoading(worldData));
+                }
+                else
+                {
+                    steam.HostLobby(worldData);
+                    StartCoroutine(WatchHostStart(steam));
+                }
                 return;
             }
+
+            // Singleplayer: případný běžící host z minulé session se nejdřív korektně ukončí.
+            if (MultiplayerManager.IsActive) MultiplayerManager.Instance.Shutdown();
+            StampAndSelect(worldData);
+            launching = true;
 
             GameManager.IsMultiplayer = false;
             GameManager.IsHost = false;
@@ -554,6 +664,32 @@ namespace Orivilon.UI.Menu
             {
                 UnityEngine.SceneManagement.SceneManager.LoadScene("Game");
             }
+        }
+
+        /// <summary>HostLobby is asynchronous: if the lobby or host does not come up, report it in English
+        /// and allow another attempt instead of leaving the menu stuck.</summary>
+        private IEnumerator WatchHostStart(SteamLobbyManager steam)
+        {
+            float until = Time.unscaledTime + 20f;
+            yield return null;
+            while (Time.unscaledTime < until)
+            {
+                var nm = Unity.Netcode.NetworkManager.Singleton;
+                if (nm != null && nm.IsHost) yield break;                       // host is up, the game scene is loading
+                if (steam == null || !steam.IsHosting) break;                     // HostLobby gave up
+                yield return null;
+            }
+            launching = false;
+            GameManager.IsMultiplayer = false; GameManager.IsHost = false;
+            if (steam != null) Debug.LogWarning("[MainMenuUI] Hosting failed: " + steam.Status);
+            UpdatePlayModeVisuals("Couldn't create the Steam lobby for this world. Check that Steam is online and try again.");
+        }
+
+        private static void StampAndSelect(WorldData worldData)
+        {
+            worldData.lastPlayed = DateTime.Now.ToString("o");
+            WorldSaveManager.instance?.SaveWorldIndex();
+            GameManager.selectedWorld = worldData;
         }
 
         /// <summary>

@@ -154,6 +154,19 @@ namespace Orivilon.Core
         /// <summary>Veřejná read-only property vracející stav pauzy.</summary>
         public bool IsPaused => isPaused;
 
+        /// <summary>UI refresh: true až po dokončení spawnu a skrytí loading screenu (F3 overlay to čte).</summary>
+        public bool IsLoadingComplete => isLoadingComplete;
+
+        /// <summary>
+        /// UI refresh: CanvasGroup přidaný za běhu na kořenový herní Canvas. Drží celé herní UI
+        /// (rámečky hotbaru, kompas, minimapu, verzi…) neviditelné, dokud neskončí načítání –
+        /// jinak by se kreslilo přes loading screen. Ve scéně se nic neukládá.
+        /// </summary>
+        private CanvasGroup hudRootGroup;
+
+        /// <summary>UI refresh: CanvasGroup na InventoryRoot – skryje rámečky a pozadí HUD během Arcanum.</summary>
+        private CanvasGroup hudFrameGroup;
+
         /// <summary>
         /// Vrátí počet sekund odehraných od posledního volání (nebo od dokončení načtení)
         /// a resetuje měření. Volá SaveSystem.SaveWorld, aby se čas při opakovaných
@@ -220,6 +233,7 @@ namespace Orivilon.Core
         private void Update()
         {
             if (SceneLoader.IsLoading) return;
+            if (Orivilon.UI.Refresh.SettingsScreen.BlocksInput) return;   // Settings vlastní Esc a vstup
 
             if (Input.GetKeyDown(KeyCode.Escape))
                 HandleEscapeKey();
@@ -254,6 +268,8 @@ namespace Orivilon.Core
             isInventoryOpen = false;
             isBuildingOpen = false;
             isArcanumOpen = false;
+            hudRootGroup = null;
+            hudFrameGroup = null;
 
             if (currentSpawnRoutine != null)
             {
@@ -302,6 +318,8 @@ namespace Orivilon.Core
                 return;
 
             gameSceneInitializationStarted = true;
+            // Herní UI skrýt hned (ještě před prvním snímkem Game scény), ne až po yield v InitializeGameScene.
+            ApplyHudVisibility();
             SceneLoader.IsLoading = true;
             SceneLoader.InputBlocked = true;
             ChunkLoaderAPI.Reset();
@@ -478,12 +496,18 @@ namespace Orivilon.Core
             isInventoryOpen = true;
             isMenuOpen = true;
 
-            SetTriggerSafe(mapInventoryBackgroundAnimator, "Open");
-            SetTriggerSafe(inventorySlotsAnimator, "Open");
-            SetTriggerSafe(cornerPieceAnimator, "Open");
-            SetTriggerSafe(statsAndCraftingBackgroundAnimator, "Open");
-            SetTriggerSafe(statsDescriptionAnimator, "Open");
-            SetTriggerSafe(craftingSlotsAnimator, "Open");
+            // UI refresh (revize 3): nový HUD řídí otevření sám (rám + prolínání); animátory jen bez něj.
+            if (Orivilon.UI.Refresh.HudController.Active) Orivilon.UI.Refresh.HudController.Instance.SetInventoryOpen(true);
+            else
+            {
+                SetTriggerSafe(mapInventoryBackgroundAnimator, "Open");
+                SetTriggerSafe(inventorySlotsAnimator, "Open");
+                SetTriggerSafe(cornerPieceAnimator, "Open");
+                SetTriggerSafe(statsAndCraftingBackgroundAnimator, "Open");
+                SetTriggerSafe(statsDescriptionAnimator, "Open");
+                SetTriggerSafe(craftingSlotsAnimator, "Open");
+            }
+            Orivilon.UI.Refresh.WorldBlurBackdrop.Request("inventory", true);
 
             if (crosshair != null)
                 crosshair.SetActive(false);
@@ -511,12 +535,17 @@ namespace Orivilon.Core
             isInventoryOpen = false;
             isMenuOpen = false;
 
-            SetTriggerSafe(mapInventoryBackgroundAnimator, "Close");
-            SetTriggerSafe(inventorySlotsAnimator, "Close");
-            SetTriggerSafe(cornerPieceAnimator, "Close");
-            SetTriggerSafe(statsAndCraftingBackgroundAnimator, "Close");
-            SetTriggerSafe(statsDescriptionAnimator, "Close");
-            SetTriggerSafe(craftingSlotsAnimator, "Close");
+            if (Orivilon.UI.Refresh.HudController.Active) Orivilon.UI.Refresh.HudController.Instance.SetInventoryOpen(false);
+            else
+            {
+                SetTriggerSafe(mapInventoryBackgroundAnimator, "Close");
+                SetTriggerSafe(inventorySlotsAnimator, "Close");
+                SetTriggerSafe(cornerPieceAnimator, "Close");
+                SetTriggerSafe(statsAndCraftingBackgroundAnimator, "Close");
+                SetTriggerSafe(statsDescriptionAnimator, "Close");
+                SetTriggerSafe(craftingSlotsAnimator, "Close");
+            }
+            Orivilon.UI.Refresh.WorldBlurBackdrop.Request("inventory", false);
 
             if (crosshair != null)
                 crosshair.SetActive(true);
@@ -584,6 +613,17 @@ namespace Orivilon.Core
         }
 
         /// <summary>
+        /// F1 clean view (UI refresh): zavře inventář, Arcanum a stavbu jejich normální cestou, než se
+        /// skryje UI – žádné neviditelné interaktivní menu, kurzor se vrátí do hry. Držený stack zůstává.
+        /// </summary>
+        public void CloseMenusForCleanView()
+        {
+            if (isArcanumOpen) CloseArcanum();
+            if (isInventoryOpen) CloseInventory();
+            if (isBuildingOpen) CloseBuildingMenu();
+        }
+
+        /// <summary>
         /// Escape: Arcanum (nejdřív připnutý detail, pak panel) → inventář → stavba → pauza.
         /// Veřejné kvůli QA příkazu /arcanum esc; jinak se volá jen z Update.
         /// </summary>
@@ -637,6 +677,8 @@ namespace Orivilon.Core
 
             isArcanumOpen = true;
             isMenuOpen = true;
+            ApplyHudVisibility();
+            Orivilon.UI.Refresh.WorldBlurBackdrop.Request("arcanum", true);
 
             if (crosshair != null) crosshair.SetActive(false);
             if (hotbar != null) hotbar.SetActive(false);
@@ -658,6 +700,8 @@ namespace Orivilon.Core
 
             isArcanumOpen = false;
             isMenuOpen = false;
+            ApplyHudVisibility();
+            Orivilon.UI.Refresh.WorldBlurBackdrop.Request("arcanum", false);
 
             if (ArcanumUI.Instance != null) ArcanumUI.Instance.Close();
 
@@ -709,6 +753,7 @@ namespace Orivilon.Core
 
             isPaused = paused;
             //Time.timeScale = isPaused ? 0f : 1f;
+            Orivilon.UI.Refresh.WorldBlurBackdrop.Request("pause", paused);
 
             if (isPaused)
             {
@@ -765,6 +810,13 @@ namespace Orivilon.Core
         {
             SaveSystem.SaveSystem.SaveEverything();
 
+            // Multiplayer host/klient se při návratu do menu ukončí, jinak by další start světa
+            // (třeba v singleplayeru) běžel se starým síťovým stavem.
+            if (Orivilon.Multiplayer.SteamLobbyManager.Instance != null)
+                Orivilon.Multiplayer.SteamLobbyManager.Instance.LeaveLobby();
+            if (Orivilon.Multiplayer.MultiplayerManager.IsActive)
+                Orivilon.Multiplayer.MultiplayerManager.Instance.Shutdown();
+
             if (currentSpawnRoutine != null)
             {
                 StopCoroutine(currentSpawnRoutine);
@@ -776,6 +828,8 @@ namespace Orivilon.Core
             isPaused = false;
             isMenuOpen = false;
             isLoadingComplete = false;
+            ApplyHudVisibility();
+            Orivilon.UI.Refresh.WorldBlurBackdrop.ClearAll();
 
             if (ObjectSpawner.Instance != null)
                 ObjectSpawner.Instance.ResetSpawner();
@@ -784,6 +838,43 @@ namespace Orivilon.Core
             Cursor.visible = true;
 
             SceneManager.LoadScene("MainMenu");
+        }
+
+        /// <summary>
+        /// UI refresh: viditelnost herního UI přes dva CanvasGroupy (žádné hledání v Update,
+        /// žádné vypínání GameObjectů, takže animátory a skripty HUD zůstávají beze změny).
+        /// Celé herní UI je skryté, dokud načítání neskončí; rámečky/pozadí HUD (InventoryRoot)
+        /// jsou skryté, dokud je otevřený Arcanum.
+        /// </summary>
+        private void ApplyHudVisibility()
+        {
+            if (hudRootGroup == null || hudFrameGroup == null)
+            {
+                var root = FindFirstObjectByType<InventoryRoot>(FindObjectsInactive.Include);
+                if (root != null)
+                {
+                    if (hudFrameGroup == null) hudFrameGroup = GetOrAddCanvasGroup(root.gameObject);
+                    var canvas = root.GetComponentInParent<Canvas>(true);
+                    if (canvas != null && hudRootGroup == null) hudRootGroup = GetOrAddCanvasGroup(canvas.rootCanvas.gameObject);
+                }
+            }
+
+            SetCanvasGroupVisible(hudRootGroup, isLoadingComplete);
+            SetCanvasGroupVisible(hudFrameGroup, !isArcanumOpen);
+        }
+
+        private static CanvasGroup GetOrAddCanvasGroup(GameObject go)
+        {
+            var g = go.GetComponent<CanvasGroup>();
+            return g != null ? g : go.AddComponent<CanvasGroup>();
+        }
+
+        private static void SetCanvasGroupVisible(CanvasGroup g, bool visible)
+        {
+            if (g == null) return;
+            g.alpha = visible ? 1f : 0f;
+            g.blocksRaycasts = visible;
+            g.interactable = visible;
         }
 
         /// <summary>
@@ -1016,6 +1107,7 @@ namespace Orivilon.Core
             if (Inventory != null) Inventory.SetActive(true);
 
             isLoadingComplete = true;
+            ApplyHudVisibility();
             sessionPlayTimeStart = Time.realtimeSinceStartup;
             Debug.Log($"GameManager: Player spawned at {groundPosition} - LOADING COMPLETE");
 

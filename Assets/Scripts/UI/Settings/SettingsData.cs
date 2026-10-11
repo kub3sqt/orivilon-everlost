@@ -11,12 +11,22 @@ namespace Orivilon.UI.Settings
     [Serializable]
     public class SettingsData
     {
+        /// <summary>Verze formátu. 0 = soubor z doby před UI refresh (migruje se ve SettingsManager.Load).</summary>
+        public int version = SettingsManager.CurrentVersion;
+
+        /// <summary>Rozlišení (šířka/výška v px). 0 = ponechat aktuální rozlišení obrazovky.</summary>
+        public int resolutionWidth = 0;
+        public int resolutionHeight = 0;
+
+        /// <summary>Stíny ve hře (přepíná se na kamerách přes UniversalAdditionalCameraData, ne v URP assetu).</summary>
+        public bool shadows = true;
+
         // ─── GRAFIKA ────────────────────────────────────────────────────────────
         /// <summary>Index kvality grafiky (0 = nejnižší, 5 = Ultra). Viz QualitySettings.</summary>
         public int qualityLevel = 2;
 
         /// <summary>Vzdálenost renderu terénu (počet chunků). Ovlivňuje výkon.</summary>
-        public int renderDistance = 4;
+        public int renderDistance = 6;
 
         /// <summary>Vzdálenost LOD přechodu objektů.</summary>
         public float lodBias = 1f;
@@ -169,7 +179,7 @@ namespace Orivilon.UI.Settings
         public bool showCoordinates = false;
 
         /// <summary>FOV kamery (60–120).</summary>
-        public float fieldOfView = 60f;
+        public float fieldOfView = 90f;
 
 
         // ─── PŘÍSTUPNOST ─────────────────────────────────────────────────────────
