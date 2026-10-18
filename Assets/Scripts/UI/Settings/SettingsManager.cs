@@ -211,6 +211,9 @@ namespace Orivilon.UI.Settings
             d.mouseSensitivity = float.IsNaN(d.mouseSensitivity) ? def.mouseSensitivity : Mathf.Clamp(d.mouseSensitivity, MinSens, MaxSens);
             d.fieldOfView = float.IsNaN(d.fieldOfView) ? def.fieldOfView : Mathf.Clamp(d.fieldOfView, MinFov, MaxFov);
             d.renderDistance = Mathf.Clamp(d.renderDistance, MinDetail, MaxDetail);
+            if (d.mtWheelSearchOrder < 0 || d.mtWheelSearchOrder > 1) d.mtWheelSearchOrder = def.mtWheelSearchOrder;
+            if (d.mtWheelScrollDirection < 0 || d.mtWheelScrollDirection > 2) d.mtWheelScrollDirection = def.mtWheelScrollDirection;
+            if (d.mtScrollItemScaling < 0 || d.mtScrollItemScaling > 1) d.mtScrollItemScaling = def.mtScrollItemScaling;
         }
 
         public static bool DisplayDiffers(SettingsData a, SettingsData b) =>

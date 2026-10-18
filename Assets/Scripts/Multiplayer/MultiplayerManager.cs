@@ -128,6 +128,147 @@ namespace Orivilon.Multiplayer
             worldSync = GetComponent<NetworkWorldSync>();
             if (worldSync == null)
                 worldSync = gameObject.AddComponent<NetworkWorldSync>();
+
+            // Kolo MP 17.10.2026: volitelné heslo hosta. Schválení běží VŽDY (i bez hesla), aby byl NetworkConfig
+            // stejný na obou stranách a klient bez platných údajů nedostal žádný stav světa.
+            netManager.NetworkConfig.ConnectionApproval = true;
+            netManager.ConnectionApprovalCallback = ApproveConnection;
+        }
+
+        // ══════════════════════════════════════════════════════════════════════
+        // Heslo pro připojení (jen v paměti této session – nikam se neukládá)
+        // ══════════════════════════════════════════════════════════════════════
+
+        private static string hostPassword = "";
+        private static string hostKey = "";
+        private readonly JoinAttemptLimiter joinLimiter = new JoinAttemptLimiter();
+
+        /// <summary>Má právě hostovaný svět heslo? (Do lobby jde jen tento příznak.)</summary>
+        public static bool HostHasPassword => !string.IsNullOrEmpty(hostPassword);
+
+        /// <summary>Host nastaví heslo před startem (prázdné = bez hesla).</summary>
+        public static void SetHostPassword(string password) => hostPassword = password ?? "";
+
+        /// <summary>
+        /// Nonce této session hostitele (nový při každém hostování; do lobby jako „nonce“ – není tajný).
+        /// LAN QA trasa nemá lobby, používá pevný nonce (jen editor/development build).
+        /// </summary>
+        public static string SessionNonce { get; private set; } = "";
+        public const string LanQaNonce = "lan-qa";
+
+        /// <summary>Host: nová session = nový nonce (staré důkazy hesla přestanou platit).</summary>
+        public static void NewSessionNonce() => SessionNonce = JoinGate.NewNonce();
+
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>QA: deklarované ID hráče na LAN trase (dva klienti na jednom Steam účtu = různé účty u hosta).</summary>
+        public static ulong QaClaimedId;
+#endif
+
+        /// <summary>Host: stabilní klíč hráče pro účet inventáře (steam:ID ověřené spojením, lan:ID v QA).</summary>
+        private readonly Dictionary<ulong, string> playerKeys = new Dictionary<ulong, string>();
+
+        public string GetPlayerKey(ulong clientId) => playerKeys.TryGetValue(clientId, out var k) ? k : null;
+
+        /// <summary>Klient: přiloží k žádosti o připojení důkaz hesla vázaný na session (před StartClient).</summary>
+        private void PrepareClientPayload(string hostKeyForClient, string password, string nonce)
+        {
+            ulong me = 0;
+#if FACEPUNCH_STEAMWORKS
+            if (Steamworks.SteamClient.IsValid) me = Steamworks.SteamClient.SteamId.Value;
+#endif
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            if (QaClaimedId != 0 && hostKeyForClient != null && hostKeyForClient.StartsWith("lan:")) me = QaClaimedId;
+#endif
+            netManager.NetworkConfig.ConnectionData = JoinGate.BuildPayload(me, hostKeyForClient ?? "", password, nonce ?? "");
+        }
+
+        /// <summary>
+        /// Steam ID, které pro dané NGO spojení ověřil Steam (Facepunch transport drží identitu spojení).
+        /// Čte se reflexí z NGO (ClientIdToTransportId) a transportu (connectedClients) – bez úpravy vendor kódu.
+        /// False = nelze zjistit (LAN trasa nebo změněné API).
+        /// </summary>
+        private bool TryTransportSteamId(ulong clientId, out ulong steamId)
+        {
+            steamId = 0;
+#if FACEPUNCH_STEAMWORKS
+            try
+            {
+                var t = netManager.NetworkConfig.NetworkTransport as Netcode.Transports.Facepunch.FacepunchTransport;
+                if (t == null) return false;
+                const System.Reflection.BindingFlags F = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+                object cm = typeof(NetworkManager).GetField("ConnectionManager", F)?.GetValue(netManager);
+                var m = cm?.GetType().GetMethod("ClientIdToTransportId", F);
+                if (m == null) return false;
+                var res = m.Invoke(cm, new object[] { clientId });
+                var resType = res.GetType();
+                ulong transportId = (ulong)resType.GetField("Item1").GetValue(res);
+                if (!(bool)resType.GetField("Item2").GetValue(res)) return false;
+                var dict = typeof(Netcode.Transports.Facepunch.FacepunchTransport).GetField("connectedClients", F)?.GetValue(t) as System.Collections.IDictionary;
+                if (dict == null || !dict.Contains(transportId)) return false;
+                var client = dict[transportId];
+                var sid = client.GetType().GetField("steamId", F)?.GetValue(client);
+                if (sid is Steamworks.SteamId s) { steamId = s.Value; return steamId != 0; }
+            }
+            catch (System.Exception e) { Debug.LogWarning("[MultiplayerManager] Identitu Steam spojení nelze přečíst: " + e.GetType().Name); }
+#endif
+            return false;
+        }
+
+        /// <summary>
+        /// Host: schválení připojení. Heslo se ověří tady – NGO do schválení nedoručí žádnou zprávu
+        /// klienta a stav světa (SendWorldStateTo) jde až z OnClientConnected, tedy po schválení.
+        /// Identita: přes Steam se bere SteamId ověřené transportem (deklarované musí sedět); LAN QA bere
+        /// deklarované. Důkaz hesla je HMAC vázaný na tuto identitu, hosta a nonce session (JoinGate).
+        /// </summary>
+        private void ApproveConnection(NetworkManager.ConnectionApprovalRequest req, NetworkManager.ConnectionApprovalResponse res)
+        {
+            res.CreatePlayerObject = false;
+            res.Pending = false;
+            res.Approved = false;
+
+            // Host sám sebe schvaluje vždy.
+            if (req.ClientNetworkId == NetworkManager.ServerClientId) { res.Approved = true; return; }
+
+            if (!JoinGate.TryParse(req.Payload, out ulong claimed, out byte[] hash)) { res.Reason = JoinGate.ReasonVersion; return; }
+
+            bool steamRoute = hostKey != null && !hostKey.StartsWith("lan:");
+            ulong identity = claimed;
+            string keyPrefix = "lan:";
+            if (steamRoute)
+            {
+                if (!TryTransportSteamId(req.ClientNetworkId, out ulong verified) || verified != claimed)
+                {
+                    res.Reason = JoinGate.ReasonIdentity;
+                    Debug.LogWarning("[MultiplayerManager] Připojení odmítnuto: identita spojení nesedí.");
+                    return;
+                }
+                identity = verified; keyPrefix = "steam:";
+            }
+
+            int limit = SteamLobbyManager.Instance != null ? Mathf.Max(2, SteamLobbyManager.Instance.maxPlayers) : 8;
+            if (netManager.ConnectedClientsIds.Count >= limit) { res.Reason = JoinGate.ReasonFull; return; }
+
+            if (HostHasPassword)
+            {
+                float now = Time.unscaledTime;
+                if (joinLimiter.IsLocked(identity, now, out float wait))
+                {
+                    res.Reason = JoinGate.ReasonLockout + ":" + Mathf.CeilToInt(Mathf.Max(1f, wait));
+                    Debug.LogWarning("[MultiplayerManager] Připojení odmítnuto: příliš mnoho špatných hesel.");
+                    return;
+                }
+                if (hash == null) { res.Reason = JoinGate.ReasonPasswordRequired; return; }   // první pokus bez hesla se nepočítá
+                if (!JoinGate.Equal(hash, JoinGate.Proof(hostKey, identity, SessionNonce, hostPassword)))
+                {
+                    joinLimiter.Fail(identity, now);
+                    res.Reason = JoinGate.ReasonPasswordWrong;
+                    Debug.LogWarning("[MultiplayerManager] Připojení odmítnuto: špatné heslo.");
+                    return;
+                }
+                joinLimiter.Success(identity);
+            }
+            playerKeys[req.ClientNetworkId] = keyPrefix + identity.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            res.Approved = true;
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -142,6 +283,8 @@ namespace Orivilon.Multiplayer
         public void StartHost(WorldData world)
         {
             ConfigureTransport("0.0.0.0", serverPort);
+            hostKey = "lan:" + serverPort;
+            SessionNonce = LanQaNonce;
             StartHostCommon(world);
             Debug.Log($"[MultiplayerManager] Host spuštěn na portu {serverPort}");
         }
@@ -170,9 +313,13 @@ namespace Orivilon.Multiplayer
         /// </summary>
         /// <param name="ip">IP adresa hosta.</param>
         /// <param name="port">Port hosta.</param>
-        public void StartClient(string ip, ushort port)
+        public void StartClient(string ip, ushort port) => StartClient(ip, port, "");
+
+        /// <summary>Klient přes přímou IP (QA/LAN) s volitelným heslem.</summary>
+        public void StartClient(string ip, ushort port, string password)
         {
             ConfigureTransport(ip, port);
+            PrepareClientPayload("lan:" + port, password, LanQaNonce);
             StartClientCommon();
             Debug.Log($"[MultiplayerManager] Připojuji se na {ip}:{port}");
         }
@@ -186,6 +333,8 @@ namespace Orivilon.Multiplayer
             netManager.OnClientDisconnectCallback   -= OnClientDisconnected;
             netManager.OnClientConnectedCallback    += OnClientConnected;
             netManager.OnClientDisconnectCallback   += OnClientDisconnected;
+            netManager.OnClientStopped              -= OnLocalClientStopped;
+            netManager.OnClientStopped              += OnLocalClientStopped;
 
             netManager.StartClient();
 
@@ -202,17 +351,14 @@ namespace Orivilon.Multiplayer
             {
                 netManager.OnClientConnectedCallback  -= OnClientConnected;
                 netManager.OnClientDisconnectCallback -= OnClientDisconnected;
+                netManager.OnClientStopped            -= OnLocalClientStopped;
             }
 
             if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
                 NetworkManager.Singleton.Shutdown();
 
-            foreach (var rp in remotePlayers.Values)
-            {
-                if (rp != null)
-                    Destroy(rp.gameObject);
-            }
-            remotePlayers.Clear();
+            ClearRemotePlayers();
+            playerNames.Clear();
 
             GameManager.IsMultiplayer = false;
             GameManager.IsHost        = false;
@@ -248,6 +394,8 @@ namespace Orivilon.Multiplayer
                 ctrl = go.AddComponent<RemotePlayerController>();
 
             ctrl.ClientId = clientId;
+            if (clientId == NetworkManager.ServerClientId) go.name = "RemotePlayer_Host";
+            else go.name = "RemotePlayer_" + clientId;
 
             // Marker na kompasu (HUD). Přidává se i pro vlastní prefab, aby byl vidět vždy.
             if (go.GetComponent<Orivilon.UI.HUD.CompassMarker>() == null)
@@ -278,6 +426,8 @@ namespace Orivilon.Multiplayer
         {
             if (string.IsNullOrEmpty(name)) return;
 
+            // Jméno přišlo ze sítě (Steam display name) – do TMP i konzole jen očištěné.
+            name = PlayerNames.Sanitize(name, clientId);
             playerNames[clientId] = name;
 
             if (remotePlayers.TryGetValue(clientId, out var ctrl))
@@ -298,7 +448,70 @@ namespace Orivilon.Multiplayer
                 (string.IsNullOrWhiteSpace(localPlayerName) || localPlayerName == DefaultPlayerName))
                 localPlayerName = steamName;
 
-            return localPlayerName;
+            ulong me = NetworkManager.Singleton != null ? NetworkManager.Singleton.LocalClientId : 0;
+            return PlayerNames.Sanitize(localPlayerName, me);
+        }
+
+        /// <summary>
+        /// Hráči této session pro konzoli (/list, /tp): lokální hráč + známí vzdálení. ID = NGO clientId
+        /// (host = #0). Mimo multiplayer jen lokální hráč.
+        /// </summary>
+        public List<PlayerRef> GetRoster()
+        {
+            var list = new List<PlayerRef>();
+            var nm = NetworkManager.Singleton;
+            ulong me = nm != null && IsActive ? nm.LocalClientId : 0;
+            list.Add(new PlayerRef(me, ResolveLocalPlayerName(), true));
+            if (!IsActive) return list;
+            var ids = new HashSet<ulong>();
+            if (nm.IsServer) foreach (var id in nm.ConnectedClientsIds) ids.Add(id);
+            foreach (var id in remotePlayers.Keys) ids.Add(id);
+            foreach (var id in playerNames.Keys) ids.Add(id);
+            ids.Remove(me);
+            var sorted = new List<ulong>(ids);
+            sorted.Sort();
+            foreach (var id in sorted)
+                list.Add(new PlayerRef(id, playerNames.TryGetValue(id, out var n) ? n : PlayerNames.Sanitize(null, id), false));
+            return list;
+        }
+
+        /// <summary>Poslední síťová pozice vzdáleného hráče (pro validaci na hostovi a /tp k hráči).</summary>
+        public bool TryGetRemotePosition(ulong clientId, out Vector3 pos)
+        {
+            pos = default;
+            if (!remotePlayers.TryGetValue(clientId, out var rp) || rp == null || !rp.HasNetworkPosition) return false;
+            pos = rp.LastNetworkPosition;
+            return true;
+        }
+
+        /// <summary>Odebere vizuál a marker vzdáleného hráče (odpojení hlášené hostem, konec session).</summary>
+        public void RemoveRemotePlayer(ulong clientId)
+        {
+            playerNames.Remove(clientId);
+            if (remotePlayers.TryGetValue(clientId, out var ctrl))
+            {
+                if (ctrl != null) Destroy(ctrl.gameObject);
+                remotePlayers.Remove(clientId);
+            }
+        }
+
+        private void ClearRemotePlayers()
+        {
+            foreach (var rp in remotePlayers.Values)
+                if (rp != null) Destroy(rp.gameObject);
+            remotePlayers.Clear();
+        }
+
+        /// <summary>
+        /// Klient: spojení s hostem skončilo (host odešel, výpadek, odmítnutí). Vizuály a markery ostatních
+        /// hráčů i zrcadlo dropů hned zmizí – jinak by zůstaly stát v kompasu i ve světě.
+        /// </summary>
+        private void OnLocalClientStopped(bool _)
+        {
+            if (netManager != null) netManager.OnClientStopped -= OnLocalClientStopped;
+            ClearRemotePlayers();
+            playerNames.Clear();
+            worldSync?.OnSessionEnded();
         }
 
         /// <summary>
@@ -320,6 +533,19 @@ namespace Orivilon.Multiplayer
             }
         }
 
+        /// <summary>
+        /// Server: jména všech hráčů znovu všem klientům (každých pár sekund). Jméno hosta dřív chodilo jen
+        /// jednou v okamžiku připojení – když se ta zpráva ztratila nebo předběhla, klient do konce session
+        /// ukazoval „Player 0“. Pár malých zpráv za 5 s to samo opraví (idempotentní).
+        /// </summary>
+        public void ResendNamesToAll()
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm == null || !nm.IsServer || worldSync == null) return;
+            foreach (var cid in nm.ConnectedClientsIds)
+                if (cid != nm.LocalClientId) SendKnownPlayerNamesTo(cid);
+        }
+
         // ══════════════════════════════════════════════════════════════════════
         // Callbacky připojení
         // ══════════════════════════════════════════════════════════════════════
@@ -334,6 +560,7 @@ namespace Orivilon.Multiplayer
                 {
                     worldSync.SendWorldStateTo(clientId);
                     SendKnownPlayerNamesTo(clientId);
+                    worldSync.SendLateJoinStateTo(clientId);   // dropy + aktuální čas
                     Debug.Log($"[MultiplayerManager] Klient {clientId} připojen, posílám stav světa.");
                 }
             }
@@ -351,15 +578,18 @@ namespace Orivilon.Multiplayer
 
         private void OnClientDisconnected(ulong clientId)
         {
-            playerNames.Remove(clientId);
-
-            if (remotePlayers.TryGetValue(clientId, out var ctrl))
+            var nm = NetworkManager.Singleton;
+            // Host: odpojení ohlásí ostatním klientům (dřív o něm nevěděli – kapsle i marker zůstaly viset).
+            if (nm != null && nm.IsServer && clientId != nm.LocalClientId)
             {
-                if (ctrl != null)
-                    Destroy(ctrl.gameObject);
-                remotePlayers.Remove(clientId);
-                Debug.Log($"[MultiplayerManager] Klient {clientId} odpojen, RemotePlayer smazán.");
+                worldSync?.BroadcastPlayerDisconnected(clientId);
+                worldSync?.ForgetClient(clientId);
             }
+
+            if (nm != null && nm.IsServer) playerKeys.Remove(clientId);
+            bool had = remotePlayers.ContainsKey(clientId);
+            RemoveRemotePlayer(clientId);
+            if (had) Debug.Log($"[MultiplayerManager] Klient {clientId} odpojen, RemotePlayer smazán.");
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -431,6 +661,8 @@ namespace Orivilon.Multiplayer
         {
             var t = EnsureSteamTransport(appId);
             netManager.NetworkConfig.NetworkTransport = t;
+            hostKey = Steamworks.SteamClient.IsValid ? Steamworks.SteamClient.SteamId.Value.ToString(System.Globalization.CultureInfo.InvariantCulture) : "";
+            if (string.IsNullOrEmpty(SessionNonce) || SessionNonce == LanQaNonce) SessionNonce = JoinGate.NewNonce();
             StartHostCommon(world);
             Debug.Log("[MultiplayerManager] Steam host spuštěn (relay).");
         }
@@ -439,11 +671,12 @@ namespace Orivilon.Multiplayer
         /// Připojí se ke Steam hostovi podle jeho SteamId.
         /// Volá SteamLobbyManager po vstupu do lobby.
         /// </summary>
-        public void StartClientSteam(ulong hostSteamId, uint appId)
+        public void StartClientSteam(ulong hostSteamId, uint appId, string password = "", string nonce = "")
         {
             var t = EnsureSteamTransport(appId);
             t.targetSteamId = hostSteamId;
             netManager.NetworkConfig.NetworkTransport = t;
+            PrepareClientPayload(hostSteamId.ToString(System.Globalization.CultureInfo.InvariantCulture), password, nonce);
             StartClientCommon();
             Debug.Log($"[MultiplayerManager] Připojuji se přes Steam k {hostSteamId}.");
         }

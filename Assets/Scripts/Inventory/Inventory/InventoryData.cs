@@ -67,177 +67,177 @@ namespace Orivilon.Inventory.Inventory
         /// </summary>
         private void Start()
         {
-            InventoryUI.RefreshAll();
-            OnInventoryChanged?.Invoke();
+            NotifyInventoryChanged();
         }
 
+        /// <summary>Počet slotů hotbaru (indexy 0 .. HotbarSize-1); zbytek pole je hlavní inventář.</summary>
+        public const int HotbarSize = 8;
+
         /// <summary>
-        /// Přidá item do inventáře s podporou stackování.
-        /// Průchod 1: stackuje do existujících slotů se stejným itemem.
-        /// Průchod 2: ukládá do prvních prázdných slotů.
-        /// Pokud se nevešlo vše, obnoví UI a vrátí false.
+        /// Přidá item do inventáře s podporou stackování – VŠE NEBO NIC.
+        /// Když se nevejde celé množství, inventář se nezmění a vrátí se false
+        /// (dřív se část zapsala a volající – např. PickupItem – nechal předmět ve světě celý → duplikace).
+        /// Průchod 1: stackuje do existujících slotů se stejným itemem. Průchod 2: první prázdné sloty.
         /// </summary>
         /// <param name="item">Item k přidání.</param>
         /// <param name="amount">Počet kusů (výchozí 1).</param>
-        /// <returns>True, pokud byly všechny kusy úspěšně přidány.</returns>
+        /// <returns>True, pokud byly všechny kusy přidány.</returns>
         public bool AddItem(InventoryItemData item, int amount = 1)
         {
             if (item == null || amount <= 0)
                 return false;
 
-            if (item.stackable)
+            if (SpaceFor(slots, 0, slots.Length - 1, item) < amount)
             {
-                for (int i = 0; i < slots.Length; i++)
-                {
-                    var slot = slots[i];
-
-                    if (slot.CanStackWith(item))
-                    {
-                        int move = Mathf.Min(slot.FreeSpace, amount);
-                        slot.amount += move;
-                        amount -= move;
-
-                        if (amount <= 0)
-                        {
-                            InventoryUI.RefreshAll();
-                            OnInventoryChanged?.Invoke();
-                            return true;
-                        }
-                    }
-                }
+                Debug.Log("Inventář je plný");
+                return false;
             }
 
-            for (int i = 0; i < slots.Length; i++)
-            {
-                var slot = slots[i];
-
-                if (slot.IsEmpty)
-                {
-                    slot.item = item;
-                    slot.amount = Mathf.Min(item.maxStack, amount);
-                    amount -= slot.amount;
-
-                    if (amount <= 0)
-                    {
-                        InventoryUI.RefreshAll();
-                        OnInventoryChanged?.Invoke();
-                        return true;
-                    }
-                }
-            }
-
-            Debug.Log("Inventář je plný");
-            InventoryUI.RefreshAll();
-            OnInventoryChanged?.Invoke();
-            return false;
+            InsertPartial(slots, 0, slots.Length - 1, item, amount);
+            NotifyInventoryChanged();
+            return true;
         }
 
         /// <summary>
-        /// Přidá item do inventáře s chytrou prioritou umístění:
-        /// 1. Stackuje do inventáře (9+).
-        /// 2. Stackuje do hotbaru (0–8).
-        /// 3. Ukládá do prázdných slotů inventáře.
-        /// 4. Ukládá do prázdných slotů hotbaru (poslední možnost).
-        /// Tato priorita zajišťuje, že hotbar se nezaplní dříve než inventář.
+        /// Přidá co nejvíc kusů (priorita AddItemSmart) a vrátí počet přidaných. Pro zdroje, které
+        /// zbytek stejně neuchovají (těžba bez systému vyhazování) – chování jako dřív, bez falešného false.
         /// </summary>
-        /// <param name="item">Item k přidání.</param>
-        /// <param name="amount">Počet kusů k přidání.</param>
-        /// <returns>True, pokud byly všechny kusy úspěšně přidány.</returns>
+        public int AddItemUpTo(InventoryItemData item, int amount)
+        {
+            if (item == null || amount <= 0) return 0;
+            int added = InsertSmart(slots, item, amount);
+            if (added > 0) NotifyInventoryChanged();
+            return added;
+        }
+
+        /// <summary>
+        /// Přidá item s prioritou umístění (stack v inventáři → stack v hotbaru → prázdné v inventáři
+        /// → prázdné v hotbaru) – VŠE NEBO NIC, aby se hotbar nezaplnil dřív než inventář.
+        /// </summary>
+        /// <returns>True, pokud byly všechny kusy přidány; při false se nic nezměnilo.</returns>
         public bool AddItemSmart(InventoryItemData item, int amount)
         {
             if (item == null || amount <= 0)
                 return false;
+            if (SpaceFor(slots, 0, slots.Length - 1, item) < amount)
+                return false;
 
-            amount = TryStackRange(9, slots.Length - 1, item, amount);
-            if (amount <= 0) return true;
-
-            amount = TryStackRange(0, 8, item, amount);
-            if (amount <= 0) return true;
-
-            amount = TryEmptyRange(9, slots.Length - 1, item, amount);
-            if (amount <= 0) return true;
-
-            amount = TryEmptyRange(0, 8, item, amount);
-
-            InventoryUI.RefreshAll();
-            OnInventoryChanged?.Invoke();
-            return amount <= 0;
+            InsertSmart(slots, item, amount);
+            NotifyInventoryChanged();
+            return true;
         }
 
         /// <summary>
-        /// Přidá item do konkrétního rozsahu slotů (stack + prázdné).
-        /// Používá se pro přesun mezi hotbarem a inventářem (Shift+klik).
+        /// Přidá item do konkrétního rozsahu slotů (stack + prázdné) – VŠE NEBO NIC.
         /// </summary>
-        /// <param name="from">Počáteční index rozsahu (včetně).</param>
-        /// <param name="to">Koncový index rozsahu (včetně).</param>
-        /// <param name="item">Item k přidání.</param>
-        /// <param name="amount">Počet kusů.</param>
-        /// <returns>True, pokud byly všechny kusy přidány do daného rozsahu.</returns>
+        /// <returns>True, pokud byly všechny kusy přidány do daného rozsahu; při false se nic nezměnilo.</returns>
         public bool AddItemRange(int from, int to, InventoryItemData item, int amount)
         {
-            int remaining = amount;
+            if (item == null || amount <= 0)
+                return false;
+            if (SpaceFor(slots, from, to, item) < amount)
+                return false;
 
-            remaining = TryStackRange(from, to, item, remaining);
-            if (remaining <= 0) return true;
-
-            remaining = TryEmptyRange(from, to, item, remaining);
-            return remaining <= 0;
+            InsertPartial(slots, from, to, item, amount);
+            NotifyInventoryChanged();
+            return true;
         }
 
         /// <summary>
-        /// Pokusí se stackovat item do existujících slotů v daném rozsahu.
-        /// Přeskočí nestackovatelné itemy. Vrátí zbývající počet kusů.
+        /// Kolik kusů daného itemu se vejde do rozsahu slotů (stack + prázdné), bez změny dat.
         /// </summary>
-        private int TryStackRange(int from, int to, InventoryItemData item, int amount)
+        public static int SpaceFor(InventorySlotData[] arr, int from, int to, InventoryItemData item)
         {
-            if (!item.stackable) return amount;
-
+            if (item == null || arr == null) return 0;
+            int limit = InventorySlotData.StackLimit(item);
+            int space = 0;
+            from = Mathf.Max(0, from);
+            to = Mathf.Min(arr.Length - 1, to);
             for (int i = from; i <= to; i++)
             {
-                var slot = slots[i];
-                if (!slot.CanStackWith(item)) continue;
+                var s = arr[i];
+                if (s == null) continue;
+                if (s.IsEmpty) space += limit;
+                else if (InventorySlotData.Compatible(s.item, item)) space += Mathf.Max(0, limit - s.amount);
+            }
+            return space;
+        }
 
-                int move = Mathf.Min(slot.FreeSpace, amount);
+        /// <summary>
+        /// Vloží co nejvíc kusů do rozsahu: nejdřív do kompatibilních stacků, pak do prázdných slotů.
+        /// Vrací POČET VLOŽENÝCH kusů; zbytek zůstává volajícímu (nic se neztrácí ani nevzniká).
+        /// Nevyvolává událost – volající ji vyvolá po dokončení celé operace.
+        /// </summary>
+        public static int InsertPartial(InventorySlotData[] arr, int from, int to, InventoryItemData item, int amount)
+        {
+            if (item == null || amount <= 0 || arr == null) return 0;
+            int left = amount;
+            left -= StackInto(arr, from, to, item, left);
+            left -= FillEmpty(arr, from, to, item, left);
+            return amount - left;
+        }
+
+        /// <summary>Priorita AddItemSmart nad libovolným polem slotů. Vrací počet vložených kusů.</summary>
+        public static int InsertSmart(InventorySlotData[] arr, InventoryItemData item, int amount)
+        {
+            if (item == null || amount <= 0 || arr == null) return 0;
+            int last = arr.Length - 1;
+            int left = amount;
+            left -= StackInto(arr, HotbarSize, last, item, left);
+            left -= StackInto(arr, 0, HotbarSize - 1, item, left);
+            left -= FillEmpty(arr, HotbarSize, last, item, left);
+            left -= FillEmpty(arr, 0, HotbarSize - 1, item, left);
+            return amount - left;
+        }
+
+        /// <summary>Doplní kompatibilní neplné stacky v rozsahu. Vrací počet vložených kusů.</summary>
+        private static int StackInto(InventorySlotData[] arr, int from, int to, InventoryItemData item, int amount)
+        {
+            if (amount <= 0 || !item.stackable) return 0;
+            int left = amount;
+            from = Mathf.Max(0, from);
+            to = Mathf.Min(arr.Length - 1, to);
+            for (int i = from; i <= to && left > 0; i++)
+            {
+                var slot = arr[i];
+                if (slot == null || !slot.CanStackWith(item)) continue;
+                int move = Mathf.Min(slot.FreeSpace, left);
                 slot.amount += move;
-                amount -= move;
-
-                if (amount <= 0)
-                    return 0;
+                left -= move;
             }
-
-            return amount;
+            return amount - left;
         }
 
-        /// <summary>
-        /// Ukládá item do prázdných slotů v daném rozsahu.
-        /// Respektuje maxStack – jeden slot pojme nejvýše maxStack kusů.
-        /// Vrátí zbývající počet kusů.
-        /// </summary>
-        private int TryEmptyRange(int from, int to, InventoryItemData item, int amount)
+        /// <summary>Uloží kusy do prázdných slotů v rozsahu (max limit stacku na slot). Vrací počet vložených.</summary>
+        private static int FillEmpty(InventorySlotData[] arr, int from, int to, InventoryItemData item, int amount)
         {
-            for (int i = from; i <= to; i++)
+            if (amount <= 0) return 0;
+            int limit = InventorySlotData.StackLimit(item);
+            int left = amount;
+            from = Mathf.Max(0, from);
+            to = Mathf.Min(arr.Length - 1, to);
+            for (int i = from; i <= to && left > 0; i++)
             {
-                var slot = slots[i];
-                if (!slot.IsEmpty) continue;
-
-                slot.item = item;
-                slot.amount = Mathf.Min(item.maxStack, amount);
-                amount -= slot.amount;
-
-                if (amount <= 0)
-                    return 0;
+                var slot = arr[i];
+                if (slot == null || !slot.IsEmpty) continue;
+                int move = Mathf.Min(limit, left);
+                slot.Set(item, move);
+                left -= move;
             }
-
-            return amount;
+            return amount - left;
         }
 
         /// <summary>
-        /// Vyvolá událost OnInventoryChanged a tím spustí refresh UI.
-        /// Volá se externě ze systémů, které mění data slotů přímo (BuildingTool, PlayerItemUse).
+        /// Vyvolá událost OnInventoryChanged. Na ni jsou přihlášené všechny zobrazené sloty
+        /// (InventorySlot, CraftingSlot), hotbar i Arcanum – jediná cesta k obnovení UI po změně dat.
+        /// Volají ji i systémy, které mění data slotů přímo (BuildingTool, PlayerItemUse, Arcanum, save).
         /// </summary>
         public void NotifyInventoryChanged()
         {
             OnInventoryChanged?.Invoke();
         }
+
+        /// <summary>Počet aktuálních posluchačů OnInventoryChanged (diagnostika úniku subscriptions).</summary>
+        public int ListenerCount => OnInventoryChanged == null ? 0 : OnInventoryChanged.GetInvocationList().Length;
     }
 }

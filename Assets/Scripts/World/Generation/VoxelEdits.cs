@@ -48,6 +48,10 @@ namespace Orivilon.World.Generation
 
         public int EditedChunks => deltas.Count;
 
+        /// <summary>Kolo MP 3: roste s každou změnou úprav (Apply/Import/Clear) – hostovo ověření lootu podle ní
+        /// zahodí cache osazení postavenou nad starým terénem.</summary>
+        public int Revision { get; private set; }
+
         public VoxelEdits(float voxelSize)
         {
             this.voxelSize = voxelSize;
@@ -105,6 +109,7 @@ namespace Orivilon.World.Generation
         /// <returns>Chunky, kterých se úprava dotkla.</returns>
         public bool Apply(float3 center, float radius, float strength)
         {
+            Revision++;
             if (radius <= 0f || abs(strength) < 1e-3f) return false;
 
             int dim = VoxelWorld.SampleDim;
@@ -225,6 +230,7 @@ namespace Orivilon.World.Generation
         /// <summary>Načte uložené úpravy. Vrací počet zahozených diffů z jiné verze generátoru.</summary>
         public int Import(List<ChunkDiff> list)
         {
+            Revision++;
             if (list == null) return 0;
 
             int skipped = 0;
@@ -262,6 +268,7 @@ namespace Orivilon.World.Generation
 
         public void Clear()
         {
+            Revision++;
             foreach (var kv in deltas)
             {
                 Dirty.Add(kv.Key);

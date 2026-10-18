@@ -63,6 +63,13 @@ namespace Orivilon.World.Generation
         /// <summary>Kolo 7: jen pro A/B měření – zapne/vypne práh u hydrologického schodu pro další stavby.</summary>
         public void SetHydroSill(bool on) => gp.hydroSill = on ? 1f : 0f;
 
+        /// <summary>Kolo MP 3: převezme parametry generátoru (včetně běhových přepínačů), paletu a terénní úpravy
+        /// jiného builderu téže úrovně – ověřovací builder hosta pak staví sloupec bitově stejně jako streamer.</summary>
+        public void CopyStateFrom(VoxelChunkBuilder o)
+        {
+            gp = o.gp; palette = o.palette; edgeSnap = o.edgeSnap; skirtCells = o.skirtCells; edits = o.edits;
+        }
+
         /// <summary>Kolo 11: jen pro A/B – plynulý směr toku u soutoků pro další stavby.</summary>
         public void SetFlowBlend(bool on) => gp.flowBlend = on ? 1f : 0f;
 
@@ -218,7 +225,22 @@ namespace Orivilon.World.Generation
                 gp = gp,
                 surfY = field.surfY,
                 maxCarve = probe,
-            }.Schedule(probeCount, 2, handle);
+            }.Schedule(probeCount, JobBudget.Batch(probeCount, 2), handle);
+        }
+
+        /// <summary>
+        /// Kolo 3: jen 2D pole povrchu sloupce (bez jeskynního testu) – se STEJNÝMI parametry jako
+        /// <see cref="ScheduleColumn(int2, Allocator, NativeArray{float}, in HydroRegionRef, int, out ColumnField)"/>
+        /// (počátek, krok, okraj, šev, u LOD0 i surfRaw). Pro přesné zástupce vzdálených stromů.
+        /// </summary>
+        public JobHandle ScheduleSurfaceField(int2 columnCoord, Allocator allocator, in HydroRegionRef hydro, out ColumnField field)
+        {
+            float seamLine = BenchNoSeam ? 0f : VoxelWorld.ChunkDim * voxelSize / (1 << Lod);
+            bool lod0 = Lod == 0 && seamLine > 0f && allocator == Allocator.Persistent;
+            field = WorldGen.Schedule(ColumnOrigin(columnCoord), voxelSize, ColumnSide,
+                                      gp, spl, hydro, allocator, seamLine,
+                                      0, columnCoord, lod0, out JobHandle handle);
+            return handle;
         }
 
         /// <summary>Jen pro měření (/teren bench): vypne dorovnání LOD švu.</summary>
@@ -379,9 +401,11 @@ namespace Orivilon.World.Generation
                 renderTris = mesh.renderTris,
             };
 
-            JobHandle hDensity = densityJob.Schedule(n, 256, dependency);
-            JobHandle hReset = resetJob.Schedule(n * 3, 1024, dependency);
-            JobHandle hMc = mcJob.Schedule(JobHandle.CombineDependencies(hDensity, hReset));
+            JobHandle hDensity = densityJob.Schedule(n, JobBudget.Batch(n, 256), dependency);
+            // Výkonové kolo 14.10.2026: reset hran až PO hustotě, ne souběžně – chunk tak nikdy
+            // nezabere víc vláken, než mu dovolí JobBudget (obě pole jsou na sobě nezávislá).
+            JobHandle hReset = resetJob.Schedule(n * 3, JobBudget.Batch(n * 3, 1024), hDensity);
+            JobHandle hMc = mcJob.Schedule(hReset);
             MarchingCubesTables.TrackReader(hMc);   // kolo 25: Dispose při Stop Play počká na tento job
             return hMc;
         }

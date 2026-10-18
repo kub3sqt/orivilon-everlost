@@ -542,6 +542,9 @@ namespace Orivilon.Player
         /// <summary>Aktuální stav pohybu. Mění se výhradně přes <see cref="SetState"/>.</summary>
         private PlayerMoveState moveState = PlayerMoveState.Airborne;
 
+        /// <summary>Diagnostika (/perf groundtest): simulovaný vstup chůze. Nula = běžný vstup.</summary>
+        public static Vector2 DebugMove;
+
         /// <summary>Poslední přečtený úmysl hráče. Plní se v <c>Update</c>, čte ve <c>FixedUpdate</c>.</summary>
         private MoveIntent intent = MoveIntent.None;
 
@@ -1010,6 +1013,7 @@ namespace Orivilon.Player
         private void ReadIntent()
         {
             Vector2 move = new Vector2(Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+            if (DebugMove != Vector2.zero) move = DebugMove;   // diagnostika /perf groundtest
 
             intent = new MoveIntent(
                 move,

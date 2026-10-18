@@ -143,10 +143,10 @@ namespace Orivilon.World.Generation
             // Makro a jezera čtou stejné spline LUT. Řetězí se za sebe záměrně:
             // paralelní běh dvou jobů nad týmiž NativeArray je sice read-only legální,
             // ale safety systém to hlídá přes vnořené struktury a zbytečně se s tím pere.
-            JobHandle hMacro = macroJob.Schedule(n, 64);
-            JobHandle hLakes = lakeJob.Schedule(cellsX * cellsZ, 8, hMacro);
-            JobHandle hArch  = archJob.Schedule(field.archCellsX * field.archCellsZ, 8, hLakes);
-            JobHandle hSurf  = surfJob.Schedule(n, 64, hArch);
+            JobHandle hMacro = macroJob.Schedule(n, JobBudget.Batch(n, 64), JobBudget.Dependency);
+            JobHandle hLakes = lakeJob.Schedule(cellsX * cellsZ, JobBudget.Batch(cellsX * cellsZ, 8), hMacro);
+            JobHandle hArch  = archJob.Schedule(field.archCellsX * field.archCellsZ, JobBudget.Batch(field.archCellsX * field.archCellsZ, 8), hLakes);
+            JobHandle hSurf  = surfJob.Schedule(n, JobBudget.Batch(n, 64), hArch);
 
             // Šití LOD švů: výška na hranicích LOD0 sloupců se srovná na lomenou čáru
             // s uzly po LodSeamJob.KnotCells metrech – tu umí přesně zopakovat každý LOD
@@ -161,7 +161,7 @@ namespace Orivilon.World.Generation
                     origin = origin, step = step, side = side, seamLine = seamLine,
                     fineMask = fineMask, fineLine0 = fineLine0,
                     src = src, surfY = field.surfY,
-                }.Schedule(n, 64, copy);
+                }.Schedule(n, JobBudget.Batch(n, 64), copy);
                 // Kolo 24: LOD0 si nechá výšku před šitím – osazení se pak drží přirozeného
                 // povrchu, i když sloupec zrovna sousedí s hrubším LOD (viz SurfaceRaster.SetSeamDelta).
                 if (keepRaw) field.surfRaw = src;

@@ -25,7 +25,7 @@ namespace Orivilon.Inventory.Hotbar
         private int currentIndex = 0;
 
         /// <summary>Pevná velikost hotbaru.</summary>
-        private const int HOTBAR_SIZE = 8;
+        private const int HOTBAR_SIZE = InventoryData.HotbarSize;
 
         /// <summary>
         /// Singleton inicializace.
@@ -44,6 +44,12 @@ namespace Orivilon.Inventory.Hotbar
             SetActiveSlot(0);
         }
 
+        private void OnDestroy()
+        {
+            if (InventoryData.Instance != null)
+                InventoryData.Instance.OnInventoryChanged -= RefreshActiveSlot;
+        }
+
         /// <summary>
         /// Každý snímek čte kolečko myši a přepíná aktivní slot.
         /// Blokováno během pauzy nebo otevřeného menu.
@@ -56,6 +62,12 @@ namespace Orivilon.Inventory.Hotbar
             // Kolečko myši nesmí přepínat sloty, když hráč píše do konzole.
             if (GameConsole.IsOpen)
                 return;
+
+            // Q = jeden kus, Ctrl+Q = celý stack z aktivního slotu (Cmd+Q na Macu ukončuje aplikaci, proto jen Ctrl).
+            // Game.unity má dvě zapnuté komponenty HotbarController – vyhazuje jen singleton, jinak by
+            // jedno stisknutí Q vyhodilo dva kusy.
+            if (Instance == this && Input.GetKeyDown(KeyCode.Q) && Orivilon.World.Objects.ItemDropService.GameplayInputAllowed())
+                DropActive(Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl));
 
             float scroll = Input.GetAxis("Mouse ScrollWheel");
 
@@ -111,6 +123,14 @@ namespace Orivilon.Inventory.Hotbar
 
             if (HandItemRenderer.Instance != null)
                 HandItemRenderer.Instance.SetItem(item);
+        }
+
+        /// <summary>Vyhodí jeden kus (all = celý stack) z aktivního slotu hotbaru před hráče.</summary>
+        public bool DropActive(bool all)
+        {
+            bool ok = InventoryActions.DropFromSlot(SlotRef.Player(currentIndex), all);
+            if (ok) InventoryActions.Commit();
+            return ok;
         }
 
         /// <summary>

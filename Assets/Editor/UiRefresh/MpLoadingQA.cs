@@ -23,6 +23,8 @@ namespace Orivilon.UI.Refresh.EditorTools
     {
         private static string QaRoot => Path.Combine(Directory.GetParent(Application.dataPath).FullName, "_reports", "ui-refresh", "qa-saves");
         private const string LastKey = "Everlost.UiQa.LastMpQaWorld";
+        /// <summary>MP QA 17.10.2026: heslo hosta pro mpqa host (prázdné = bez hesla).</summary>
+        public static string HostPassword = "";
         private static string traceFile;
         private static double traceStart, nextTrace;
 
@@ -74,8 +76,8 @@ namespace Orivilon.UI.Refresh.EditorTools
             if (why != null) return "ERR mpqa: " + why;
             EditorPrefs.SetString(LastKey, name + "|" + seed + "|" + folder);
             // the real PLAY dispatch: saved per-world mode decides
-            var mi = typeof(MainMenuUI).GetMethod("LaunchWorld", BindingFlags.Instance | BindingFlags.NonPublic);
-            mi.Invoke(ui, new object[] { world, world.PrefersMultiplayer });
+            // MP 17.10.2026: hostování přes HostWorld (bez dialogu s heslem; heslo z HostPassword, výchozí žádné)
+            ui.HostWorld(world, HostPassword ?? "");
             return "mpqa host " + name + " multi=" + world.PrefersMultiplayer + " player.json " + File.Exists(Path.Combine(folder, "player", "player.json")) + " → " + State();
         }
 

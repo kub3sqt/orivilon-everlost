@@ -23,6 +23,23 @@ namespace Orivilon.Multiplayer
         public const string PlayerConnected     = "Everlost.PlayerConn";
         public const string PlayerDisconnected  = "Everlost.PlayerDisc";
         public const string PlayerName          = "Everlost.PlayerName";
+
+        // Kolo MP 17.10.2026 – dropy, čas, teleporty, odpojení (formáty viz NetworkWorldSync.*.cs).
+        public const string DropRequest         = "Everlost.DropReq";      // C→S
+        public const string DropRequestResult   = "Everlost.DropReqRes";   // S→C (žadatel)
+        public const string DropSpawn           = "Everlost.DropSpawn";    // S→C
+        public const string DropCount           = "Everlost.DropCount";    // S→C (0 = zmizel)
+        public const string DropMove            = "Everlost.DropMove";     // S→C i C→S (hlášení dosednutí)
+        public const string DropSnapshot        = "Everlost.DropSnap";     // S→C (late join)
+        public const string PickupRequest       = "Everlost.PickupReq";    // C→S
+        public const string PickupResult        = "Everlost.PickupRes";    // S→C
+        public const string TimeSync            = "Everlost.Time";         // S→C
+        public const string TeleportRequest     = "Everlost.TpReq";        // C→S
+        public const string TeleportCommand     = "Everlost.TpCmd";        // S→C (cíl teleportu)
+        public const string TeleportResult      = "Everlost.TpRes";        // S→C (žadatel)
+        public const string InventoryTxn        = "Everlost.InvTxn";       // C→S (loot, craft, spotřeba)
+        public const string InventoryState      = "Everlost.InvState";     // S→C (účet klienta + potvrzené seq)
+        public const string LootResult          = "Everlost.LootRes";      // S→C (verdikt nároku na loot: seq, hash, ok)
     }
 
     /// <summary>

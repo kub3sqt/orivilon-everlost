@@ -6,9 +6,10 @@ using UnityEngine.UI;
 namespace Orivilon.Inventory.Inventory
 {
     /// <summary>
-    /// Singleton spravující item držený kurzorem během drag-and-drop operací v inventáři.
-    /// Ikona drženého itemu sleduje pohyb myši. Třída poskytuje metody pro vzětí,
-    /// položení, rozdělení stacku, sbírání stejných itemů a refresh vizuálu kurzoru.
+    /// Singleton zobrazující stack držený kurzorem. Data drží <see cref="InventoryActions.Cursor"/>
+    /// (vlastní objekt, nikdy sdílený se slotem); tato komponenta jen kreslí ikonu u myši a každý snímek
+    /// předá vstup do <see cref="InventoryDragDistributor.Tick"/> (číselné klávesy, kolečko, pojistka uvolnění).
+    /// Veřejné metody zůstávají kvůli QA a starším volajícím a vedou na stejné autoritativní operace.
     /// </summary>
     public class InventoryCursor : MonoBehaviour
     {
@@ -23,14 +24,16 @@ namespace Orivilon.Inventory.Inventory
         [Header("Stack Amount")]
         public TMP_Text stackAmountText;
 
-        /// <summary>Poslední zobrazený počet kusů – slouží k detekci změny bez vynuceného překreslení.</summary>
+        /// <summary>Naposledy zobrazený stav – překreslí se jen při změně.</summary>
         private int lastAmount = -1;
+        private InventoryItemData lastItem;
 
-        /// <summary>Data slotu aktuálně drženého kurzorem (null = kurzor nic nedrží).</summary>
-        public InventorySlotData HeldSlot { get; private set; }
+        /// <summary>Data drženého stacku (null = kurzor nic nedrží). Živý objekt InventoryActions.Cursor.</summary>
+        public InventorySlotData HeldSlot => InventoryActions.Cursor.IsEmpty ? null : InventoryActions.Cursor;
 
         /// <summary>
-        /// Singleton inicializace. Skryje ikonu kurzoru a resetuje text počtu.
+        /// Singleton inicializace. Nová scéna = nový kurzor: zbytky statického stavu z minulé scény
+        /// (držený stack už je zapsaný v savu, viz SaveSystem.SaveInventory) se zahodí.
         /// </summary>
         private void Awake()
         {
@@ -41,339 +44,125 @@ namespace Orivilon.Inventory.Inventory
             }
 
             Instance = this;
-            cursorImage.enabled = false;
-            RefreshCursorAmount();
+            InventoryDragDistributor.CancelGesture();
+            InventoryActions.Cursor.Clear();
+            if (cursorImage != null) cursorImage.enabled = false;
+            SyncVisual();
         }
 
         /// <summary>
-        /// Každý snímek přesouvá ikonu kurzoru na pozici myši.
-        /// Pokud se změnil počet kusů, obnoví textový popis.
+        /// Každý snímek: ikona sleduje myš, vizuál se dorovná se stavem dat, vstup inventáře.
         /// </summary>
         private void Update()
         {
-            if (HeldSlot != null)
-            {
+            InventoryDragDistributor.Tick();
+
+            var c = InventoryActions.Cursor;
+            if (!c.IsEmpty && cursorImage != null)
                 cursorImage.transform.position = Input.mousePosition;
 
-                if (HeldSlot.amount != lastAmount)
-                {
-                    RefreshCursorAmount();
-                    lastAmount = HeldSlot.amount;
-                }
-            }
+            if (c.amount != lastAmount || c.item != lastItem)
+                SyncVisual();
         }
 
-        /// <summary>
-        /// Vezme celý stack z daného slotu inventáře a přesune ho na kurzor.
-        /// Zdrojový slot se vymaže. Obnoví celé inventářní UI.
-        /// </summary>
-        /// <param name="slotIndex">Index slotu v InventoryData.Slots.</param>
+        /// <summary>Vezme celý stack z daného slotu inventáře na prázdný kurzor.</summary>
         public void TakeFromSlot(int slotIndex)
         {
-            var slots = InventoryData.Instance.Slots;
-            var slot = slots[slotIndex];
-
-            if (slot == null || slot.IsEmpty)
-                return;
-
-            HeldSlot = new InventorySlotData
-            {
-                item = slot.item,
-                amount = slot.amount
-            };
-
-            slot.Clear();
-
-            cursorImage.sprite = HeldSlot.item.icon;
-            cursorImage.enabled = true;
-            RefreshCursorAmount();
-
-            InventoryUI.RefreshAll();
+            if (!InventoryActions.Cursor.IsEmpty) return;
+            if (InventoryActions.LeftClick(SlotRef.Player(slotIndex))) InventoryActions.Commit();
         }
 
-        /// <summary>
-        /// Položí item z kurzoru do daného slotu inventáře.
-        /// Prázdný slot: přesune celý stack. Stejný item: stackuje (do maxStack).
-        /// Jiný item nebo plný slot: neprovede nic.
-        /// </summary>
-        /// <param name="slotIndex">Index cílového slotu v InventoryData.Slots.</param>
+        /// <summary>Položí/sloučí/prohodí stack z kurzoru s daným slotem (LMB).</summary>
         public void PlaceIntoSlot(int slotIndex)
         {
-            if (HeldSlot == null)
-                return;
-
-            var slots = InventoryData.Instance.Slots;
-            var slot = slots[slotIndex];
-
-            if (slot.IsEmpty)
-            {
-                slot.item = HeldSlot.item;
-                slot.amount = HeldSlot.amount;
-                HeldSlot = null;
-            }
-            else if (slot.CanStackWith(HeldSlot.item))
-            {
-                int move = Mathf.Min(slot.FreeSpace, HeldSlot.amount);
-                slot.amount += move;
-                HeldSlot.amount -= move;
-
-                if (HeldSlot.amount <= 0)
-                    HeldSlot = null;
-            }
-            else
-            {
-                return;
-            }
-
-            cursorImage.enabled = HeldSlot != null;
-            RefreshCursorAmount();
-
-            InventoryUI.RefreshAll();
+            if (InventoryActions.Cursor.IsEmpty) return;
+            if (InventoryActions.LeftClick(SlotRef.Player(slotIndex))) InventoryActions.Commit();
         }
 
-        /// <summary>
-        /// Zpracuje pravé kliknutí na slot inventáře.
-        /// Kurzor prázdný: vezme polovinu stacku ze slotu.
-        /// Kurzor drží item: položí 1 kus do slotu (prázdný nebo stejný item).
-        /// </summary>
-        /// <param name="slotIndex">Index slotu v InventoryData.Slots.</param>
+        /// <summary>RMB na slot: prázdný kurzor vezme polovinu (nahoru), jinak položí jeden kus.</summary>
         public void RightClickOnSlot(int slotIndex)
         {
-            var slots = InventoryData.Instance.Slots;
-            var slot = slots[slotIndex];
-
-            if (HeldSlot == null)
-            {
-                if (slot.IsEmpty || !slot.item.stackable || slot.amount <= 1)
-                    return;
-
-                int half = slot.amount / 2;
-
-                HeldSlot = new InventorySlotData
-                {
-                    item = slot.item,
-                    amount = half
-                };
-
-                slot.amount -= half;
-
-                cursorImage.sprite = HeldSlot.item.icon;
-                cursorImage.enabled = true;
-
-                InventoryUI.RefreshAll();
-                RefreshCursorAmount();
-                return;
-            }
-
-            if (HeldSlot != null)
-            {
-                if (slot.IsEmpty)
-                {
-                    slot.item = HeldSlot.item;
-                    slot.amount = 1;
-                    HeldSlot.amount--;
-                }
-                else if (slot.CanStackWith(HeldSlot.item))
-                {
-                    slot.amount += 1;
-                    HeldSlot.amount--;
-                }
-                else
-                {
-                    return;
-                }
-
-                if (HeldSlot.amount <= 0)
-                {
-                    ClearHeldSlot();
-                }
-                else
-                {
-                    RefreshCursorUI();
-                }
-
-                InventoryUI.RefreshAll();
-            }
+            if (InventoryActions.RightClick(SlotRef.Player(slotIndex))) InventoryActions.Commit();
         }
 
         /// <summary>
-        /// Pokusí se přidat daný počet kusů k itemu drženému na kurzoru.
-        /// Selže pokud kurzor drží jiný item nebo je stack plný.
+        /// Přidá kusy ke stacku na kurzoru – VŠE NEBO NIC (dřív se přidala jen část, ale volající
+        /// spotřeboval suroviny celého craftu).
         /// </summary>
-        /// <param name="item">Item, který se má přidat ke stacku na kurzoru.</param>
-        /// <param name="amount">Počet kusů k přidání.</param>
-        /// <returns>True, pokud byly alespoň některé kusy úspěšně přidány.</returns>
         public bool TryAddToHeldSlot(InventoryItemData item, int amount)
         {
-            if (HeldSlot == null)
-                return false;
-
-            if (HeldSlot.item != item)
-                return false;
-
-            int max = item.maxStack;
-            int canAdd = max - HeldSlot.amount;
-
-            if (canAdd <= 0)
-                return false;
-
-            int add = Mathf.Min(canAdd, amount);
-            HeldSlot.amount += add;
-
-            RefreshCursorUI();
+            var c = InventoryActions.Cursor;
+            if (c.IsEmpty || !InventorySlotData.Compatible(c.item, item) || amount <= 0) return false;
+            if (c.amount + amount > InventorySlotData.StackLimit(c.item)) return false;
+            c.amount += amount;
+            SyncVisual();
             return true;
         }
 
-        /// <summary>
-        /// Sesbírá všechny kusy daného itemu z inventáře i craftovacího gridu
-        /// a přidá je ke stacku na kurzoru (do maxStack). Přebytek vrátí do inventáře.
-        /// Pokud kurzor drží jiný item, metoda nic neprovede.
-        /// </summary>
-        /// <param name="item">Item, jehož všechny kusy se mají sebrat.</param>
+        /// <summary>Sesbírá kompatibilní kusy z viditelných slotů na kurzor (do limitu stacku).</summary>
         public void CollectAllOfItem(InventoryItemData item)
         {
-            if (item == null)
-                return;
-
-            int total = 0;
-
-            var invSlots = InventoryData.Instance.Slots;
-            for (int i = 0; i < invSlots.Length; i++)
+            var c = InventoryActions.Cursor;
+            if (item == null) return;
+            if (c.IsEmpty)
             {
-                var s = invSlots[i];
-                if (!s.IsEmpty && s.item == item)
+                foreach (var r in InventoryActions.VisibleStorage())
                 {
-                    total += s.amount;
-                    s.Clear();
+                    var s = r.Data;
+                    if (s != null && !s.IsEmpty && InventoryActions.SameItem(s.item, item)) { InventoryActions.LeftClick(r); break; }
                 }
             }
-
-            var craftSlots = CraftingData.Instance.gridSlots;
-            for (int i = 0; i < craftSlots.Length; i++)
-            {
-                var s = craftSlots[i];
-                if (!s.IsEmpty && s.item == item)
-                {
-                    total += s.amount;
-                    s.Clear();
-                }
-            }
-
-            if (total <= 0)
-                return;
-
-            int max = item.maxStack;
-
-            if (HeldSlot == null)
-            {
-                int take = Mathf.Min(total, max);
-                HeldSlot = new InventorySlotData
-                {
-                    item = item,
-                    amount = take
-                };
-                total -= take;
-            }
-            else if (HeldSlot.item == item)
-            {
-                int free = max - HeldSlot.amount;
-                int take = Mathf.Min(free, total);
-                HeldSlot.amount += take;
-                total -= take;
-            }
-
-            if (total > 0)
-            {
-                InventoryData.Instance.AddItemSmart(item, total);
-            }
-
-            RefreshCursorUI();
+            else if (!InventorySlotData.Compatible(c.item, item)) return;
+            InventoryActions.CollectToCursor();
+            InventoryActions.Commit();
         }
 
-        /// <summary>
-        /// Nastaví nový slot jako držený kurzorem a zobrazí jeho ikonu.
-        /// </summary>
-        /// <param name="slot">Data slotu k držení (item + amount).</param>
+        /// <summary>Nastaví držený stack (kopie dat – objekt slotu se nikdy nesdílí s kurzorem).
+        /// Volající odpovídá za to, že kusy ze zdroje odebral.</summary>
         public void SetHeldSlot(InventorySlotData slot)
         {
-            HeldSlot = slot;
-            cursorImage.sprite = slot.item.icon;
-            cursorImage.enabled = true;
-            RefreshCursorAmount();
+            if (slot == null) InventoryActions.Cursor.Clear();
+            else InventoryActions.Cursor.Set(slot.item, slot.amount);
+            SyncVisual();
         }
 
-        /// <summary>
-        /// Vymaže držený slot a skryje ikonu kurzoru.
-        /// </summary>
+        /// <summary>Vymaže držený stack (kusy zaniknou!). Volat jen po jejich přesunutí jinam.</summary>
         public void ClearHeldSlot()
         {
-            HeldSlot = null;
-            cursorImage.enabled = false;
-            RefreshCursorAmount();
-            stackAmountText.text = "";
-            lastAmount = -1;
+            InventoryActions.Cursor.Clear();
+            SyncVisual();
         }
 
+        /// <summary>Obnoví ikonu i text počtu kurzoru najednou.</summary>
+        public void RefreshCursorUI() => SyncVisual();
+
+        /// <summary>Vynucené obnovení celého vizuálu kurzoru (ikona i text).</summary>
+        public void ForceRefresh() => SyncVisual();
+
         /// <summary>
-        /// Obnoví ikonu kurzoru podle aktuálně drženého slotu.
+        /// Dorovná vizuál kurzoru a zámek popisu itemu se stavem dat. Prázdný kurzor (i dočasně nulový
+        /// během splitu) ikonu skryje – žádná „ghost“ ikona bez dat.
         /// </summary>
-        private void RefreshCursorIcon()
+        public void SyncVisual()
         {
-            if (HeldSlot == null)
+            var c = InventoryActions.Cursor;
+            bool has = !c.IsEmpty;
+            if (cursorImage != null)
             {
-                cursorImage.enabled = false;
-                return;
+                if (has) cursorImage.sprite = c.item.icon;
+                cursorImage.enabled = has;
             }
+            if (stackAmountText != null)
+                stackAmountText.text = has && c.amount > 1 ? c.amount.ToString() : "";
 
-            cursorImage.sprite = HeldSlot.item.icon;
-            cursorImage.enabled = true;
-        }
-
-        /// <summary>
-        /// Obnoví textový počet kusů na kurzoru.
-        /// Text se skryje pokud kurzor nic nedrží nebo drží pouze 1 kus.
-        /// </summary>
-        private void RefreshCursorAmount()
-        {
-            if (HeldSlot == null || HeldSlot.amount <= 1)
+            var newItem = has ? c.item : null;
+            if (newItem != lastItem)
             {
-                stackAmountText.text = "";
-                return;
+                if (newItem != null) ItemDescriptionUI.Instance?.LockToCursor(newItem);
+                else ItemDescriptionUI.Instance?.UnlockFromCursor();
             }
-
-            stackAmountText.text = HeldSlot.amount.ToString();
-        }
-
-        /// <summary>
-        /// Obnoví ikonu i text počtu kurzoru najednou.
-        /// </summary>
-        public void RefreshCursorUI()
-        {
-            RefreshCursorIcon();
-            RefreshCursorAmount();
-        }
-
-        /// <summary>
-        /// Vynucené obnovení celého vizuálu kurzoru (ikona i text).
-        /// Používá se po ukončení drag operace k synchronizaci stavu.
-        /// </summary>
-        public void ForceRefresh()
-        {
-            if (HeldSlot == null)
-            {
-                cursorImage.enabled = false;
-                stackAmountText.text = "";
-                lastAmount = -1;
-                return;
-            }
-
-            cursorImage.sprite = HeldSlot.item.icon;
-            cursorImage.enabled = true;
-            stackAmountText.text = HeldSlot.amount > 1
-                ? HeldSlot.amount.ToString()
-                : "";
-
-            lastAmount = HeldSlot.amount;
+            lastItem = newItem;
+            lastAmount = c.amount;
         }
     }
 }

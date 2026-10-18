@@ -62,6 +62,7 @@ namespace Orivilon.UI.Arcanum
 
             try
             {
+                Orivilon.SaveSystem.SaveTransaction.EnsureRecovered(folder);
                 string file = FilePath(folder);
                 if (!File.Exists(file)) return;
                 var data = JsonUtility.FromJson<SaveData>(File.ReadAllText(file));
@@ -90,11 +91,14 @@ namespace Orivilon.UI.Arcanum
                 var ids = new List<int>(unlocked);
                 ids.Remove(0);
                 ids.Sort();
-                File.WriteAllText(FilePath(folder), JsonUtility.ToJson(new SaveData { unlocked = ids.ToArray() }));
+                Orivilon.SaveSystem.SaveTransaction.WriteText(FilePath(folder), JsonUtility.ToJson(new SaveData { unlocked = ids.ToArray() }));
             }
             catch (Exception e)
             {
                 Debug.LogWarning("[Arcanum] Progres se nepodařilo uložit: " + e.Message);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                if (e.Message.StartsWith("QA:")) throw;   // simulovaný pád uložení nesmí spolknout
+#endif
             }
         }
     }

@@ -171,6 +171,68 @@ namespace Orivilon.World.Spawning
         }
 
         /// <summary>
+        /// Výkonové kolo 14.10.2026: přesná obálka dávky – mesh.bounds přenesené KAŽDOU maticí
+        /// (včetně měřítka a natočení). Dřív se brala obálka poloh a rozšířila o nezměnšenou
+        /// velikost meshe; u zvětšených objektů (obří houby, vysoké stromy) koruna z obálky
+        /// vyčnívala a celá dávka se ořízla, jakmile pata sloupce vypadla ze záběru –
+        /// objekty pak byly neviditelné, ale jejich collider zůstal.
+        /// </summary>
+        public static Bounds WorldBounds(Mesh mesh, Matrix4x4[] matrices, int count)
+        {
+            Bounds local = mesh != null ? mesh.bounds : new Bounds(Vector3.zero, Vector3.one);
+            Vector3 c = local.center, e = local.extents;
+            Vector3 lo = new Vector3(float.MaxValue, float.MaxValue, float.MaxValue), hi = -lo;
+            for (int i = 0; i < count; i++)
+            {
+                Matrix4x4 m = matrices[i];
+                Vector3 wc = m.MultiplyPoint3x4(c);
+                var we = new Vector3(
+                    Mathf.Abs(m.m00) * e.x + Mathf.Abs(m.m01) * e.y + Mathf.Abs(m.m02) * e.z,
+                    Mathf.Abs(m.m10) * e.x + Mathf.Abs(m.m11) * e.y + Mathf.Abs(m.m12) * e.z,
+                    Mathf.Abs(m.m20) * e.x + Mathf.Abs(m.m21) * e.y + Mathf.Abs(m.m22) * e.z);
+                lo = Vector3.Min(lo, wc - we);
+                hi = Vector3.Max(hi, wc + we);
+            }
+            var b = new Bounds();
+            if (count > 0) b.SetMinMax(lo, hi);
+            return b;
+        }
+
+        /// <summary>
+        /// Diagnostika (/veg bounds): kolik registrovaných dávek má obálku menší, než kolik
+        /// zabírají jejich instance, a kolik instancí je v tomto snímku ořezáno, ačkoli jsou
+        /// v záběru. Pro srovnání i totéž pro dřívější vzorec (polohy + 3× velikost meshe).
+        /// </summary>
+        public string AuditBounds()
+        {
+            Camera cam = Camera.main;
+            if (cam != null) GeometryUtility.CalculateFrustumPlanes(cam, frustum);
+            int bad = 0, badInst = 0, culledVisible = 0, oldBad = 0, oldInst = 0;
+            float worst = 0f;
+            foreach (KeyValuePair<int, Batch> kv in batches)
+            {
+                Batch b = kv.Value;
+                if (b.mesh == null || b.count <= 0) continue;
+                Bounds truth = WorldBounds(b.mesh, b.matrices, b.count);
+                bool contained = b.bounds.Contains(truth.min) && b.bounds.Contains(truth.max);
+                if (!contained)
+                {
+                    bad++; badInst += b.count;
+                    worst = Mathf.Max(worst, Mathf.Max(0f, truth.max.y - b.bounds.max.y));
+                    if (cam != null && GeometryUtility.TestPlanesAABB(frustum, truth)
+                        && !GeometryUtility.TestPlanesAABB(frustum, b.bounds)) culledVisible += b.count;
+                }
+                var old = new Bounds(b.matrices[0].GetColumn(3), Vector3.zero);
+                for (int i = 1; i < b.count; i++) old.Encapsulate(b.matrices[i].GetColumn(3));
+                old.Expand(b.mesh.bounds.size.magnitude * 3f);
+                if (!(old.Contains(truth.min) && old.Contains(truth.max))) { oldBad++; oldInst += b.count; }
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "dávek {0}: s menší obálkou {1} ({2} instancí, koruna přečnívá až {3:0.0} m), teď ořezáno ač v záběru {4} instancí | dřívější vzorec by nesedl u {5} dávek ({6} instancí)",
+                batches.Count, bad, badInst, worst, culledVisible, oldBad, oldInst);
+        }
+
+        /// <summary>
         /// Kreslení. V <c>LateUpdate</c> schválně: kamera už je na své finální pozici po
         /// pohybu hráče, takže se frustum neořezává podle polohy z minulého snímku.
         /// </summary>

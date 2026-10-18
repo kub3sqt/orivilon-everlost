@@ -25,6 +25,8 @@ namespace Orivilon.World.Spawning
             public long hash;
             public PickupItem template;
             public float distance;
+            /// <summary>Vstupy hashe a poloha – nárok na loot v multiplayeru.</summary>
+            public Vector2Int chunk; public int keyA, keyB, keyCode; public Vector3 position;
             public bool Valid => spawner != null && template != null && template.itemData != null;
         }
 
@@ -112,7 +114,8 @@ namespace Orivilon.World.Spawning
                     if (SaveSystem.SaveSystem.IsObjectDestroyed(data.objectHash)) continue;
 
                     bestPerp = perp;
-                    best = new InstancedPickup { spawner = sp, hash = data.objectHash, template = tpl, distance = t };
+                    best = new InstancedPickup { spawner = sp, hash = data.objectHash, template = tpl, distance = t,
+                        chunk = data.chunkCoord, keyA = data.keyA, keyB = data.keyB, keyCode = data.keyCode, position = data.position };
                 }
             }
             return best.Valid;
@@ -133,7 +136,15 @@ namespace Orivilon.World.Spawning
             }
             if (SaveSystem.SaveSystem.IsObjectDestroyed(p.hash)) return false;
 
-            if (!InventoryData.Instance.AddItem(p.template.itemData, p.template.itemCount))
+            // Multiplayer klient: kusy přidělí host (nárok s klíčem objektu); lokálně se nic nepřidá.
+            if (Orivilon.Multiplayer.MpLedger.ClientActive)
+            {
+                if (InventoryData.SpaceFor(InventoryData.Instance.Slots, 0, InventoryData.Instance.Slots.Length - 1, p.template.itemData) < p.template.itemCount)
+                { Debug.Log("Inventář je plný – item nelze sebrat"); return false; }
+                // Kolo MP 3: stéblo zmizí až po kladném verdiktu hosta (OnLootResult → DestroyInstancedByHash).
+                return Orivilon.Multiplayer.MpLedger.ClaimLoot(Orivilon.Multiplayer.MpLedger.LootKind.Pickup, p.chunk, p.keyA, p.keyB, p.keyCode, p.position);
+            }
+            else if (!InventoryData.Instance.AddItem(p.template.itemData, p.template.itemCount))
             {
                 Debug.Log("Inventář je plný – item nelze sebrat");
                 return false;
@@ -165,6 +176,19 @@ namespace Orivilon.World.Spawning
                 }
             }
             return false;
+        }
+
+        /// <summary>Multiplayer late join: hromadná varianta (každý sloupec se přestaví nejvýš jednou).</summary>
+        public static void DestroyInstancedByHashes(HashSet<long> hashes)
+        {
+            for (int k = 0; k < liveGrass.Count; k++)
+            {
+                ObjectSpawner sp = liveGrass[k];
+                if (sp == null) continue;
+                List<PendingDetailData> list = sp.pendingDetails;
+                for (int i = 0; i < list.Count; i++)
+                    if (hashes.Contains(list[i].objectHash)) { sp.RebuildGrass(); break; }
+            }
         }
 
         /// <summary>Přestaví dávky trávy (vynechá zničená stébla).</summary>

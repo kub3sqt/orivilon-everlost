@@ -78,12 +78,15 @@ namespace Orivilon.Core
             // kvůli OnGUI každý snímek připravovalo layout (GUIUtility.BeginGUI) –
             // i se zavřenou konzolí to profil ukázal jako ~0,36 KB GC alokací na snímek.
             useGUILayout = false;
+            Orivilon.Multiplayer.NetworkWorldSync.TeleportFeedback -= OnTeleportFeedback;
+            Orivilon.Multiplayer.NetworkWorldSync.TeleportFeedback += OnTeleportFeedback;
         }
 
         private void OnDestroy()
         {
             if (Instance != this) return;
             Instance = null;
+            Orivilon.Multiplayer.NetworkWorldSync.TeleportFeedback -= OnTeleportFeedback;
         }
 
         private void Update()
@@ -304,6 +307,7 @@ namespace Orivilon.Core
                     else CmdBiome();
                     break;
                 case "tp": case "teleport": CmdTeleport(a); break;
+                case "list": case "players": case "hraci": CmdList(); break;
                 case "find": case "najdi": CmdFind(a); break;
                 case "terrain": case "teren": CmdTerrain(a); break;
                 case "dig": case "kop": CmdDig(); break;
@@ -315,6 +319,7 @@ namespace Orivilon.Core
                 case "voda": case "water": CmdWater(a); break;
                 case "pauza": case "pause": CmdPause(); break;
                 case "profil": CmdProfile(a); break;
+                case "perf": CmdPerf(a); break;
                 case "props": case "propy": CmdProps(a); break;
                 case "art": case "umeni": CmdArt(a); break;
                 case "art9": CmdArt9(a); break;
@@ -445,8 +450,78 @@ namespace Orivilon.Core
                     Ok("kompozice kola 8: " + (World.Generation.EcologyPlacer.Compose8 ? "ZAP" : "VYP") + " (platí pro nově osazené sloupce)");
                     Diag("[props kompozice] " + (World.Generation.EcologyPlacer.Compose8 ? "ZAP" : "VYP"));
                     break;
+                case "lodkeep":
+                    // Kolo 4 A/B: poslední LOD skutečných stromů bez ořezu (platí pro nově osazené).
+                    if (a.Length > 2) World.Spawning.ObjectSpawner.KeepLastLod = a[2] != "off" && a[2] != "0";
+                    Ok("poslední LOD stromů bez ořezu: " + (World.Spawning.ObjectSpawner.KeepLastLod ? "ZAP" : "VYP") + ", upraveno " + World.Spawning.ObjectSpawner.KeepLastLodCount);
+                    break;
+                case "formy": case "forms":
+                {
+                    // Kolo 4: čedič/obsidián po stupních pipeline (od posledního resetu) + co je teď ve scéně.
+                    if (a.Length > 2 && a[2] == "reset") { EcologyPlacer.FormReset(); Ok("formy: počty vynulovány"); break; }
+                    int[] go = new int[2], vis = new int[2];
+                    foreach (var tr in UnityEngine.Object.FindObjectsByType<Transform>(FindObjectsSortMode.None))
+                    {
+                        string n = tr.name;
+                        int g = n.StartsWith("SM_Cedic") || n.StartsWith("SM_Utes_Cedic") ? 0 : n.StartsWith("SM_Obsidian") || n.StartsWith("SM_Lava_Kamen") ? 1 : -1;
+                        if (g < 0 || tr.parent == null || tr.parent.name.StartsWith("SM_")) continue;   // jen kořeny instancí
+                        go[g]++;
+                        // GameObject s vlastním rendererem, nebo instancovaný (renderer odebrán, kreslí ho dávka sloupce).
+                        if (tr.GetComponentInChildren<Renderer>() == null) vis[g]++;
+                    }
+                    string txt = string.Format(CultureInfo.InvariantCulture,
+                        "formy čedič: rozmístěno {0}, chybí ve spawnables {1}, předáno ke vzniku {2}, ve scéně {3} (z toho instancovaných dávkou {4}) | obsidián: {5}, {6}, {7}, ve scéně {8} ({9})",
+                        EcologyPlacer.FormPlaced[0], EcologyPlacer.FormNoSpawnable[0], EcologyPlacer.FormSpawned[0], go[0], vis[0],
+                        EcologyPlacer.FormPlaced[1], EcologyPlacer.FormNoSpawnable[1], EcologyPlacer.FormSpawned[1], go[1], vis[1]);
+                    Ok(txt); Diag("[props formy] " + txt);
+                    break;
+                }
+                case "lodaudit":
+                {
+                    var lodAuditNames = new Dictionary<string, int>();
+                    if (a.Length > 2 && TryNumber(a[2], out float wantBias)) QualitySettings.lodBias = wantBias;   // jako hráčovo nastavení
+                    // Kolo 4: kolik osazených stromů (LODGroup + DeterministicObjectId) je teď ořezaných
+                    // LODGroup – tj. nekreslí se vůbec, přestože jejich zástupce už je pryč.
+                    Camera cam = Camera.main;
+                    if (cam == null) { Error("kamera chybí"); break; }
+                    float k = 2f * Mathf.Tan(0.5f * cam.fieldOfView * Mathf.Deg2Rad);
+                    int total = 0, culled = 0, keep = 0; float minCullD = float.MaxValue, maxD = 0f;
+                    foreach (var g in UnityEngine.Object.FindObjectsByType<LODGroup>(FindObjectsSortMode.None))
+                    {
+                        if (g.GetComponent<World.Objects.DeterministicObjectId>() == null) continue;
+                        LOD[] lods = g.GetLODs();
+                        if (lods.Length == 0) continue;
+                        total++;
+                        float last = lods[lods.Length - 1].screenRelativeTransitionHeight;
+                        if (last <= 0f) { keep++; continue; }
+                        Vector3 ls = g.transform.lossyScale;
+                        float size = g.size * Mathf.Max(Mathf.Abs(ls.x), Mathf.Max(Mathf.Abs(ls.y), Mathf.Abs(ls.z)));
+                        float d = Vector3.Distance(cam.transform.position, g.transform.TransformPoint(g.localReferencePoint));
+                        maxD = Mathf.Max(maxD, d);
+                        float rel = size * QualitySettings.lodBias / Mathf.Max(1e-3f, d * k);
+                        if (rel < last)
+                        {
+                            culled++; minCullD = Mathf.Min(minCullD, d);
+                            string nm = g.name.Replace("(Clone)", "");
+                            lodAuditNames.TryGetValue(nm, out int cnt); lodAuditNames[nm] = cnt + 1;
+                        }
+                    }
+                    var nsb = new System.Text.StringBuilder();
+                    foreach (var kv in lodAuditNames) nsb.Append(' ').Append(kv.Key).Append('×').Append(kv.Value);
+                    lodAuditNames.Clear();
+                    Ok(string.Format(CultureInfo.InvariantCulture, "stromů s LODGroup {0}, bez ořezu {1}, právě ořezaných (neviditelných) {2}, nejbližší ořezaný {3:0} m",
+                        total, keep, culled, culled > 0 ? minCullD : 0f));
+                    Diag("[props lodaudit] " + total + "/" + keep + "/" + culled + " min " + minCullD.ToString("0", CultureInfo.InvariantCulture) + " maxD " + maxD.ToString("0", CultureInfo.InvariantCulture) + " lodBias " + QualitySettings.lodBias.ToString("0.00", CultureInfo.InvariantCulture) + " |" + nsb);
+                    break;
+                }
                 case "daleko": case "far":
                 {
+                    if (a.Length > 3 && (a[2] == "kmen" || a[2] == "trunk"))
+                    {
+                        World.Spawning.TreeProxies.FarTrunkShader = a[3] == "on" || a[3] == "1";
+                        Ok("kmeny zástupců: " + (World.Spawning.TreeProxies.FarTrunkShader ? "Everlost/Trunk (instancovaný)" : "URP/Lit prefabu") + " – platí pro nově stavěné druhy");
+                        break;
+                    }
                     // Kolo 31: A/B vzdálených jehličnanů (/props daleko jehlic on|off) – ostatní stromy beze změny.
                     if (a.Length > 3 && (a[2] == "jehlic" || a[2] == "conifer"))
                     { World.Spawning.TreeProxies.ConiferProxies = a[3] != "off" && a[3] != "0"; World.Spawning.TreeProxies.MarkDirty(); }
@@ -579,7 +654,7 @@ namespace Orivilon.Core
                         Diag("[props tour] " + name + ": nenalezeno do 3 km");
                         continue;
                     }
-                    t.Teleport(new Vector3(at.x, 0f, at.z));
+                    TeleportSelf(t, new Vector3(at.x, 0f, at.z), true);
                 }
                 yield return new WaitForSeconds(2f);
                 float t0 = Time.realtimeSinceStartup;
@@ -639,7 +714,7 @@ namespace Orivilon.Core
             t0 = Time.realtimeSinceStartup;
             foreach (Vector2 r in route)
             {
-                t.Teleport(new Vector3(r.x, 0f, r.y));
+                TeleportSelf(t, new Vector3(r.x, 0f, r.y), true);
                 float s0 = Time.realtimeSinceStartup;
                 yield return null;
                 while ((t.IsTeleporting || !t.IsSettled) && Time.realtimeSinceStartup - s0 < 60f) { yield return null; jumps.Add(Time.unscaledDeltaTime * 1000f); }
@@ -657,7 +732,7 @@ namespace Orivilon.Core
             for (int i = 0; i < 180; i++)
             {
                 pos.x += 6f;
-                t.Teleport(new Vector3(pos.x, 0f, pos.z));
+                TeleportSelf(t, new Vector3(pos.x, 0f, pos.z), true);
                 float s0 = Time.realtimeSinceStartup;
                 while (Time.realtimeSinceStartup - s0 < 0.25f) { yield return null; walk.Add(Time.unscaledDeltaTime * 1000f); }
             }
@@ -700,11 +775,11 @@ namespace Orivilon.Core
                 for (int pass = 0; pass < 2; pass++)
                 {
                     if (sillMode) t.SetHydroSill(pass == 1); else WaterSurface.LipFix = pass == 1;
-                    t.Teleport(new Vector3(s.x + 6000f, 0f, s.y + 6000f));
+                    TeleportSelf(t, new Vector3(s.x + 6000f, 0f, s.y + 6000f), true);
                     yield return new WaitForSeconds(1f);
                     float t0 = Time.realtimeSinceStartup;
                     while ((t.IsTeleporting || !t.IsSettled) && Time.realtimeSinceStartup - t0 < 60f) yield return null;
-                    t.Teleport(new Vector3(s.x, 0f, s.y));
+                    TeleportSelf(t, new Vector3(s.x, 0f, s.y), true);
                     yield return new WaitForSeconds(1f);
                     t0 = Time.realtimeSinceStartup;
                     while ((t.IsTeleporting || !t.IsSettled) && Time.realtimeSinceStartup - t0 < 60f) yield return null;
@@ -747,7 +822,7 @@ namespace Orivilon.Core
                             Time.realtimeSinceStartup - t0, skipRun, p.position.x, pos.x);
                     skipRun = 0;
                 }
-                t.Teleport(new Vector3(pos.x, 0f, pos.z));
+                TeleportSelf(t, new Vector3(pos.x, 0f, pos.z), true);
                 float s0 = Time.realtimeSinceStartup;
                 while (Time.realtimeSinceStartup - s0 < 0.25f)
                 {
@@ -1110,6 +1185,8 @@ namespace Orivilon.Core
         /// neukládá – bez vybraného světa SaveSystem registr nezapisuje). Pak ověří, že strom i jeho Leaves_Shadow
         /// zmizely, že nevznikla osiřelá kopie a že je objekt v registru zničených.
         /// </summary>
+        private long lastFellHash; private Vector3 lastFellPos; private string lastFellName;
+
         private IEnumerator FellTest(Vector3 c, string filter)
         {
             World.Objects.HarvestableObject best = null; float bd = float.MaxValue;
@@ -1146,6 +1223,7 @@ namespace Orivilon.Core
             Destroy(tool);
             yield return null; yield return null;
             bool treeGone = tree == null, shadowGone = shadow == null;
+            lastFellHash = treeGone ? hash : 0; lastFellPos = pos; lastFellName = name;   // kolo 3: /perf propslife
             bool reg = hash != 0 && SaveSystem.SaveSystem.IsObjectDestroyed(hash);
             string after = CanopyShadowAudit(pos, 40f, "po_kaceni");
             string txt = string.Format(CultureInfo.InvariantCulture,
@@ -1195,10 +1273,14 @@ namespace Orivilon.Core
             Note("/tp <x> <z>               - jump to coordinates, height from terrain");
             Note("/tp <x> <y> <z>           - jump to exact height (~ = relative, e.g. ~ ~40 ~)");
             Note("/tp grove | basalt        - nearest micro-biome (golden grove, basalt field)");
+            Note("/tp <player>              - jump to a player (name, \"name with spaces\" or #id from /list)");
+            Note("/tp <player> <target>     - host only: move a player to another player");
+            Note("/tp <player> <x> <y> <z>  - host only: move a player to coordinates (/teleport works too)");
+            Note("/list                     - players in this world and their IDs (#0 = host)");
             Note("/pos, /seed               - where am I, world seed");
             Note("/fly on | off             - flight on or off");
             Note("/look <yaw> [pitch]       - aim the view; 0 = north, negative pitch = down");
-            Note("/time [set day|night|dawn|dusk|noon|midnight|<0-24>] - show or set the time of day");
+            Note("/time [set day|night|dawn|dusk|noon|midnight|<0-24>] - show or set the time of day (host only in multiplayer)");
             Note("/stop, /clear             - cancel a running biome search, clear this console");
         }
 
@@ -1452,7 +1534,7 @@ namespace Orivilon.Core
                 }
                 pendingYaw = ly; pendingPitch = 6f;
                 pendingLook = true; pendingSince = Time.unscaledTime;
-                t.Teleport(new Vector3(tx, 0f, tz));
+                TeleportSelf(t, new Vector3(tx, 0f, tz), true);
                 Ok(string.Format(CultureInfo.InvariantCulture, "vrchol: ({0:0},{1:0}) výška {2:0}, yaw {3:0}", tx, tz, top, ly));
                 Diag(string.Format(CultureInfo.InvariantCulture, "[vyhled] vrchol ({0:0},{1:0}) h {2:0} yaw {3:0}", tx, tz, top, ly));
                 return;
@@ -1503,7 +1585,7 @@ namespace Orivilon.Core
             float dist = Mathf.Sqrt(dx * dx + dz * dz);
             pendingPitch = Mathf.Clamp(Mathf.Atan2(bs + 7.7f - wY, dist) * Mathf.Rad2Deg * 0.8f, 2f, 35f);
             pendingLook = true; pendingSince = Time.unscaledTime;
-            t.Teleport(new Vector3(bx, 0f, bz));
+            TeleportSelf(t, new Vector3(bx, 0f, bz), true);
             Ok(string.Format(CultureInfo.InvariantCulture, "vyhled: ({0:0},{1:0}) → voda ({2:0},{3:0}) hladina {4:0.0}, yaw {5:0} pitch {6:0}",
                 bx, bz, wx, wz, wY, pendingYaw, pendingPitch));
             Diag(string.Format(CultureInfo.InvariantCulture, "[vyhled] ({0:0},{1:0}) -> ({2:0},{3:0}) yaw {4:0} pitch {5:0}", bx, bz, wx, wz, pendingYaw, pendingPitch));
@@ -2269,6 +2351,13 @@ namespace Orivilon.Core
                 return;
             }
 
+            // Multiplayer: čas patří hostovi (NetworkWorldSync ho rozesílá); klient by ho přepsal jen u sebe.
+            if (Orivilon.Multiplayer.MultiplayerManager.IsClient)
+            {
+                Error("Only the host can change the time of day in multiplayer.");
+                return;
+            }
+
             // "set" je volitelné: /time day i /time set day dělají totéž.
             int at = (a[1].ToLowerInvariant() == "set") ? 2 : 1;
             if (at >= a.Length)
@@ -2299,6 +2388,7 @@ namespace Orivilon.Core
             }
 
             sun.SetTime(Mathf.Repeat(target, 24f));
+            Orivilon.Multiplayer.NetworkWorldSync.Instance?.BroadcastTimeNow();   // host: hned i u ostatních
             Ok("Time set to " + sun.GetTimeString() + ".");
         }
 
@@ -2316,6 +2406,12 @@ namespace Orivilon.Core
                 vr.BatchCount, vr.LastDrawCalls, vr.LastInstances));
 
             if (a.Length > 1 && (a[1] == "detail" || a[1] == "d")) VegetationDetail();
+            if (a.Length > 1 && a[1] == "bounds")
+            {
+                string r = vr.AuditBounds() + " | " + World.Spawning.ObjectSpawner.AuditHiddenShells();
+                Diag("[veg bounds] " + r);
+                Note(r);
+            }
         }
 
         /// <summary>
@@ -2610,7 +2706,7 @@ namespace Orivilon.Core
 
             Ok(string.Format(CultureInfo.InvariantCulture, "{0}: x {1:0} y {2:0.0} z {3:0}, teleporting...",
                 sub, at.x, at.y, at.z));
-            t.Teleport(new Vector3(at.x, 0f, at.z));
+            TeleportSelf(t, new Vector3(at.x, 0f, at.z), true);
         }
 
         private void CmdStop()
@@ -2705,7 +2801,7 @@ namespace Orivilon.Core
             if (a.Length == 3 && TryCoord(a[1], v.x, out float cx) && TryCoord(a[2], v.z, out float cz))
             {
                 Ok(string.Format(CultureInfo.InvariantCulture, "Teleporting to {0:0} / {1:0}, height from terrain...", cx, cz));
-                t.Teleport(new Vector3(cx, 0f, cz));
+                TeleportSelf(t, new Vector3(cx, 0f, cz), true);
                 return;
             }
 
@@ -2713,9 +2809,12 @@ namespace Orivilon.Core
                               && TryCoord(a[3], v.z, out float tz))
             {
                 Ok(string.Format(CultureInfo.InvariantCulture, "Teleporting to {0:0} / {1:0} / {2:0}...", tx, ty, tz));
-                t.Teleport(new Vector3(tx, ty, tz), false);
+                TeleportSelf(t, new Vector3(tx, ty, tz), false);
                 return;
             }
+
+            // Kolo MP 17.10.2026: hráči (/tp <hráč>, /tp <hráč> <cíl>, /tp <hráč> <x> <y> <z>) mají přednost před biomy.
+            if (a.Length >= 2 && TryPlayerTeleport(a, v)) return;
 
             if (a.Length >= 2)
             {
@@ -2741,11 +2840,12 @@ namespace Orivilon.Core
                     return;
                 }
 
-                Error("Unknown biome " + LeftQuote + name + RightQuote + ". Type /biome list to see all IDs, then /biome tp <biome-id>.");
+                Error("No player or biome called " + LeftQuote + Orivilon.Multiplayer.PlayerNames.Sanitize(name, 0) + RightQuote +
+                      ". Type /list for players, or /biome list and then /biome tp <biome-id>.");
                 return;
             }
 
-            Error("Usage: /tp <x> <z>, /tp <x> <y> <z> or /biome tp <biome-id>");
+            Error("Usage: /tp <x> <z>, /tp <x> <y> <z>, /tp <player>, /tp <player> <target> or /biome tp <biome-id>");
         }
 
         /// <summary>Spojí argumenty od indexu <paramref name="from"/> mezerou – víceslovné biomy.</summary>
@@ -2874,7 +2974,7 @@ namespace Orivilon.Core
                 "{0}: x {1:0} y {2:0} z {3:0} - {4:0} m away, strength {5:0}% ({6} samples)",
                 MicroName(want), best.x, y, best.z, dist, bestW * 100f, samples));
 
-            if (teleport) t.Teleport(best);
+            if (teleport) TeleportSelf(t, best, true);
             search = null;
         }
 
@@ -2929,7 +3029,7 @@ namespace Orivilon.Core
                             "{0}: x {1:0} y {2:0} z {3:0} - {4:0} m away ({5} samples)",
                             VoxelBiomes.Name(want), x, y, z, dist, samples));
 
-                        if (teleport) t.Teleport(hit);
+                        if (teleport) TeleportSelf(t, hit, true);
                         search = null;
                         yield break;
                     }

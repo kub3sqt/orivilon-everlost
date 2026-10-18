@@ -37,6 +37,17 @@ namespace Orivilon.World.Spawning
         /// </summary>
         public static bool ConiferProxies = true;
 
+        /// <summary>
+        /// Kolo 4: instancované kmeny zástupců kreslit vlastním shaderem Everlost/Trunk (true, kolo 11)
+        /// nebo původním URP/Lit materiálem prefabu (false, výchozí). Hráč v CrossOver (D3D → D3DMetal)
+        /// vidí vzdálené koruny bez kmenů, přičemž stejné kmeny na GameObjectech (Everlost/Trunk bez
+        /// instancingu) i instancované URP/Lit objekty (listí, kameny) vidí. Jediná dvojice, která se
+        /// liší, je Everlost/Trunk + INSTANCING_ON – proto zástupci používají URP/Lit, který se ve stejném
+        /// buildu instancovaně kreslí. Cena: vzdálený kmen nemá doplněk oblohy kola 11 (jen odstín).
+        /// A/B: <c>/props daleko kmen on|off</c> (platí pro druhy, jejichž zástupci se ještě nestavěli).
+        /// </summary>
+        public static bool FarTrunkShader = false;
+
         /// <summary>Do kterého LOD prstence se vzdálené stromy kreslí (LOD2 = do ~500 m).</summary>
         public const int MaxLod = 2;
 
@@ -110,14 +121,70 @@ namespace Orivilon.World.Spawning
                 columns[key] = dst;
             }
             dst.Clear();
+            var vt = Orivilon.World.Generation.VoxelTerrain.instance;
+            float span = vt != null ? vt.ChunkSpan : 32f;
             for (int i = 0; i < list.Count; i++)
             {
                 EcoPlacement p = list[i];
                 if (GetParts(sp, p.spawnable).Length == 0) continue;
+                // Vykácené stromy (save) se nekreslí ani jako zástupci.
+                var col = new Vector2Int(Mathf.FloorToInt(p.position.x / span), Mathf.FloorToInt(p.position.z / span));
+                if (ObjectSpawner.IsEcoPlacementDestroyed(col, p)) continue;
                 dst.Add(new Inst { m = Matrix4x4.TRS(p.position, p.rotation, p.scale), si = p.spawnable, autumn = (p.flags & 1) != 0 });
             }
             RegisterColumn(key, dst);
         }
+
+        /// <summary>
+        /// Oprava po review 14.10.2026: postupné předání – odebere zástupce, za které už stojí
+        /// skutečný strom (stejný druh, poloha do 0,75 m ve vodorovné rovině). Vrací počet
+        /// odebraných; sloupec se přeregistruje jen při změně.
+        /// </summary>
+        public static System.Text.StringBuilder DebugMiss;
+
+        public static int RemoveMatching(long key, List<Vector4> ready)
+        {
+            if (ready.Count == 0 || !columns.TryGetValue(key, out List<Inst> l) || l.Count == 0) return 0;
+            int removed = 0;
+            for (int r = 0; r < ready.Count; r++)
+            {
+                Vector4 t = ready[r];
+                int si = (int)t.z;
+                for (int i = 0; i < l.Count; i++)
+                {
+                    Inst it = l[i];
+                    if (it.si != si) continue;
+                    float dx = it.m.m03 - t.x, dz = it.m.m23 - t.y;
+                    if (dx * dx + dz * dz > 0.5625f) continue;
+                    l[i] = l[l.Count - 1];
+                    l.RemoveAt(l.Count - 1);
+                    removed++;
+                    break;
+                }
+            }
+            if (removed == 0 && DebugMiss != null && DebugMiss.Length == 0 && ready.Count > 0 && l.Count > 0)
+            {
+                Vector4 t = ready[0];
+                float best = float.MaxValue; int bestSi = -1;
+                for (int i = 0; i < l.Count; i++)
+                {
+                    float dx = l[i].m.m03 - t.x, dz = l[i].m.m23 - t.y;
+                    float d = dx * dx + dz * dz;
+                    if (d < best) { best = d; bestSi = l[i].si; }
+                }
+                DebugMiss.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+                    "ready si {0} @({1:0.0},{2:0.0}); nejbližší zástupce si {3} ve vzdálenosti {4:0.00} m; zástupců {5}, ready {6}",
+                    (int)t.z, t.x, t.y, bestSi, Mathf.Sqrt(best), l.Count, ready.Count);
+            }
+            if (removed > 0) RegisterColumn(key, l);
+            return removed;
+        }
+
+        /// <summary>Kolik zástupců sloupec ještě má (diagnostika předání).</summary>
+        public static int CountOf(long key) => columns.TryGetValue(key, out List<Inst> l) ? l.Count : 0;
+
+        /// <summary>Má sloupec záznam zástupců (i prázdný – sloupec bez stromů)?</summary>
+        public static bool Has(long key) => columns.ContainsKey(key);
 
         /// <summary>Kolo 31: znovu zaregistruje všechny sloupce (po přepnutí jehličnanů nebo ořezu).</summary>
         public static void MarkDirty() => dirty = true;
@@ -225,6 +292,9 @@ namespace Orivilon.World.Spawning
                 // Rezerva na korunu (stromy jsou až ~120 m vysoké a široké desítky metrů).
                 b = new Bounds((lo + hi) * 0.5f, Vector3.zero);
                 b.SetMinMax(lo - new Vector3(60f, 10f, 60f), hi + new Vector3(60f, 160f, 60f));
+                // Výkonové kolo 14.10.2026: i přesná obálka instancí (velké měřítko může rezervu přerůst).
+                for (int q = 0; q < sl.Count; q++)
+                    if (sl[q].count > 0) b.Encapsulate(VegetationRenderer.WorldBounds(sl[q].mesh, sl[q].arr, sl[q].count));
                 if (lastFadeEnd > 0f) maxD = lastFadeEnd + 10f;
             }
             else b = new Bounds(Vector3.zero, new Vector3(1e6f, 1e5f, 1e6f));
@@ -254,10 +324,18 @@ namespace Orivilon.World.Spawning
             SpawnableObject so = sp.GetSpawnable(si);
             GameObject prefab = so != null ? so.prefab : null;
             LODGroup lg = prefab != null ? prefab.GetComponentInChildren<LODGroup>(true) : null;
-            if (lg != null)
+            if (prefab != null)
             {
-                LOD[] lods = lg.GetLODs();
-                Renderer[] rs = lods.Length > 0 ? lods[lods.Length - 1].renderers : null;
+                // Oprava po review 14.10.2026: prefab BEZ LODGroup (obří houby, některé suché
+                // stromy) dřív zástupce neměl vůbec – za detailním prstencem a během předávání
+                // byl neviditelný. Bere se pak jeho vlastní mesh (všechny MeshRenderery).
+                Renderer[] rs;
+                if (lg != null)
+                {
+                    LOD[] lods = lg.GetLODs();
+                    rs = lods.Length > 0 ? lods[lods.Length - 1].renderers : null;
+                }
+                else rs = prefab.GetComponentsInChildren<MeshRenderer>(true);
                 Matrix4x4 toRoot = prefab.transform.worldToLocalMatrix;
                 if (rs != null)
                     foreach (Renderer r in rs)
@@ -302,7 +380,8 @@ namespace Orivilon.World.Spawning
             if (instanced.TryGetValue(src, out Material m)) return m;
             m = new Material(src) { enableInstancing = true, name = src.name + " (far)" };
             // Kolo 11: vzdálený kmen má stejný doplněk oblohy jako blízký (jinak by se na hranici LOD lišil).
-            if (ObjectSpawner.IsTrunkMaterial(src)) ObjectSpawner.RegisterTrunkMaterial(m);
+            // Kolo 4: jen když je zapnuté FarTrunkShader – viz popis přepínače.
+            if (FarTrunkShader && ObjectSpawner.IsTrunkMaterial(src)) ObjectSpawner.RegisterTrunkMaterial(m);
             instanced[src] = m;
             return m;
         }

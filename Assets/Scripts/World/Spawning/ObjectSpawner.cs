@@ -264,6 +264,9 @@ namespace Orivilon.World.Spawning
         /// <summary>True dokud běží coroutine SpawnObjectsRoutine (kompletní data ještě nejsou).</summary>
         private bool spawnRoutineRunning = false;
 
+        /// <summary>Běží osazovací rutina sloupce (objekty a dávky ještě nejsou kompletní).</summary>
+        public bool SpawnInProgress => spawnRoutineRunning;
+
         /// <summary>
         /// Kompletní deterministická data jedné odložené dekorace –
         /// transform je vypočtený předem, instancování je pak jen Instantiate.
@@ -276,6 +279,8 @@ namespace Orivilon.World.Spawning
             public Vector3 scale;
             public long objectHash;
             public Vector2Int chunkCoord;
+            /// <summary>Vstupy hashe pro nárok na loot v multiplayeru (DeterministicObjectId.KeyA/B/Code).</summary>
+            public int keyA, keyB, keyCode;
             /// <summary>Jen v dosahu trávy (sebratelné kamínky) – daleko by byly zbytečné GameObjecty.</summary>
             public bool nearOnly;
         }
@@ -773,7 +778,8 @@ namespace Orivilon.World.Spawning
                                 rotation = finalRotation,
                                 scale = finalScale,
                                 objectHash = objectHash,
-                                chunkCoord = chunkCoord
+                                chunkCoord = chunkCoord,
+                                keyA = x, keyB = z, keyCode = si
                             });
                         }
                         else
@@ -809,7 +815,7 @@ namespace Orivilon.World.Spawning
 
                                     DeterministicObjectId sid = shell.GetComponent<DeterministicObjectId>();
                                     if (sid == null) sid = shell.AddComponent<DeterministicObjectId>();
-                                    sid.Initialize(objectHash, chunkCoord);
+                                    sid.Initialize(objectHash, chunkCoord, x, z, si);
 
                                     instantiatedThisFrame++;
                                 }
@@ -827,7 +833,7 @@ namespace Orivilon.World.Spawning
 
                                 DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
                                 if (id == null) id = go.AddComponent<DeterministicObjectId>();
-                                id.Initialize(objectHash, chunkCoord);
+                                id.Initialize(objectHash, chunkCoord, x, z, si);
 
                                 instantiatedThisFrame++;
                             }
@@ -897,10 +903,7 @@ namespace Orivilon.World.Spawning
                 kv.Value.CopyTo(matrices);
                 kv.Value.Clear();
 
-                Bounds bounds = new Bounds(matrices[0].GetColumn(3), Vector3.zero);
-                for (int i = 1; i < count; i++)
-                    bounds.Encapsulate(matrices[i].GetColumn(3));
-                bounds.Expand(src.mesh.bounds.size.magnitude * 3f);
+                Bounds bounds = VegetationRenderer.WorldBounds(src.mesh, matrices, count);
 
                 // Propy vrhají stín – na rozdíl od trávy jsou dost velké na to, aby to bylo vidět.
                 int handle = vr.Register(src.mesh, src.material, matrices, count,
@@ -912,6 +915,27 @@ namespace Orivilon.World.Spawning
             }
 
             // Seznamy se nechávají ve slovníku prázdné – spawner z poolu je použije znovu.
+        }
+
+        /// <summary>
+        /// Diagnostika (/veg bounds): pasivní propy, které už mají collider (skořápku), ale jejich
+        /// matice ještě nejsou předané rendereru – v tu chvíli jsou neviditelné.
+        /// </summary>
+        public static string AuditHiddenShells()
+        {
+            var t = Orivilon.World.Generation.VoxelTerrain.instance;
+            if (t == null) return "terén neběží";
+            var list = new List<ObjectSpawner>(64);
+            t.CollectPropSpawners(list);
+            int running = 0, pending = 0;
+            foreach (ObjectSpawner sp in list)
+            {
+                if (sp == null) continue;
+                if (sp.spawnRoutineRunning) running++;
+                foreach (KeyValuePair<int, List<Matrix4x4>> kv in sp.propMatrices) pending += kv.Value.Count;
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "spawnerů {0}, rozpracovaných {1}, neviditelných čekajících pasivních instancí {2}", list.Count, running, pending);
         }
 
         /// <summary>
@@ -983,13 +1007,18 @@ namespace Orivilon.World.Spawning
             float columnSpan = Generation.VoxelTerrain.instance != null
                 ? Generation.VoxelTerrain.instance.ChunkSpan
                 : 32f;
+            while (!SpawnTimeBudgetLeft()) yield return null;
+            long grassStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             SyncGrassBatches(lastDetailDistance <= grassLimit, (grassLimit + 1) * columnSpan);
+            ChargeSpawnWork(grassStarted);
 
             while (spawnedDetails.Count < pendingDetails.Count)
                 spawnedDetails.Add(null);
 
             for (int i = 0; i < pendingDetails.Count; i++)
             {
+                while (!SpawnTimeBudgetLeft()) yield return null;
+                long detailStarted = System.Diagnostics.Stopwatch.GetTimestamp();
                 PendingDetailData data = pendingDetails[i];
 
                 if (data.spawnableIndex < 0 || data.spawnableIndex >= spawnables.Count) continue;
@@ -1021,7 +1050,7 @@ namespace Orivilon.World.Spawning
 
                     DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
                     if (id == null) id = go.AddComponent<DeterministicObjectId>();
-                    id.Initialize(data.objectHash, data.chunkCoord);
+                    id.Initialize(data.objectHash, data.chunkCoord, data.keyA, data.keyB, data.keyCode);
 
                     spawnedDetails[i] = go;
                     workThisFrame++;
@@ -1033,7 +1062,8 @@ namespace Orivilon.World.Spawning
                     workThisFrame++;
                 }
 
-                if (workThisFrame >= budget)
+                ChargeSpawnWork(detailStarted);
+                if (workThisFrame >= budget || !SpawnTimeBudgetLeft())
                 {
                     workThisFrame = 0;
                     yield return null;
@@ -1171,10 +1201,7 @@ namespace Orivilon.World.Spawning
 
                 // Obálka celého sloupce. Frustum se testuje proti ní, ne proti stéblům –
                 // 2500 testů na sloupec a snímek by sežralo víc, než kolik by ušetřilo.
-                Bounds bounds = new Bounds(matrices[0].GetColumn(3), Vector3.zero);
-                for (int i = 1; i < count; i++)
-                    bounds.Encapsulate(matrices[i].GetColumn(3));
-                bounds.Expand(src.mesh.bounds.size.magnitude * 2f);
+                Bounds bounds = VegetationRenderer.WorldBounds(src.mesh, matrices, count);
 
                 var shadows = disableShadowsForSmallDecorations
                     ? UnityEngine.Rendering.ShadowCastingMode.Off
@@ -1184,7 +1211,13 @@ namespace Orivilon.World.Spawning
                     src.mesh, src.material, matrices, count,
                     bounds, shadows, src.layer, maxDistance);
 
-                if (handle != 0) { grassBatches[si] = handle; grassArrays[si] = matrices; AddGrassPickupBounds(bounds); }
+                if (handle != 0)
+                {
+                    grassBatches[si] = handle; grassArrays[si] = matrices;
+                    Bounds pick = bounds;
+                    pick.Expand(2f);   // dřív byla obálka volnější; míření na okrajové stéblo ji nesmí minout
+                    AddGrassPickupBounds(pick);
+                }
                 else ReturnMatrices(matrices);
             }
             ListGrassPickups();
@@ -1831,7 +1864,23 @@ namespace Orivilon.World.Spawning
             return false;
         }
 
+        /// <summary>
+        /// Výkonové kolo 14.10.2026: je osazený objekt (stejný hash jako v SpawnPlacements) zničený
+        /// v save? Pro zástupce stromů – vykácený strom se nesmí na chvíli „vrátit".
+        /// </summary>
+        public static bool IsEcoPlacementDestroyed(Vector2Int coord, in EcoPlacement p)
+        {
+            if (!worldSeedReady) return false;
+            return SaveSystem.SaveSystem.IsObjectDestroyed(HashStatic(coord, p.cellX, p.cellZ, p.spawnable + 4096 * (p.layer + 1)));
+        }
+
         private long GetDeterministicObjectHash(Vector2Int chunkCoord, int x, int z, int spawnableIndex)
+            => HashStatic(chunkCoord, x, z, spawnableIndex);
+
+        /// <summary>Multiplayer (host): hash z nároku klienta – stejný výpočet jako při spawnu.</summary>
+        public static long HashForKey(Vector2Int chunkCoord, int a, int b, int code) => HashStatic(chunkCoord, a, b, code);
+
+        private static long HashStatic(Vector2Int chunkCoord, int x, int z, int spawnableIndex)
         {
             unchecked
             {

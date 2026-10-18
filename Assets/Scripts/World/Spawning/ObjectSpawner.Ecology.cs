@@ -50,7 +50,10 @@ namespace Orivilon.World.Spawning
         /// <summary>Co tenhle sloupec osadil ekologickým osazovačem (null = starou cestou nebo nic).</summary>
         public List<EcoPlacement> EcoPlaced => ecoPlaced;
 
-        private static Dictionary<string, int> nameIndex;
+        // Kolo 4: index PATŘÍ INSTANCI – spawnables jsou per instance (biome props se doplňují do každé zvlášť).
+        // Statický index z kola 2 (bez nulování) způsobil, že EnsureBiomeProps u druhé a další instance
+        // „našel“ jména v indexu první instance a nic nepřidal → chyběly čedičové/obsidiánové formace aj.
+        [System.NonSerialized] private Dictionary<string, int> nameIndex;
         private static readonly Dictionary<int, PrefabShape> shapes = new Dictionary<int, PrefabShape>(64);
 
         /// <summary>Index položky ve spawnables podle jejího jména, nebo -1.</summary>
@@ -79,6 +82,8 @@ namespace Orivilon.World.Spawning
         /// <see cref="spawnables"/>. Jen v paměti – prefab SpawnableObjects se nemění a původní
         /// indexy (hash uložených objektů) zůstávají. Volá se jednou před stavbou tabulky osazovače.
         /// </summary>
+        private static bool biomePropsLogged;
+
         public void EnsureBiomeProps()
         {
             if (biomePropsAdded) return;
@@ -94,11 +99,17 @@ namespace Orivilon.World.Spawning
                 if (e == null || e.prefab == null || string.IsNullOrEmpty(e.name)) continue;
                 if (FindSpawnable(e.name) >= 0) continue;
                 spawnables.Add(e);
-                nameIndex = null;
+                // Oprava po review 14.10.2026: index se doplní, místo aby se po každém přidání
+                // zahodil a stavěl znovu (~1 MB odpadu pro GC na každý nový spawner). Pořadí
+                // spawnables – a tím determinismus osazení – se nemění.
+                if (nameIndex != null) nameIndex[e.name] = spawnables.Count - 1;
                 added++;
             }
-            nameIndex = null;
-            Debug.Log($"[ObjectSpawner] Kolo 14: přidáno {added} druhů pro biomy ({spawnables.Count} spawnables celkem).");
+            if (!biomePropsLogged)
+            {
+                biomePropsLogged = true;
+                Debug.Log($"[ObjectSpawner] Kolo 14: přidáno {added} druhů pro biomy ({spawnables.Count} spawnables celkem).");
+            }
         }
 
         public SpawnableObject GetSpawnable(int si)
@@ -228,6 +239,7 @@ namespace Orivilon.World.Spawning
                         scale = p.scale,
                         objectHash = hash,
                         chunkCoord = coord,
+                        keyA = p.cellX, keyB = p.cellZ, keyCode = p.spawnable + 4096 * (p.layer + 1),
                         nearOnly = pebble
                     });
                     ecoDetailBiome[p.biome & 3]++;
@@ -250,6 +262,20 @@ namespace Orivilon.World.Spawning
         /// Tráva a drobnosti sloupce jako pozice pro audit (drží je pending seznam, ne
         /// <see cref="EcoPlaced"/>, aby se data nedržela dvakrát).
         /// </summary>
+        /// <summary>Kolo MP 3 (QA): detaily s klíčem buňky (keyA/keyB/keyCode), jak je zná registr zničených.</summary>
+        public void CollectDetailKeys(List<EcoPlacement> into)
+        {
+            for (int i = 0; i < pendingDetails.Count; i++)
+            {
+                PendingDetailData d = pendingDetails[i];
+                into.Add(new EcoPlacement
+                {
+                    spawnable = d.keyCode % 4096, position = d.position, layer = d.keyCode / 4096 - 1,
+                    cellX = d.keyA, cellZ = d.keyB, biome = 255,
+                });
+            }
+        }
+
         public void CollectDetails(List<EcoPlacement> into)
         {
             for (int i = 0; i < pendingDetails.Count; i++)
@@ -265,8 +291,53 @@ namespace Orivilon.World.Spawning
 
         // Společný rozpočet těžkých instancí (stromy s LODGroup, collidery) napříč všemi sloupci:
         // každý sloupec má vlastní coroutinu a rozpočet na spawner by se při průjezdu sčítal.
+        // Shared by all active chunk coroutines, including detail activation.
+        // Charge actual work, not wall time between coroutine resumptions.
+        private static int spawnBudgetFrame = -1;
+        private static long spawnBudgetTicks;
+        private static int previousSpawnBudgetFrame = -1;
+        private static long previousSpawnBudgetTicks;
+        private const double SpawnBudgetMs = 2.0;
+
+        private static bool SpawnTimeBudgetLeft()
+        {
+            if (spawnBudgetFrame != Time.frameCount)
+            {
+                previousSpawnBudgetFrame = spawnBudgetFrame;
+                previousSpawnBudgetTicks = spawnBudgetTicks;
+                spawnBudgetFrame = Time.frameCount;
+                spawnBudgetTicks = 0;
+            }
+            return spawnBudgetTicks < System.Diagnostics.Stopwatch.Frequency * SpawnBudgetMs / 1000.0;
+        }
+
+        public static double SpawnWorkMsInFrame(int frame)
+        {
+            long ticks = frame == spawnBudgetFrame ? spawnBudgetTicks
+                : frame == previousSpawnBudgetFrame ? previousSpawnBudgetTicks : 0;
+            return ticks * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+        }
+
+        private static void ChargeSpawnWork(long started)
+        {
+            SpawnTimeBudgetLeft();
+            spawnBudgetTicks += System.Diagnostics.Stopwatch.GetTimestamp() - started;
+        }
+
         private static int heavyFrame = -1, heavyCount;
         private const int HeavyPerFrame = 8;
+
+        /// <summary>Diagnostika (/perf spawnslow N): záměrně zpomalené instancování. 0 = výchozí.</summary>
+        public static int DebugHeavyPerFrame;
+
+        /// <summary>
+        /// Oprava po review 14.10.2026: skutečně viditelné objekty sloupce (x, z, druh), které
+        /// ještě nikdo nepřevzal. Streamer podle nich postupně zahazuje zástupce stromů – strom
+        /// zmizí ze zástupců až v tom snímku, kdy se objeví skutečný (GameObject hned, pasivní
+        /// instancovaný až s předáním dávek rendereru).
+        /// </summary>
+        [System.NonSerialized] public readonly List<Vector4> ReadyTrees = new List<Vector4>(64);
+        [System.NonSerialized] private readonly List<Vector4> readyPassive = new List<Vector4>(64);
 
         /// <summary>Kolo 17 (diagnostika /teren spike): těžké instance v daném snímku (jen poslední dva snímky).</summary>
         public static int HeavyInFrame(int frame)
@@ -276,7 +347,7 @@ namespace Orivilon.World.Spawning
         private static bool HeavyBudgetLeft()
         {
             if (heavyFrame != Time.frameCount) { heavyPrevFrame = heavyFrame; heavyPrevCount = heavyCount; heavyFrame = Time.frameCount; heavyCount = 0; }
-            return heavyCount < HeavyPerFrame;
+            return heavyCount < (DebugHeavyPerFrame > 0 ? DebugHeavyPerFrame : HeavyPerFrame);
         }
 
         private IEnumerator SpawnPlacementsRoutine(Transform parent, List<EcoPlacement> placements, Vector2Int coord)
@@ -287,12 +358,15 @@ namespace Orivilon.World.Spawning
             {
                 EcoPlacement p = placements[i];
                 SpawnableObject s = GetSpawnable(p.spawnable);
-                if (s == null || s.prefab == null) continue;
+                int formGroup = Orivilon.World.Generation.EcologyPlacer.FormGroup(p.spawnable);
+                if (s == null || s.prefab == null) { if (formGroup >= 0) Orivilon.World.Generation.EcologyPlacer.FormNoSpawnable[formGroup]++; continue; }
+                if (formGroup >= 0) Orivilon.World.Generation.EcologyPlacer.FormSpawned[formGroup]++;
 
                 long hash = GetDeterministicObjectHash(coord, p.cellX, p.cellZ, p.spawnable + 4096 * (p.layer + 1));
                 if (SaveSystem.SaveSystem.IsObjectDestroyed(hash)) continue;
 
-                while (!HeavyBudgetLeft()) yield return null;
+                while (!HeavyBudgetLeft() || !SpawnTimeBudgetLeft()) yield return null;
+                long workStarted = System.Diagnostics.Stopwatch.GetTimestamp();
 
                 {
                     InstancedSource src = instancePassiveProps ? GetInstancedSource(s.prefab, s.category) : default;
@@ -304,6 +378,7 @@ namespace Orivilon.World.Spawning
                             propMatrices[p.spawnable] = list;
                         }
                         list.Add(Matrix4x4.TRS(p.position, p.rotation, p.scale) * src.offset);
+                        readyPassive.Add(new Vector4(p.position.x, p.position.z, p.spawnable, 0f));
 
                         if (src.hasCollider)
                         {
@@ -312,7 +387,7 @@ namespace Orivilon.World.Spawning
                             StripRenderers(shell);
                             DeterministicObjectId sid = shell.GetComponent<DeterministicObjectId>();
                             if (sid == null) sid = shell.AddComponent<DeterministicObjectId>();
-                            sid.Initialize(hash, coord);
+                            sid.Initialize(hash, coord, p.cellX, p.cellZ, p.spawnable + 4096 * (p.layer + 1));
                             heavyCount++;
                         }
                     }
@@ -323,18 +398,22 @@ namespace Orivilon.World.Spawning
                         ApplySmallDecorationTweaks(go, s.category);
                         if ((p.flags & 1) != 0) ApplyAutumnLeaves(go);
                         ApplyTrunkLook(go, s.category);
-                        if (s.category == SpawnCategory.Trees) ApplyCanopyShadow(go);
+                        if (s.category == SpawnCategory.Trees) { ApplyCanopyShadow(go); KeepLastLodVisible(go); }
 
                         DeterministicObjectId id = go.GetComponent<DeterministicObjectId>();
                         if (id == null) id = go.AddComponent<DeterministicObjectId>();
-                        id.Initialize(hash, coord);
+                        id.Initialize(hash, coord, p.cellX, p.cellZ, p.spawnable + 4096 * (p.layer + 1));
                         heavyCount++;
+                        ReadyTrees.Add(new Vector4(p.position.x, p.position.z, p.spawnable, 0f));
                     }
                 }
 
+                ChargeSpawnWork(workStarted);
                 other++;
             }
 
+            while (!SpawnTimeBudgetLeft()) yield return null;
+            long publishStarted = System.Diagnostics.Stopwatch.GetTimestamp();
             spawnedChunks[coord] = new ChunkSpawnState
             {
                 chunkCoord = coord,
@@ -346,6 +425,9 @@ namespace Orivilon.World.Spawning
             spawnRoutineRunning = false;
 
             PublishPropBatches();
+            ReadyTrees.AddRange(readyPassive);   // pasivní jsou vidět až teď, s dávkami
+            readyPassive.Clear();
+            ChargeSpawnWork(publishStarted);
             ApplyDetailVisibility(parent);
         }
 
@@ -365,6 +447,8 @@ namespace Orivilon.World.Spawning
         {
             StopAllCoroutines();
             spawnRoutineRunning = false;
+            ReadyTrees.Clear();
+            readyPassive.Clear();
             detailApplyRoutine = null;
             DespawnAllDetails();
             pendingDetails.Clear();
@@ -454,6 +538,32 @@ namespace Orivilon.World.Spawning
             g.SetLODs(lods);
             CanopyShadowCount++;
             return true;
+        }
+
+        /// <summary>Kolo 4 (A/B): <c>false</c> = původní ořez posledního LOD stromu.</summary>
+        public static bool KeepLastLod = true;
+        public static int KeepLastLodCount;
+
+        /// <summary>
+        /// Kolo 4: skutečný strom na LOD0 sloupci nesmí zmizet ořezem LODGroup. Jeho zástupce se
+        /// odebírá hned, jak strom stojí (ReadyTrees), ale poslední LOD prefabů končí na ~5 % výšky
+        /// obrazovky (Tree_Birch_02: 0,0498 při velikosti 9,24 m ≈ 160 m při FOV 60°). LOD0 sloupce
+        /// se osazují 160–320 m od hráče, takže strom mezi tím nebyl vidět vůbec: koruna zástupce
+        /// zmizela a strom naskočil až po přiblížení pod hranici ořezu. Poslední úroveň proto
+        /// zůstává kreslená až do uvolnění sloupce (o vzdálenost se pak stará prstenec LOD0 a
+        /// za ním zástupci). Úrovně LOD0–LOD2 ani crossfade mezi nimi se nemění.
+        /// </summary>
+        public static void KeepLastLodVisible(GameObject go)
+        {
+            if (!KeepLastLod || go == null) return;
+            LODGroup g = go.GetComponent<LODGroup>();
+            if (g == null) return;
+            LOD[] lods = g.GetLODs();
+            int last = lods.Length - 1;
+            if (last < 0 || lods[last].screenRelativeTransitionHeight <= 0f) return;
+            lods[last].screenRelativeTransitionHeight = 0f;
+            g.SetLODs(lods);
+            KeepLastLodCount++;
         }
 
         /// <summary>Kolo 18 (A/B v konzoli): vrátí strom do původního stavu – listí zase vrhá stín, kopie zmizí.</summary>

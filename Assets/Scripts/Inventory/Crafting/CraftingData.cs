@@ -41,44 +41,40 @@ namespace Orivilon.Inventory.Crafting
         }
 
         /// <summary>
-        /// Pokusí se přidat item do prvního volného slotu craftovacího gridu.
-        /// Používá se při Shift+kliknutí v inventáři, když je crafting otevřen.
+        /// Přidá item do gridu (nejdřív ke kompatibilním stackům, pak do prázdných slotů) – VŠE NEBO NIC.
         /// </summary>
         /// <param name="item">Item k přidání.</param>
         /// <param name="amount">Počet kusů.</param>
-        /// <returns>True, pokud byl item úspěšně přidán do volného slotu.</returns>
+        /// <returns>True, pokud se vešlo celé množství; při false se grid nezměnil.</returns>
         public bool TryAddToGrid(InventoryItemData item, int amount)
         {
-            for (int i = 0; i < gridSlots.Length; i++)
-            {
-                var slot = gridSlots[i];
-                if (!slot.IsEmpty) continue;
-
-                slot.item = item;
-                slot.amount = amount;
-                return true;
-            }
-
-            return false;
+            if (item == null || amount <= 0) return false;
+            if (InventoryData.SpaceFor(gridSlots, 0, gridSlots.Length - 1, item) < amount) return false;
+            InventoryData.InsertPartial(gridSlots, 0, gridSlots.Length - 1, item, amount);
+            return true;
         }
 
         /// <summary>
-        /// Vrátí všechny itemy z craftovacího gridu zpět do inventáře hráče.
-        /// Prioritně plní inventář (sloty 9+), pak hotbar (sloty 0–8).
+        /// Vrátí itemy z craftovacího gridu zpět do inventáře hráče (priorita AddItemSmart).
+        /// Co se do plného inventáře nevejde, ZŮSTANE v gridu – dřív se slot vymazal i při neúspěchu.
         /// Volá se při zavření craftingu nebo přepnutí záložky.
         /// </summary>
         public void ReturnAllToInventory()
         {
+            var inv = InventoryData.Instance;
+            if (inv == null) return;
             for (int i = 0; i < gridSlots.Length; i++)
             {
                 var slot = gridSlots[i];
                 if (slot.IsEmpty) continue;
 
-                InventoryData.Instance.AddItemSmart(slot.item, slot.amount);
-                slot.Clear();
+                int moved = InventoryData.InsertSmart(inv.Slots, slot.item, slot.amount);
+                slot.amount -= moved;
+                if (slot.amount <= 0) slot.Clear();
             }
 
-            resultItem = null;
+            CraftingController.Instance?.Recalculate();
+            inv.NotifyInventoryChanged();
         }
     }
 }

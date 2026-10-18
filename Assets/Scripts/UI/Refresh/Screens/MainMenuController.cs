@@ -42,6 +42,20 @@ namespace Orivilon.UI.Refresh
         private int rowCount = -1;
         private object lastSelected = new object();   // first frame always fills the details
 
+        // Režim Multiplayer (kolo MP 17.10.2026): detail ukazuje vybranou lobby kamaráda, PLAY = JOIN.
+        private int lastFriendVersion = -1;
+        private bool friendDetailShown;
+        private string[] savedKeys;
+        private string savedPlayLabel;
+        private string savedSectionLabel;
+
+        /// <summary>Malý nadpis „SELECTED WORLD“ nad jménem (sourozenec Label v Detail).</summary>
+        private TMP_Text SectionLabel()
+        {
+            var t = detailName != null && detailName.transform.parent != null ? detailName.transform.parent.Find("Label") : null;
+            return t != null ? t.GetComponent<TMP_Text>() : null;
+        }
+
         private void Start()
         {
             Update();
@@ -81,8 +95,20 @@ namespace Orivilon.UI.Refresh
                 if (scroll != null) { scroll.StopMovement(); Canvas.ForceUpdateCanvases(); scroll.verticalNormalizedPosition = 1f; }
             }
 
-            object sel = SelectedField != null && ui != null ? SelectedField.GetValue(ui) : null;
-            if (!ReferenceEquals(sel, lastSelected)) { lastSelected = sel; UpdateDetail(sel as WorldData); }
+            if (ui != null && ui.FriendsMode)
+            {
+                if (FriendsListUI.Version != lastFriendVersion || !friendDetailShown)
+                {
+                    lastFriendVersion = FriendsListUI.Version;
+                    UpdateFriendDetail(FriendsListUI.Current != null ? FriendsListUI.Current.Selected : null);
+                }
+            }
+            else
+            {
+                if (friendDetailShown) { RestoreWorldDetailLabels(); lastSelected = new object(); }
+                object sel = SelectedField != null && ui != null ? SelectedField.GetValue(ui) : null;
+                if (!ReferenceEquals(sel, lastSelected)) { lastSelected = sel; UpdateDetail(sel as WorldData); }
+            }
 
             float target = state == MenuState ? 1f : 0f;
             if (menuGroup != null && !Mathf.Approximately(menuAlpha, target))
@@ -91,6 +117,53 @@ namespace Orivilon.UI.Refresh
                 menuGroup.alpha = UiKit.EaseOut(menuAlpha);
                 menuGroup.blocksRaycasts = menuGroup.interactable = target > 0.5f;
             }
+        }
+
+        private void UpdateFriendDetail(Orivilon.Multiplayer.FriendLobbyInfo? sel)
+        {
+            if (!friendDetailShown)
+            {
+                savedKeys = new string[detailKeys != null ? detailKeys.Length : 0];
+                for (int i = 0; i < savedKeys.Length; i++) savedKeys[i] = detailKeys[i] != null ? detailKeys[i].text : null;
+                savedPlayLabel = playLabel != null ? playLabel.text : null;
+                var sl = SectionLabel();
+                savedSectionLabel = sl != null ? sl.text : null;
+                if (sl != null) sl.text = "SELECTED HOST";
+                friendDetailShown = true;
+            }
+            string[] keys = { "Host", "Players", "Access" };
+            string[] v = { "", "", "" };
+            bool has = sel.HasValue;
+            if (has)
+            {
+                var f = sel.Value;
+                v[0] = string.IsNullOrEmpty(f.hostName) ? f.friendName : f.hostName;
+                v[1] = f.maxMembers > 0 ? f.memberCount + " / " + f.maxMembers : "-";
+                v[2] = !f.joinable ? f.blockedReason : f.locked ? "Password" : "Open";
+            }
+            if (detailName != null)
+            {
+                detailName.richText = false;
+                detailName.text = has ? (string.IsNullOrEmpty(sel.Value.worldName) ? v[0] : sel.Value.worldName) : "Select a friend";
+            }
+            for (int i = 0; i < 3; i++)
+            {
+                if (detailKeys != null && i < detailKeys.Length && detailKeys[i] != null) { detailKeys[i].text = keys[i]; detailKeys[i].enabled = has; }
+                if (detailValues != null && i < detailValues.Length && detailValues[i] != null) { detailValues[i].richText = false; detailValues[i].text = v[i]; }
+            }
+            bool can = has && sel.Value.joinable;
+            if (playButton != null) playButton.interactable = can;
+            if (playLabel != null) { playLabel.text = "JOIN"; playLabel.color = can ? Color.black : new Color(0f, 0f, 0f, 0.35f); }
+        }
+
+        private void RestoreWorldDetailLabels()
+        {
+            friendDetailShown = false;
+            if (savedKeys != null)
+                for (int i = 0; i < savedKeys.Length && i < detailKeys.Length; i++) if (detailKeys[i] != null && savedKeys[i] != null) detailKeys[i].text = savedKeys[i];
+            if (playLabel != null && savedPlayLabel != null) playLabel.text = savedPlayLabel;
+            var sl = SectionLabel();
+            if (sl != null && savedSectionLabel != null) sl.text = savedSectionLabel;
         }
 
         private void UpdateDetail(WorldData w)

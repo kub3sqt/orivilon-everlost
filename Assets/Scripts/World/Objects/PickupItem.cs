@@ -35,7 +35,35 @@ namespace Orivilon.World.Objects
                 return;
             }
 
-            bool added = InventoryData.Instance.AddItem(itemData, itemCount);
+            // Vyhozený předmět (DroppedItem): ochrana po vyhození a sebrání po částech – co se do inventáře
+            // nevejde, zůstane ve světě se sníženým počtem. Nemá DeterministicObjectId ani registr zničených.
+            var dropped = GetComponent<DroppedItem>();
+            if (dropped != null)
+            {
+                if (!dropped.CanPickUp || itemData == null || itemCount <= 0) return;
+                // Multiplayer klient: kusy přidělí host (žádost s volným místem), lokálně se nic nemění.
+                if (dropped.IsReplica) { Orivilon.Multiplayer.NetworkWorldSync.Instance?.RequestPickup(dropped); return; }
+                int taken = InventoryData.Instance.AddItemUpTo(itemData, itemCount);
+                if (taken <= 0) { Debug.Log("Inventář je plný – item nelze sebrat"); return; }
+                itemCount -= taken;
+                Orivilon.Multiplayer.NetworkWorldSync.Instance?.HostDropCountChanged(dropped);   // host: ostatním nový počet
+                if (itemCount <= 0) dropped.Consume();
+                return;
+            }
+
+            bool added;
+            var mpId = GetComponent<DeterministicObjectId>();
+            if (Orivilon.Multiplayer.MpLedger.ClientActive)
+            {
+                // Multiplayer klient (kolo MP 3): jen nárok. Objekt zůstává a nic se nepřipíše, dokud host
+                // neověří skutečné osazení – při kladném verdiktu ho zničí NetworkWorldSync (OnLootResult).
+                if (mpId == null || !mpId.HasKey || itemData == null) return;
+                if (InventoryData.SpaceFor(InventoryData.Instance.Slots, 0, InventoryData.Instance.Slots.Length - 1, itemData) < itemCount)
+                { Debug.Log("Inventář je plný – item nelze sebrat"); return; }
+                Orivilon.Multiplayer.MpLedger.ClaimLoot(Orivilon.Multiplayer.MpLedger.LootKind.Pickup, mpId.ChunkCoord, mpId.KeyA, mpId.KeyB, mpId.KeyCode, transform.position);
+                return;
+            }
+            else added = InventoryData.Instance.AddItem(itemData, itemCount);
 
             if (added)
             {

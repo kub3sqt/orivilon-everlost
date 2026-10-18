@@ -23,6 +23,7 @@ namespace Orivilon.EditorTools
         private static string[] queue;
         private static int queueIndex;
         private static double nextPoll, nextStatus, waitUntil;
+        private static string waitFile;   // kolo MP 3: „waitfile soubor max_s“ – čekání ukončí vznik souboru v _reports/remote
 
         private const string QueueKey = "Orivilon.RemoteBridge.Queue";
         private const string CraterKey = "Orivilon.RemoteBridge.K29CraterMode";
@@ -113,7 +114,8 @@ namespace Orivilon.EditorTools
                     if (t != lastText && t.StartsWith("ABORT")) { lastText = t; queue = null; readySince = waitStarted = -1; Out("ABORT"); return; }
                 }
                 catch (Exception) { }
-                if (now < waitUntil) return;
+                if (now < waitUntil && !(waitFile != null && File.Exists(Path.Combine(Dir, waitFile)))) return;
+                if (waitFile != null) { Out("waitfile " + waitFile + (File.Exists(Path.Combine(Dir, waitFile)) ? " → " + File.ReadAllText(Path.Combine(Dir, waitFile)).Trim() : " → TIMEOUT")); waitFile = null; waitUntil = 0; }
                 string head = queue[queueIndex].Trim();
                 if (head == "waitready" || head == "waitstopped")
                 {
@@ -150,6 +152,42 @@ namespace Orivilon.EditorTools
                 else if (line == "stop") { EditorApplication.isPlaying = false; Out("stop"); }
                 else if (line == "refresh") { AssetDatabase.Refresh(); Out("refresh"); }
                 else if (line.StartsWith("note ")) { Out(line); DiagNote(line.Substring(5)); }
+                else if (line == "wininfo") Out(DiagWindowsBuild.Info());
+                else if (line == "treemats") Out(DiagWindowsBuild.TreeMats());
+                else if (line == "keepmat") Out(DiagWindowsBuild.MakeTrunkKeepMaterial());
+                else if (line.StartsWith("keepmatinst ")) Out(DiagWindowsBuild.KeepMatInstancing(line.EndsWith("on")));
+                else if (line.StartsWith("copyclip ")) Out(DiagWindowsBuild.CopyClip(line.Substring(9).Trim()));
+                else if (line.StartsWith("winrun ")) { string[] wr = line.Substring(7).Split('|'); Out(DiagWindowsBuild.Run(wr[0].Trim(), wr[1].Trim())); }
+                else if (line == "winresults") Out(DiagWindowsBuild.Results());
+                else if (line == "winkill") Out(DiagWindowsBuild.KillOwn(20));
+                else if (line.StartsWith("macbuild ")) Out(DiagWindowsBuild.BuildMac(line.Substring(9).Trim()));
+                else if (line.StartsWith("macrun ")) { string[] mr = line.Substring(7).Split('|'); Out(DiagWindowsBuild.RunMac(mr[0].Trim(), mr[1].Trim())); }
+                else if (line == "macresults") Out(DiagWindowsBuild.ResultsMac());
+                else if (line.StartsWith("winargs")) { DiagWindowsBuild.RunArgs = System.Text.RegularExpressions.Regex.IsMatch(line.Substring(7).Trim(), "^[-a-z0-9 ]*$") ? line.Substring(7).Trim() : ""; Out("winargs '" + DiagWindowsBuild.RunArgs + "'"); }
+                else if (line.StartsWith("winrename ")) { string[] rn = line.Substring(10).Split('|'); Out(DiagWindowsBuild.Rename(rn[0].Trim(), rn[1].Trim())); }
+                else if (line == "probeopen") Out(DiagWindowsBuild.ProbeOpen());
+                else if (line == "probesave") Out(DiagWindowsBuild.ProbeSave());
+                else if (line == "probedelete") Out(DiagWindowsBuild.ProbeDelete());
+                else if (line.StartsWith("resavescene ")) Out(DiagWindowsBuild.ResaveScene(line.Substring(12).Trim()));
+                else if (line == "osxtarget")
+                {
+                    // Kolo 3: diagnostické Windows buildy přepnuly aktivní cíl – vrátit původní macOS.
+                    bool ok = EditorUserBuildSettings.SwitchActiveBuildTarget(BuildTargetGroup.Standalone, BuildTarget.StandaloneOSX);
+                    Out("osxtarget " + ok + " → " + EditorUserBuildSettings.activeBuildTarget);
+                }
+                else if (line.StartsWith("winbuild "))
+                {
+                    // Kolo 3: diagnostický Windows build do NOVÉ složky (winbuild <složka> on|off|keep).
+                    string[] wb = line.Substring(9).Trim().Split('|');
+                    string res = DiagWindowsBuild.Build(wb[0].Trim(), wb.Length > 1 ? wb[1].Trim() : "keep", wb.Length > 2 && wb[2].Trim() == "release");
+                    Out(res); DiagNote(res);
+                }
+                else if (line.StartsWith("menu "))
+                {
+                    // Výkonové kolo 14.10.2026: spuštění položky menu editoru (testy Tools/Everlost/…).
+                    bool ok = EditorApplication.ExecuteMenuItem(line.Substring(5).Trim());
+                    Out("menu " + line.Substring(5).Trim() + (ok ? " OK" : " NENALEZENO"));
+                }
                 else if (line == "menu")
                 {
                     // Stejná cesta jako tlačítko Main Menu v pauze: uloží a načte MainMenu.
@@ -222,6 +260,7 @@ namespace Orivilon.EditorTools
                     Out("mem: " + m); DiagNote("paměť: " + m);
                 }
                 else if (line.StartsWith("seed ")) { EditorPrefs.SetInt(Orivilon.World.Generation.VoxelTerrain.EditorSeedPrefKey, int.Parse(line.Substring(5).Trim())); Out(line); }
+                else if (line.StartsWith("waitfile ")) { var wf = line.Substring(9).Trim().Split(' '); waitFile = wf[0]; waitUntil = EditorApplication.timeSinceStartup + (wf.Length > 1 ? double.Parse(wf[1], CultureInfo.InvariantCulture) : 60); }
                 else if (line.StartsWith("wait ")) { waitUntil = EditorApplication.timeSinceStartup + double.Parse(line.Substring(5).Trim(), CultureInfo.InvariantCulture); }
                 else if (line.StartsWith("dumpconsole "))
                 {

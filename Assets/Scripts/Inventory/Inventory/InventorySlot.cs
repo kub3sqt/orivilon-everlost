@@ -9,21 +9,18 @@ namespace Orivilon.Inventory.Inventory
 {
     /// <summary>
     /// UI element jednoho slotu inventáře nebo hotbaru.
-    /// Zpracovává veškeré mouse eventy: kliknutí, najetí, drag.
-    /// Levé kliknutí: vzít/položit stack z/na kurzor.
-    /// Shift+LMB: quick-move (hotbar↔inventář nebo do craftovacího gridu).
-    /// Double-click: sebrat všechny kusy stejného itemu.
-    /// Levý/pravý drag: distribuce stacku přes více slotů.
-    /// Blok pravého kliknutí (split stack) je záměrně zakomentován.
+    /// Zobrazuje data InventoryData.Slots[slotIndex] a obnovuje se na událost InventoryData.OnInventoryChanged
+    /// (přihlášení v OnEnable, odhlášení v OnDisable – opakované otevírání UI nepřidává posluchače).
+    /// Vstup myši jen předává do <see cref="InventoryDragDistributor"/>, který řídí všechna gesta
+    /// (klik, Shift+klik, dvojklik, split, Mouse Tweaks tažení, kolečko, číselné klávesy).
     /// </summary>
     public class InventorySlot : MonoBehaviour,
-        IPointerClickHandler,
         IPointerEnterHandler,
         IPointerExitHandler,
         IPointerDownHandler,
         IPointerUpHandler
     {
-        /// <summary>Index tohoto slotu v poli InventoryData.Slots (0–35).</summary>
+        /// <summary>Index tohoto slotu v poli InventoryData.Slots (hotbar 0–7, inventář 8+).</summary>
         [Header("Slot Index")]
         public int slotIndex;
 
@@ -40,14 +37,15 @@ namespace Orivilon.Inventory.Inventory
         /// <summary>Text ghost-drag počtu (momentálně nepoužíván).</summary>
         [SerializeField] private TMP_Text ghostAmount;
 
-        /// <summary>Čas posledního kliknutí pro detekci double-clicku.</summary>
-        private float lastClickTime;
-
-        /// <summary>Maximální interval (v sekundách) mezi dvěma kliknutími pro double-click.</summary>
-        private const float DOUBLE_CLICK_TIME = 0.25f;
-
-        /// <summary>Událost vyvolaná po změně obsahu slotu (přihlašuje se na ni GameManager).</summary>
+        /// <summary>Událost vyvolaná po změně obsahu slotu (zachováno kvůli kompatibilitě).</summary>
+#pragma warning disable 67
         public event System.Action OnInventoryChanged;
+#pragma warning restore 67
+
+        /// <summary>Inventář, na jehož událost je slot právě přihlášen (pro korektní odhlášení).</summary>
+        private InventoryData subscribed;
+
+        private SlotRef Ref => SlotRef.Player(slotIndex);
 
         /// <summary>
         /// Automaticky dohledá iconImage a stackAmountText pokud nejsou přiřazeny v Inspektoru.
@@ -72,10 +70,42 @@ namespace Orivilon.Inventory.Inventory
             }
         }
 
-        /// <summary>Při aktivaci objektu obnoví zobrazení slotu.</summary>
+        /// <summary>Při aktivaci se přihlásí na změny inventáře a obnoví zobrazení.</summary>
         private void OnEnable()
         {
+            Subscribe();
+            InventorySlotRegistry.Register(Ref, transform as RectTransform);
             Refresh();
+        }
+
+        /// <summary>InventoryData mohl při OnEnable ještě chybět (pořadí Awake) – dohnat přihlášení.</summary>
+        private void Start()
+        {
+            Subscribe();
+            Refresh();
+        }
+
+        private void OnDisable()
+        {
+            if (subscribed != null) subscribed.OnInventoryChanged -= Refresh;
+            subscribed = null;
+            InventorySlotRegistry.Unregister(Ref, transform as RectTransform);
+        }
+
+        private void Subscribe()
+        {
+            var inv = InventoryData.Instance;
+            if (inv == null || inv == subscribed) return;
+            if (subscribed != null) subscribed.OnInventoryChanged -= Refresh;
+            inv.OnInventoryChanged += Refresh;
+            subscribed = inv;
+        }
+
+        /// <summary>Aktivní UI slot s daným indexem (přes registr, bez FindObjectsOfType).</summary>
+        public static InventorySlot FindActive(int index)
+        {
+            var t = InventorySlotRegistry.Find(SlotRef.Player(index));
+            return t != null ? t.GetComponent<InventorySlot>() : null;
         }
 
         /// <summary>
@@ -84,6 +114,8 @@ namespace Orivilon.Inventory.Inventory
         /// </summary>
         public void Refresh()
         {
+            if (iconImage == null || stackAmountText == null) return;
+
             var inventory = InventoryData.Instance;
             if (inventory == null || slotIndex < 0 || slotIndex >= inventory.Slots.Length)
             {
@@ -108,164 +140,39 @@ namespace Orivilon.Inventory.Inventory
             }
         }
 
-        /// <summary>
-        /// Zpracovává kliknutí na slot inventáře.
-        /// Shift+LMB: přesune stack do craftovacího gridu (pokud je otevřen) nebo opačného rozsahu (hotbar↔inventář).
-        /// LMB: vzít stack na kurzor / položit kurzor do slotu.
-        /// Double-click LMB: sebrat všechny kusy stejného itemu.
-        /// Blok pravého kliknutí je záměrně zakomentován (split stack).
-        /// </summary>
-        public void OnPointerClick(PointerEventData eventData)
-        {
-            if (InventoryDragDistributor.DragConsumedClick)
-                return;
+        private static int Button(PointerEventData e) =>
+            e.button == PointerEventData.InputButton.Left ? 0 : e.button == PointerEventData.InputButton.Right ? 1 : -1;
 
-            if (eventData.button == PointerEventData.InputButton.Right &&
-                InventoryDragDistributor.IsRightDrag)
-            {
-                return;
-            }
+        /// <summary>Stisk: klik/Shift+klik/dvojklik nebo začátek gesta (rozhoduje InventoryDragDistributor).</summary>
+        public void OnPointerDown(PointerEventData eventData) => InventoryDragDistributor.PointerDown(Ref, Button(eventData));
 
-            var cursor = InventoryCursor.Instance;
-            var inventory = InventoryData.Instance;
+        /// <summary>Uvolnění: konec gesta (split se potvrdí, jediný slot = obyčejný klik).</summary>
+        public void OnPointerUp(PointerEventData eventData) => InventoryDragDistributor.PointerUp(Button(eventData));
 
-            if (cursor == null || inventory == null)
-                return;
-
-            var slot = inventory.Slots[slotIndex];
-
-            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-
-            if (shift && eventData.button == PointerEventData.InputButton.Left)
-            {
-                if (slot.IsEmpty) return;
-
-                int amount = slot.amount;
-                var item = slot.item;
-
-                if (InventoryUIController.Instance != null &&
-                    InventoryUIController.Instance.IsCraftingOpen)
-                {
-                    bool moved = CraftingData.Instance.TryAddToGrid(item, amount);
-                    if (!moved) return;
-
-                    slot.Clear();
-                    InventoryUI.RefreshAll();
-                    OnInventoryChanged?.Invoke();
-                    CraftingController.Instance.RefreshAllSlots();
-                    CraftingController.Instance.Recalculate();
-                    return;
-                }
-
-                bool success;
-
-                if (slotIndex <= 8)
-                    success = inventory.AddItemRange(9, inventory.Slots.Length - 1, item, amount);
-                else
-                    success = inventory.AddItemRange(0, 8, item, amount);
-
-                if (!success) return;
-
-                slot.Clear();
-                InventoryUI.RefreshAll();
-                OnInventoryChanged?.Invoke();
-                return;
-            }
-
-            if (eventData.button != PointerEventData.InputButton.Left)
-                return;
-
-            if (cursor.HeldSlot == null)
-            {
-                if (slot.IsEmpty)
-                    return;
-
-                cursor.TakeFromSlot(slotIndex);
-                ItemDescriptionUI.Instance?.LockToCursor(slot.item);
-            }
-            else
-            {
-                cursor.PlaceIntoSlot(slotIndex);
-                ItemDescriptionUI.Instance?.UnlockFromCursor();
-            }
-
-            if (eventData.button == PointerEventData.InputButton.Left)
-            {
-                if (Time.time - lastClickTime <= DOUBLE_CLICK_TIME)
-                {
-                    if (!slot.IsEmpty)
-                    {
-                        InventoryCursor.Instance.CollectAllOfItem(slot.item);
-                        InventoryUI.RefreshAll();
-                        OnInventoryChanged?.Invoke();
-                        CraftingController.Instance?.RefreshAllSlots();
-                        CraftingController.Instance?.Recalculate();
-                    }
-                    return;
-                }
-
-                lastClickTime = Time.time;
-            }
-
-            Refresh();
-        }
-
-        /// <summary>
-        /// Při najetí myší zahájí drag (pokud kurzor drží item a je stisknuto tlačítko),
-        /// nebo zobrazí popis itemu v slotu.
-        /// </summary>
+        /// <summary>Najetí: pokračování gesta tažením a popis itemu.</summary>
         public void OnPointerEnter(PointerEventData eventData)
         {
-            if (InventoryCursor.Instance.HeldSlot != null)
-            {
-                if (Input.GetMouseButton(0) || Input.GetMouseButton(1))
-                {
-                    InventoryDragDistributor.HoverSlot(this);
-                }
-                return;
-            }
+            InventoryDragDistributor.PointerEnter(Ref);
 
-            var slot = InventoryData.Instance.Slots[slotIndex];
+            if (!InventoryActions.Cursor.IsEmpty)
+                return;
+
+            var inv = InventoryData.Instance;
+            if (inv == null || slotIndex < 0 || slotIndex >= inv.Slots.Length) return;
+            var slot = inv.Slots[slotIndex];
             if (!slot.IsEmpty)
                 ItemDescriptionUI.Instance?.ShowFromSlot(slot.item);
         }
 
-        /// <summary>
-        /// Při odjetí myší skryje popis itemu, pokud kurzor nic nedrží.
-        /// </summary>
+        /// <summary>Odjetí: skryje popis itemu, pokud kurzor nic nedrží.</summary>
         public void OnPointerExit(PointerEventData eventData)
         {
-            if (InventoryCursor.Instance.HeldSlot != null)
+            InventoryDragDistributor.PointerExit(Ref);
+
+            if (!InventoryActions.Cursor.IsEmpty)
                 return;
 
             ItemDescriptionUI.Instance?.ClearFromSlot();
-        }
-
-        /// <summary>
-        /// Při stisknutí tlačítka myší zahájí drag distribuci (pokud kurzor drží item).
-        /// Levé = rovnoměrné dělení, pravé = 1 kus/slot.
-        /// </summary>
-        public void OnPointerDown(PointerEventData eventData)
-        {
-            if (InventoryCursor.Instance.HeldSlot == null)
-                return;
-
-            if (eventData.button == PointerEventData.InputButton.Left)
-                InventoryDragDistributor.BeginDrag(this, false);
-
-            if (eventData.button == PointerEventData.InputButton.Right)
-                InventoryDragDistributor.BeginDrag(this, true);
-        }
-
-        /// <summary>
-        /// Při uvolnění tlačítka myší ukončí drag distribuci.
-        /// </summary>
-        public void OnPointerUp(PointerEventData eventData)
-        {
-            if (eventData.button == PointerEventData.InputButton.Left || eventData.button == PointerEventData.InputButton.Right)
-            {
-                InventoryDragDistributor.EndDrag();
-            }
         }
     }
 }

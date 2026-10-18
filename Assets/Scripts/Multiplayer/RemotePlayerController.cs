@@ -53,9 +53,27 @@ namespace Orivilon.Multiplayer
         /// </summary>
         public void SetTargetTransform(Vector3 position, Quaternion rotation)
         {
+            // První pozice nebo skok (teleport, respawn): přeskočit rovnou, jinak by Lerp táhl kapsli
+            // napříč světem a marker na kompasu by ukazoval nesmysl.
+            if (!HasNetworkPosition || (position - transform.position).sqrMagnitude > SnapDistance * SnapDistance)
+            {
+                transform.position = position;
+                transform.rotation = rotation;
+            }
             targetPosition = position;
             targetRotation = rotation;
+            LastNetworkPosition = position;
+            HasNetworkPosition = true;
         }
+
+        /// <summary>Nad touto vzdáleností se pozice nepřelévá, ale přeskočí (m).</summary>
+        public const float SnapDistance = 60f;
+
+        /// <summary>Poslední pozice přijatá ze sítě (host podle ní validuje dropy, pickupy a /tp).</summary>
+        public Vector3 LastNetworkPosition { get; private set; }
+
+        /// <summary>Dorazila už aspoň jedna pozice?</summary>
+        public bool HasNetworkPosition { get; private set; }
 
         // ══════════════════════════════════════════════════════════════════════
         // Stav pohybu (plavání, pád, let)
@@ -150,17 +168,7 @@ namespace Orivilon.Multiplayer
                 Destroy(col);
 
             // Jmenovka (TextMeshPro – World Space)
-            var labelGo = new GameObject("NameLabel");
-            labelGo.transform.SetParent(root.transform, false);
-            labelGo.transform.localPosition = new Vector3(0f, 2.4f, 0f);
-
-            var tmp = labelGo.AddComponent<TextMeshPro>();
-            tmp.text               = "Player";
-            tmp.fontSize           = 3f;
-            tmp.alignment          = TextAlignmentOptions.Center;
-            tmp.color              = Color.white;
-            tmp.outlineColor       = Color.black;
-            tmp.outlineWidth       = 0.2f;
+            var tmp = CreateNameLabel(root.transform, true);
 
             var ctrl = root.AddComponent<RemotePlayerController>();
             ctrl.nameLabel = tmp;
@@ -169,6 +177,31 @@ namespace Orivilon.Multiplayer
             root.AddComponent<RemotePlayerBillboard>();
 
             return root;
+        }
+
+        /// <summary>
+        /// Jmenovka vzdáleného hráče. <paramref name="styled"/> = obrys (mění materiál TMP, jen v Play Mode);
+        /// editorová kontrola (MultiplayerChecks) ověřuje bez něj jen nastavení textu, aby v edit mode nevznikal
+        /// materiál navíc.
+        /// </summary>
+        public static TextMeshPro CreateNameLabel(Transform parent, bool styled)
+        {
+            var labelGo = new GameObject("NameLabel");
+            labelGo.transform.SetParent(parent, false);
+            labelGo.transform.localPosition = new Vector3(0f, 2.4f, 0f);
+
+            var tmp = labelGo.AddComponent<TextMeshPro>();
+            tmp.text               = "Player";
+            tmp.richText           = false;   // Steam jméno nesmí vložit TMP tagy
+            tmp.fontSize           = 3f;
+            tmp.alignment          = TextAlignmentOptions.Center;
+            tmp.color              = Color.white;
+            if (styled)
+            {
+                tmp.outlineColor   = Color.black;
+                tmp.outlineWidth   = 0.2f;
+            }
+            return tmp;
         }
     }
 

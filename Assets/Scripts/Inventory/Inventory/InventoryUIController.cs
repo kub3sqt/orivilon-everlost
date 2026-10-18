@@ -63,7 +63,10 @@ namespace Orivilon.Inventory.Inventory
         public static InventoryUIController Instance;
 
         /// <summary>True, pokud je aktuálně aktivní záložka Crafting.</summary>
-        public bool IsCraftingOpen => craftingPanel.activeSelf;
+        public bool IsCraftingOpen => craftingPanel != null && craftingPanel.activeInHierarchy;
+
+        /// <summary>True, pokud je vidět panel hlavního inventáře (sloty od InventoryData.HotbarSize).</summary>
+        public bool IsInventoryPanelOpen => inventoryPanel != null && inventoryPanel.activeInHierarchy;
 
         /// <summary>Singleton inicializace.</summary>
         private void Awake()
@@ -129,6 +132,7 @@ namespace Orivilon.Inventory.Inventory
                 CraftingData.Instance.ReturnAllToInventory();
                 CraftingController.Instance.RefreshAllSlots();
             }
+            ItemDescriptionUI.Instance?.ClearFromSlot();
         }
 
         /// <summary>
@@ -137,6 +141,8 @@ namespace Orivilon.Inventory.Inventory
         /// <param name="activePanel">Panel, který má být zobrazen.</param>
         private void SetPanels(GameObject activePanel)
         {
+            // Deaktivované sloty už nedostanou OnPointerUp – gesto proto zrušit dřív, než zmizí.
+            InventoryDragDistributor.CancelGesture();
             inventoryPanel.SetActive(false);
             armoryPanel.SetActive(false);
             craftingPanel.SetActive(false);

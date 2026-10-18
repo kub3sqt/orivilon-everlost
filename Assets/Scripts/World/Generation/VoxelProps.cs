@@ -102,6 +102,28 @@ namespace Orivilon.World.Generation
                                              in TerrainPalette palette, in MicroParams micro,
                                              int worldSeed, float[] waterLevels)
         {
+            ObjectSpawner spawner = AcquireEcoSpawner(parent, coord);
+            if (spawner == null) return null;
+            var chunkCoord = new Vector2Int(coord.x, coord.y);
+
+            long placementStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            var placements = EcologyPlacer.Build(spawner, column, pad, voxelSize, seaLevel, coord,
+                                                 palette, micro, worldSeed, waterLevels);
+            double placementMs = (System.Diagnostics.Stopwatch.GetTimestamp() - placementStarted)
+                * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            long spawnStarted = System.Diagnostics.Stopwatch.GetTimestamp();
+            spawner.SpawnPlacements(parent, placements, chunkCoord);
+            if (VoxelTerrain.SpikeProbe && placementMs > 5.0)
+                VoxelTerrain.SpikeLog?.Invoke(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "[Props] column {0},{1}: placements {2:0.0} ms, spawn setup {3:0.0} ms, candidates {4}",
+                    coord.x, coord.y, placementMs,
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - spawnStarted) * 1000.0 / System.Diagnostics.Stopwatch.Frequency,
+                    placements.Count));
+            return spawner;
+        }
+
+        public static ObjectSpawner AcquireEcoSpawner(Transform parent, int2 coord)
+        {
             Resolve();
             if (prefab == null) return null;
 
@@ -131,9 +153,6 @@ namespace Orivilon.World.Generation
             spawner.EnsureBiomeProps();   // kolo 14: doplňkové druhy (jednou na instanci)
             spawner.Initialize(0, chunkCoord);
 
-            var placements = EcologyPlacer.Build(spawner, column, pad, voxelSize, seaLevel, coord,
-                                                 palette, micro, worldSeed, waterLevels);
-            spawner.SpawnPlacements(parent, placements, chunkCoord);
             return spawner;
         }
 

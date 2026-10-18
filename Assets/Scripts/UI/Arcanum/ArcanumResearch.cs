@@ -82,6 +82,7 @@ namespace Orivilon.UI.Arcanum
                     if (slot.amount <= 0) slot.Clear();
                 }
                 InventoryData.Instance.NotifyInventoryChanged();
+                Orivilon.Multiplayer.MpLedger.ReportConsume(id, n.materialCost - left);   // MP klient: spotřeba i u hosta
             }
 
             ArcanumProgress.MarkUnlocked(n.id);

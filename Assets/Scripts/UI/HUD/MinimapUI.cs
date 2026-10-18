@@ -152,12 +152,22 @@ namespace Orivilon.UI.HUD
             RegisterWithGameManager();
         }
 
+        // Výkonové kolo 14.10.2026: minimapa se kreslila každý snímek celou scénou (vlastní
+        // culling, depth-normal prepass pro SSAO, instancovaná vegetace). Na 512px mapě stačí
+        // ~12 snímků za sekundu – mezi nimi zůstává v render textuře poslední obraz.
+        private const float RenderInterval = 1f / 12f;
+        private float nextRender;
+
         private void LateUpdate()
         {
             if (player == null || minimapCamera == null)
                 return;
 
             UpdateCameraTransform();
+
+            bool due = Time.unscaledTime >= nextRender;
+            if (due) nextRender = Time.unscaledTime + RenderInterval;
+            if (minimapCamera.enabled != due) minimapCamera.enabled = due;
         }
 
         private void OnEnable()

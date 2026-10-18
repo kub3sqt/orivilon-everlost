@@ -110,6 +110,95 @@ namespace Orivilon.UI.Menu
             UpdatePlayModeVisuals();
         }
 
+        // ── Multiplayer (kamarádi) – stejná obrazovka jako výběr světa, kolo MP 17.10.2026 ──────────────
+        /// <summary>
+        /// Play menu v režimu „Multiplayer“: stejný rám, seznam, detail a PLAY (jako JOIN), jen místo světů
+        /// ukazuje lobby Steam kamarádů (plní <see cref="FriendsListUI"/>). Žádný paralelní panel.
+        /// </summary>
+        public bool FriendsMode { get; private set; }
+        private string savedNewWorldText;
+
+        private TMP_Text NewWorldLabel()
+        {
+            var nw = worldScrollView != null ? worldScrollView.transform.Find("NewWorlButton") : null;
+            return nw != null ? nw.GetComponentInChildren<TMP_Text>(true) : null;
+        }
+
+        /// <summary>Otevře Play menu v režimu Multiplayer (tlačítko Multiplayer v hlavním menu / bez světa).</summary>
+        public void OpenMultiplayerMenu()
+        {
+            if (!gameObject.activeSelf) gameObject.SetActive(true);
+            FriendsMode = true;
+            if (createMenu != null) createMenu.SetActive(false);
+            if (worldScrollView != null)
+            {
+                worldScrollView.SetActive(true);
+                var nw = worldScrollView.transform.Find("NewWorlButton");
+                if (nw != null) nw.gameObject.SetActive(true);
+            }
+            if (menuHeaderText != null) menuHeaderText.text = "Multiplayer";
+            if (headerAnimator != null) headerAnimator.SetInteger("MenuState", 1);
+            SetStatsPanelVisible(true);
+            ClearWorldList();
+            ClearWorldSelection();
+            var label = NewWorldLabel();
+            if (label != null) { if (savedNewWorldText == null) savedNewWorldText = label.text; label.text = "Refresh"; }
+            SetSideToggles(false);
+            if (friendsList != null) friendsList.BeginMenu(this);
+        }
+
+        /// <summary>Konec režimu Multiplayer (zpět, zavření menu, přepnutí na světy).</summary>
+        private void ExitFriendsMode()
+        {
+            if (!FriendsMode) return;
+            FriendsMode = false;
+            var label = NewWorldLabel();
+            if (label != null && savedNewWorldText != null) label.text = savedNewWorldText;
+            SetSideToggles(true);
+            ClearWorldList();
+            if (friendsList != null) friendsList.EndMenu();
+        }
+
+        private void SetSideToggles(bool visible)
+        {
+            if (singleplayerButton != null) singleplayerButton.gameObject.SetActive(visible);
+            if (multiplayerButton != null) multiplayerButton.gameObject.SetActive(visible);
+        }
+
+        /// <summary>Řádek seznamu (stejný prefab jako svět). Vrací tlačítko a vizuál výběru.</summary>
+        public GameObject CreateListRow(string title, out Button button, out WorldListElement visual)
+        {
+            button = null; visual = null;
+            if (listElementPrefab == null || listContent == null) return null;
+            GameObject entry = Instantiate(listElementPrefab, listContent);
+            TMP_Text nameLabel = entry.GetComponentInChildren<TMP_Text>();
+            if (nameLabel != null) { nameLabel.richText = false; nameLabel.text = title; }
+            visual = entry.GetComponent<WorldListElement>();
+            button = entry.GetComponentInChildren<Button>();
+            Transform bottomSpace = listContent.Find("BottomSpace");
+            if (bottomSpace != null) entry.transform.SetSiblingIndex(bottomSpace.GetSiblingIndex());
+            return entry;
+        }
+
+        /// <summary>Vymaže řádky seznamu (světy i kamarády).</summary>
+        public void ClearListRows() => ClearWorldList();
+
+        /// <summary>Chybový řádek nad PLAY (stejný jako u světů).</summary>
+        public void ShowListError(string error) => UpdatePlayModeVisuals(error);
+
+        private void Update()
+        {
+            // ESC v režimu Multiplayer = Zpět (stejná cesta jako křížek: zavře Play menu do hlavního menu)
+            if (FriendsMode && Input.GetKeyDown(KeyCode.Escape) && (MultiplayerDialog.Instance == null || !MultiplayerDialog.Instance.IsOpen))
+            {
+                var back = transform.Find("SideGuide/BackButton");
+                var b = back != null ? back.GetComponent<Button>() : null;
+                if (b != null && b.isActiveAndEnabled) b.onClick.Invoke(); else CloseMenus();
+            }
+        }
+
+        private void OnDisable() => ExitFriendsMode();
+
         /// <summary>Selects Singleplayer for the selected world (persisted per world). Does not launch.</summary>
         public void SelectSingleplayerMode() => SetPlayMode("single");
 
@@ -119,7 +208,7 @@ namespace Orivilon.UI.Menu
         {
             if (selectedWorldData == null)
             {
-                if (friendsList != null) friendsList.Open();
+                OpenMultiplayerMenu();
                 return;
             }
             SetPlayMode("multi");
@@ -139,6 +228,7 @@ namespace Orivilon.UI.Menu
         /// <summary>Launches the selected world in its saved mode (PLAY button).</summary>
         public void PlaySelectedWorld()
         {
+            if (FriendsMode) { friendsList?.JoinSelected(); return; }
             if (selectedWorldData == null) return;
             LaunchWorld(selectedWorldData, selectedWorldData.PrefersMultiplayer);
         }
@@ -241,6 +331,7 @@ namespace Orivilon.UI.Menu
         /// </summary>
         public void RefreshList()
         {
+            if (FriendsMode) return;   // seznam kamarádů plní FriendsListUI
             ClearWorldList();
             ClearWorldSelection();
 
@@ -358,6 +449,7 @@ namespace Orivilon.UI.Menu
         /// </summary>
         public void OpenSelectWorldMenu()
         {
+            ExitFriendsMode();
             if (createMenu != null)
                 createMenu.SetActive(false);
 
@@ -379,6 +471,19 @@ namespace Orivilon.UI.Menu
         /// </summary>
         public void OpenCreateWorldMenu()
         {
+            // V režimu Multiplayer je odkaz vpravo nahoře „Refresh“ (stejný prvek jako Create New World).
+            if (FriendsMode)
+            {
+                if (createMenu != null) createMenu.SetActive(false);
+                if (worldScrollView != null)
+                {
+                    worldScrollView.SetActive(true);
+                    var nw = worldScrollView.transform.Find("NewWorlButton");
+                    if (nw != null) nw.gameObject.SetActive(true);
+                }
+                friendsList?.Refresh();
+                return;
+            }
             if (createMenu != null)
                 createMenu.SetActive(true);
 
@@ -400,6 +505,7 @@ namespace Orivilon.UI.Menu
         /// </summary>
         public void CloseMenus()
         {
+            ExitFriendsMode();
             if (createMenu != null)
                 createMenu.SetActive(false);
 
@@ -579,6 +685,7 @@ namespace Orivilon.UI.Menu
         /// </summary>
         public void PlaySelectedWorldSingleplayer()
         {
+            if (FriendsMode) { friendsList?.JoinSelected(); return; }   // PLAY = JOIN v režimu Multiplayer
             if (selectedWorldData == null)
             {
                 Debug.LogWarning("[MainMenuUI] Není označen žádný svět.");
@@ -613,6 +720,29 @@ namespace Orivilon.UI.Menu
         /// (ne až při save), aby řazení seznamu sedělo i po případném pádu hry.
         /// </summary>
         private void LaunchWorld(WorldData worldData, bool multiplayer)
+        {
+            if (launching) return;
+
+            // Kolo MP 17.10.2026: před hostováním volitelné heslo pro kamarády (prázdné = bez hesla).
+            if (multiplayer && MultiplayerDialog.Instance != null)
+            {
+                if (MultiplayerDialog.Instance.IsOpen) return;
+                MultiplayerDialog.Instance.Show("Host multiplayer",
+                    "Optional password for friends who join this world. Leave it empty for no password.",
+                    "HOST", null, true, pw => HostWorld(worldData, pw));
+                return;
+            }
+            LaunchWorldNow(worldData, multiplayer);
+        }
+
+        /// <summary>Hostování s heslem (prázdné = bez hesla). Heslo zůstává jen v paměti této session.</summary>
+        public void HostWorld(WorldData worldData, string password)
+        {
+            MultiplayerManager.SetHostPassword(password);
+            LaunchWorldNow(worldData, true);
+        }
+
+        private void LaunchWorldNow(WorldData worldData, bool multiplayer)
         {
             if (launching) return;
 

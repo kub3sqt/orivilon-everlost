@@ -140,6 +140,19 @@ namespace Orivilon.UI.Settings
         /// <summary>Přepnout dřep na toggle (true) nebo hold (false).</summary>
         public bool crouchToggle = false;
 
+        // Ovládání inventáře podle Mouse Tweaks (stejné názvy a významy hodnot jako MouseTweaks config).
+        // Chybějící klíče ve starém settings.json zůstanou na výchozích hodnotách níže.
+        public bool mtRmbTweak = true;
+        public bool mtLmbTweakWithItem = true;
+        public bool mtLmbTweakWithoutItem = true;
+        public bool mtWheelTweak = true;
+        /// <summary>WheelSearchOrder: 0 = od prvního k poslednímu, 1 = od posledního k prvnímu (výchozí).</summary>
+        public int mtWheelSearchOrder = 1;
+        /// <summary>WheelScrollDirection: 0 = dolů odesílá (výchozí), 1 = obráceně, 2 = podle polohy druhé oblasti.</summary>
+        public int mtWheelScrollDirection = 0;
+        /// <summary>ScrollItemScaling: 0 = úměrně délce scrollu (výchozí), 1 = vždy jeden kus na událost.</summary>
+        public int mtScrollItemScaling = 0;
+
 
         // ─── GAMEPLAY ────────────────────────────────────────────────────────────
         /// <summary>Obtížnost (0=Mírná, 1=Normální, 2=Těžká, 3=Hardcore).</summary>

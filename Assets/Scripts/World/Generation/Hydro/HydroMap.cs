@@ -58,6 +58,12 @@ namespace Orivilon.World.Generation.Hydro
         /// <summary>Kolik se jich právě staví.</summary>
         public int BuildingCount => sites.Count;
 
+        /// <summary>
+        /// Výkonové kolo 14.10.2026: smí se začít stavět nový region? Nastavuje streamer podle
+        /// společného rozpočtu jobů (stavba regionu zabere jedno pracovní vlákno).
+        /// </summary>
+        public bool AllowBegin = true;
+
         public HydroMap(GenParams genParams, SplineSet splines)
         {
             gp = genParams;
@@ -108,7 +114,7 @@ namespace Orivilon.World.Generation.Hydro
             for (int dy = -1; dy <= 1; dy++)
             for (int dx = -1; dx <= 1; dx++)
             {
-                if (sites.Count >= maxConcurrent) return;
+                if (sites.Count >= maxConcurrent || !AllowBegin) return;
 
                 var c = home + new int2(dx, dy);
                 if (regions.ContainsKey(c) || IsBuilding(c)) continue;
@@ -133,7 +139,7 @@ namespace Orivilon.World.Generation.Hydro
         {
             int2 c = HydroWorld.RegionOf(world);
             if (regions.ContainsKey(c) || IsBuilding(c)) return;
-            if (sites.Count >= maxConcurrent) return;
+            if (sites.Count >= maxConcurrent || !AllowBegin) return;
 
             Begin(c);
         }
@@ -216,7 +222,7 @@ namespace Orivilon.World.Generation.Hydro
                 gp = gp,
                 spl = spl,
                 raw = s.raw,
-            }.Schedule(n, 256);
+            }.Schedule(n, JobBudget.Batch(n, 256));
 
             h = new HydroFloodJob
             {
@@ -237,7 +243,7 @@ namespace Orivilon.World.Generation.Hydro
                 filled = s.filled,
                 parent = s.parent,
                 dir = s.dir,
-            }.Schedule(n, 256, h);
+            }.Schedule(n, JobBudget.Batch(n, 256), h);
 
             h = new HydroAccumJob
             {
@@ -255,7 +261,7 @@ namespace Orivilon.World.Generation.Hydro
                 srcFilled = s.filled, srcRaw = s.raw, srcAccum = s.accum, srcDir = s.dir,
                 dstFilled = s.result.filled, dstRaw = s.result.raw,
                 dstAccum = s.result.accum, dstDir = s.result.dir,
-            }.Schedule(m, 256, h);
+            }.Schedule(m, JobBudget.Batch(m, 256), h);
 
             s.handle = h;
             sites.Add(s);

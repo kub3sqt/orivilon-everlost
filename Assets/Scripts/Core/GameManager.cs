@@ -154,6 +154,9 @@ namespace Orivilon.Core
         /// <summary>Veřejná read-only property vracející stav pauzy.</summary>
         public bool IsPaused => isPaused;
 
+        /// <summary>True, když je otevřený inventář (vstup gest inventáře se přijímá jen tehdy).</summary>
+        public bool IsInventoryOpen => isInventoryOpen;
+
         /// <summary>UI refresh: true až po dokončení spawnu a skrytí loading screenu (F3 overlay to čte).</summary>
         public bool IsLoadingComplete => isLoadingComplete;
 
@@ -532,6 +535,13 @@ namespace Orivilon.Core
         /// </summary>
         private void CloseInventory()
         {
+            // Rozpracované gesto zrušit (náhled splitu se vrátí na kurzor), suroviny z gridu a stack
+            // z kurzoru vrátit do inventáře jako v Minecraftu. Co se nevejde, zůstane (hra nemá vyhazování).
+            InventoryDragDistributor.CancelGesture();
+            Orivilon.Inventory.Crafting.CraftingData.Instance?.ReturnAllToInventory();
+            InventoryUIController.Instance?.OnClose();
+            if (InventoryActions.ReturnCursorToInventory()) InventoryActions.Commit();
+
             isInventoryOpen = false;
             isMenuOpen = false;
 
@@ -647,7 +657,7 @@ namespace Orivilon.Core
         /// True, když hráč píše do konzole/chatu nebo do libovolného UI textového pole –
         /// herní zkratky (C) se pak ignorují.
         /// </summary>
-        private static bool IsTextInputActive()
+        public static bool IsTextInputActive()
         {
             if (GameConsole.IsOpen) return true;
             var es = UnityEngine.EventSystems.EventSystem.current;
@@ -916,6 +926,8 @@ namespace Orivilon.Core
                 Debug.Log($"Selected world: {selectedWorld.worldName}, Folder: {selectedWorld.folderPath}");
 
                 PlayerData playerData = SaveSystem.SaveSystem.LoadPlayerData();
+                // Vyhozené předměty (world/dropped_items.json); kinematické, na terén nečekají.
+                Orivilon.World.Objects.ItemDropService.LoadSaved();
                 if (playerData != null)
                 {
                     spawnPosition = playerData.position;

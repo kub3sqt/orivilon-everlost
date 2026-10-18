@@ -60,6 +60,7 @@ public class PlayerItemUse : MonoBehaviour
             playerNeeds.AddWater(item.waterRestore);
 
             slot.amount--;
+            Orivilon.Multiplayer.MpLedger.ReportConsume(item, 1);   // MP klient: snědené i v hostově účtu
 
             if (slot.amount <= 0)
                 slot.Clear();

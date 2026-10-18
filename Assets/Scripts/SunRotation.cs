@@ -200,6 +200,34 @@ namespace Orivilon
         /// <summary>Pokud true, čas se nepohybuje (ruční pauza klávesou P).</summary>
         public bool paused = false;
 
+        /// <summary>
+        /// Multiplayer klient: čas řídí host (NetworkWorldSync, kolo MP 17.10.2026). Lokálně čas dál plyne
+        /// stejným tempem kvůli plynulosti, ale P ani /time ho nemění a host ho každou sekundu srovná.
+        /// </summary>
+        public static bool NetworkDriven;
+
+        /// <summary>Verze posledního času od hosta, kterou tahle instance převzala (nová scéna = dorovnat).</summary>
+        public int NetworkAppliedVersion { get; private set; } = -1;
+
+        /// <summary>Herní hodiny za reálnou sekundu právě teď (host podle toho pozná mimořádnou změnu času).</summary>
+        public float CurrentRatePerSecond
+        {
+            get
+            {
+                bool isDaytime = timeOfDay >= morningStart && timeOfDay < eveningEnd;
+                return Time.timeScale / 60f * (isDaytime ? EffectiveDayScale : EffectiveNightScale);
+            }
+        }
+
+        /// <summary>Klient: převezme čas a pauzu hosta (světlo, slunce, mlha i obloha přes SetTime).</summary>
+        public void ApplyNetworkTime(float time, bool hostPaused, int version)
+        {
+            paused = hostPaused;
+            SetTime(time);
+            isTimeLoaded = true;
+            NetworkAppliedVersion = version;
+        }
+
         /// <summary>Interní příznak, zda byl čas již inicializován (brání přepsání načteného času při Start()).</summary>
         private bool isTimeLoaded = false;
 
@@ -313,7 +341,7 @@ namespace Orivilon
                 }
             }
 
-            if (!inputBlocked && Input.GetKeyDown(KeyCode.P))
+            if (!inputBlocked && !NetworkDriven && Input.GetKeyDown(KeyCode.P))
             {
                 paused = !paused;
             }

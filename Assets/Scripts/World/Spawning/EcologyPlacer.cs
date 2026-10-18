@@ -211,6 +211,30 @@ namespace Orivilon.World.Generation
 
         private static Table table;
 
+        /// <summary>
+        /// Kolo 4 (diagnostika prázdných biomů): čedič [0] a obsidián [1] po stupních pipeline –
+        /// rozmístěno osazovačem → druh ve spawnables instance chybí → skutečně vytvořeno.
+        /// </summary>
+        public static readonly int[] FormPlaced = new int[2], FormNoSpawnable = new int[2], FormSpawned = new int[2];
+        private static HashSet<int>[] formSets;
+
+        public static void FormReset() { System.Array.Clear(FormPlaced, 0, 2); System.Array.Clear(FormNoSpawnable, 0, 2); System.Array.Clear(FormSpawned, 0, 2); }
+
+        /// <summary>0 = čedičové formace, 1 = obsidiánové, -1 = jiný druh.</summary>
+        public static int FormGroup(int si)
+        {
+            if (table == null) return -1;
+            if (formSets == null)
+            {
+                formSets = new[] { new HashSet<int>(), new HashSet<int>() };
+                foreach (int[] a in new[] { table.smBasaltCol, table.smBasaltStep, table.smBasaltPave, table.smBasaltSea, table.smBasalt })
+                    if (a != null) foreach (int i in a) formSets[0].Add(i);
+                foreach (int[] a in new[] { table.smObsSpire, table.smObsRock, table.smObsStone })
+                    if (a != null) foreach (int i in a) formSets[1].Add(i);
+            }
+            return formSets[0].Contains(si) ? 0 : formSets[1].Contains(si) ? 1 : -1;
+        }
+
         private static int[] Resolve(ObjectSpawner sp, string[] names)
         {
             var list = new List<int>(names.Length);
@@ -325,8 +349,8 @@ namespace Orivilon.World.Generation
         private static float[] gSurf, gDist, gShore;
         private static byte[] gWet;
         private static int gSide;
-        private static readonly List<EcoPlacement> scratchOut = new List<EcoPlacement>(1024);
-        private static readonly List<Vector4> reserved = new List<Vector4>(256);   // x, z, poloměr, vrstva
+        private static List<EcoPlacement> scratchOut = new List<EcoPlacement>(1024);
+        private static List<Vector4> reserved = new List<Vector4>(256);   // x, z, poloměr, vrstva
 
         // pole sloupce pro rychlé čtení
         private static ColumnField col;
@@ -359,7 +383,6 @@ namespace Orivilon.World.Generation
         /// <summary>Čas po vrstvách (stromy, kameny, keře, kamínky, drobné, tráva, příprava) – součet.</summary>
         public static readonly double[] LayerMs = new double[7];
 
-        private static readonly System.Diagnostics.Stopwatch sw = new System.Diagnostics.Stopwatch();
 
         /// <summary>
         /// Spočte pozice pro jeden sloupec. <paramref name="raster"/> musí být postavený z LOD0
@@ -369,7 +392,16 @@ namespace Orivilon.World.Generation
                                                float seaLevel, int2 coord, in TerrainPalette palette,
                                                in MicroParams microParams, int worldSeed, float[] waterLevels)
         {
-            sw.Restart();
+            foreach (int ignored in BuildSteps(sp, column, pad, voxelSize, seaLevel, coord,
+                                               palette, microParams, worldSeed, waterLevels)) { }
+            return scratchOut;
+        }
+
+        private static IEnumerable<int> BuildSteps(ObjectSpawner sp, ColumnField column, int pad, float voxelSize,
+                                               float seaLevel, int2 coord, TerrainPalette palette,
+                                               MicroParams microParams, int worldSeed, float[] waterLevels)
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
             Table t = GetTable(sp);
 
             col = column;
@@ -404,16 +436,16 @@ namespace Orivilon.World.Generation
                 double t0 = sw.Elapsed.TotalMilliseconds;
                 // Kolo 29: kužely bahenních sopek přesně na výduchech (BiomeMath.MudVent – na týchž bodech jsou sírové prstence
                 // v barvě terénu) a jádro meteoritu ve středu kráteru – před formacemi, ty se jim vyhnou přes rezervace.
-                if (t.smMudCone.Length > 0) { RunMudVents(sp, t, output); RunCraterCores(sp, t, output); }
-                RunFormations(sp, t, output, true);
-                RunFormations(sp, t, output, false);
+                if (t.smMudCone.Length > 0) { foreach (int ignored in RunMudVents(sp, t, output)) { sw.Stop(); yield return 0; sw.Start(); } RunCraterCores(sp, t, output); }
+                foreach (int ignored in RunFormations(sp, t, output, true)) { sw.Stop(); yield return 0; sw.Start(); }
+                foreach (int ignored in RunFormations(sp, t, output, false)) { sw.Stop(); yield return 0; sw.Start(); }
                 LayerMs[LRock] += sw.Elapsed.TotalMilliseconds - t0;
             }
 
             for (int layer = 0; layer <= LGrass; layer++)
             {
                 double t0 = sw.Elapsed.TotalMilliseconds;
-                RunLayer(sp, t, layer, layer <= LRock ? 5f : 0f, output);
+                foreach (int ignored in RunLayer(sp, t, layer, layer <= LRock ? 5f : 0f, output)) { sw.Stop(); yield return 0; sw.Start(); }
                 LayerMs[layer] += sw.Elapsed.TotalMilliseconds - t0;
             }
 
@@ -421,7 +453,7 @@ namespace Orivilon.World.Generation
             if (Pebbles && t.pebble.Length > 0)
             {
                 double t0 = sw.Elapsed.TotalMilliseconds;
-                RunLayer(sp, t, LPebble, 0f, output);
+                foreach (int ignored in RunLayer(sp, t, LPebble, 0f, output)) { sw.Stop(); yield return 0; sw.Start(); }
                 LayerMs[LStone] += sw.Elapsed.TotalMilliseconds - t0;
             }
 
@@ -429,7 +461,7 @@ namespace Orivilon.World.Generation
             if (Floes && t.smFloe.Length > 0)
             {
                 double t0 = sw.Elapsed.TotalMilliseconds;
-                RunFloes(sp, t, output);
+                foreach (int ignored in RunFloes(sp, t, output)) { sw.Stop(); yield return 0; sw.Start(); }
                 LayerMs[LRock] += sw.Elapsed.TotalMilliseconds - t0;
             }
 
@@ -437,17 +469,210 @@ namespace Orivilon.World.Generation
             if (SeaColumns && t.smBasaltSea.Length > 0)
             {
                 double t0 = sw.Elapsed.TotalMilliseconds;
-                RunSeaColumns(sp, t, output);
+                foreach (int ignored in RunSeaColumns(sp, t, output)) { sw.Stop(); yield return 0; sw.Start(); }
                 LayerMs[LRock] += sw.Elapsed.TotalMilliseconds - t0;
             }
+
+            if (!proxyMode)
+                for (int oi = 0; oi < output.Count; oi++)
+                {
+                    int fg = FormGroup(output[oi].spawnable);
+                    if (fg >= 0) FormPlaced[fg]++;
+                }
 
             sw.Stop();
             double ms = sw.Elapsed.TotalMilliseconds;
             TotalMs += ms;
             Columns++;
             if (ms > WorstMs) WorstMs = ms;
-            return output;
+            yield break;
         }
+
+        private struct ScratchState
+        {
+            public float[] gSurf;
+            public float[] gDist;
+            public float[] gShore;
+            public byte[] gWet;
+            public int gSide;
+            public List<EcoPlacement> scratchOut;
+            public List<Vector4> reserved;
+            public ColumnField col;
+            public float2 fieldOrigin;
+            public float vox;
+            public float sea;
+            public float colX0;
+            public float colZ0;
+            public float colSpan;
+            public TerrainPalette pal;
+            public MicroParams micro;
+            public int seed;
+            public float2 offGrove;
+            public float2 offGrove2;
+            public float2 offOutcrop;
+            public float2 offFlower;
+            public float2 offGap;
+            public float2 offClump;
+            public float2 offAutumn;
+            public float3 offRegion;
+            public CraterCell craterCol;
+            public bool proxyMode;
+            public float proxyGrid;
+            public GenParams caveGp;
+            public bool caveGpOk;
+            public int curRegion;
+        }
+
+        private static ScratchState CaptureScratch() => new ScratchState
+        {
+            gSurf = gSurf,
+            gDist = gDist,
+            gShore = gShore,
+            gWet = gWet,
+            gSide = gSide,
+            scratchOut = scratchOut,
+            reserved = reserved,
+            col = col,
+            fieldOrigin = fieldOrigin,
+            vox = vox,
+            sea = sea,
+            colX0 = colX0,
+            colZ0 = colZ0,
+            colSpan = colSpan,
+            pal = pal,
+            micro = micro,
+            seed = seed,
+            offGrove = offGrove,
+            offGrove2 = offGrove2,
+            offOutcrop = offOutcrop,
+            offFlower = offFlower,
+            offGap = offGap,
+            offClump = offClump,
+            offAutumn = offAutumn,
+            offRegion = offRegion,
+            craterCol = craterCol,
+            proxyMode = proxyMode,
+            proxyGrid = proxyGrid,
+            caveGp = caveGp,
+            caveGpOk = caveGpOk,
+            curRegion = curRegion,
+        };
+
+        private static void RestoreScratch(ScratchState state)
+        {
+            gSurf = state.gSurf;
+            gDist = state.gDist;
+            gShore = state.gShore;
+            gWet = state.gWet;
+            gSide = state.gSide;
+            scratchOut = state.scratchOut;
+            reserved = state.reserved;
+            col = state.col;
+            fieldOrigin = state.fieldOrigin;
+            vox = state.vox;
+            sea = state.sea;
+            colX0 = state.colX0;
+            colZ0 = state.colZ0;
+            colSpan = state.colSpan;
+            pal = state.pal;
+            micro = state.micro;
+            seed = state.seed;
+            offGrove = state.offGrove;
+            offGrove2 = state.offGrove2;
+            offOutcrop = state.offOutcrop;
+            offFlower = state.offFlower;
+            offGap = state.offGap;
+            offClump = state.offClump;
+            offAutumn = state.offAutumn;
+            offRegion = state.offRegion;
+            craterCol = state.craterCol;
+            proxyMode = state.proxyMode;
+            proxyGrid = state.proxyGrid;
+            caveGp = state.caveGp;
+            caveGpOk = state.caveGpOk;
+            curRegion = state.curRegion;
+        }
+
+        private static readonly Stack<ScratchState> scratchPool = new Stack<ScratchState>(2);
+        private static readonly Stack<SurfaceRaster.Snapshot> rasterPool = new Stack<SurfaceRaster.Snapshot>(2);
+
+        /// <summary>One column's resumable calculation; never owns the native column field.</summary>
+        public sealed class BuildSession : System.IDisposable
+        {
+            private ScratchState state;
+            private readonly SurfaceRaster.Snapshot raster;
+            private readonly IEnumerator<int> steps;
+            private bool disposed;
+            public bool Complete { get; private set; }
+            public double ActiveMs { get; private set; }
+            public double MaxSliceMs { get; private set; }
+            public List<EcoPlacement> Placements => state.scratchOut;
+
+            internal BuildSession(ObjectSpawner sp, ColumnField column, int pad, float voxelSize,
+                                  float seaLevel, int2 coord, TerrainPalette palette,
+                                  MicroParams microParams, int worldSeed, float[] waterLevels)
+            {
+                state = scratchPool.Count > 0 ? scratchPool.Pop() : new ScratchState
+                {
+                    scratchOut = new List<EcoPlacement>(1024), reserved = new List<Vector4>(256)
+                };
+                state.caveGp = EcologyPlacer.caveGp;
+                state.caveGpOk = EcologyPlacer.caveGpOk;
+                state.proxyMode = false;
+                raster = SurfaceRaster.CopySnapshot(rasterPool.Count > 0 ? rasterPool.Pop() : default);
+                steps = BuildSteps(sp, column, pad, voxelSize, seaLevel, coord,
+                                   palette, microParams, worldSeed, waterLevels).GetEnumerator();
+            }
+
+            public bool Step(double budgetMs)
+            {
+                if (disposed) throw new System.ObjectDisposedException(nameof(BuildSession));
+                if (Complete) return true;
+                ScratchState previous = CaptureScratch();
+                var previousRaster = SurfaceRaster.CaptureSnapshot();
+                RestoreScratch(state);
+                SurfaceRaster.RestoreSnapshot(raster);
+                long started = System.Diagnostics.Stopwatch.GetTimestamp();
+                try
+                {
+                    do
+                    {
+                        if (!steps.MoveNext()) { Complete = true; break; }
+                    }
+                    while ((System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0
+                            / System.Diagnostics.Stopwatch.Frequency < budgetMs);
+                    return Complete;
+                }
+                finally
+                {
+                    double elapsed = (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0
+                        / System.Diagnostics.Stopwatch.Frequency;
+                    ActiveMs += elapsed;
+                    MaxSliceMs = System.Math.Max(MaxSliceMs, elapsed);
+                    state = CaptureScratch();
+                    RestoreScratch(previous);
+                    SurfaceRaster.RestoreSnapshot(previousRaster);
+                }
+            }
+
+            public void Dispose()
+            {
+                if (disposed) return;
+                disposed = true;
+                steps.Dispose();
+                state.col = default;
+                state.scratchOut.Clear();
+                state.reserved.Clear();
+                if (scratchPool.Count < 2) scratchPool.Push(state);
+                if (rasterPool.Count < 2) rasterPool.Push(raster);
+            }
+        }
+
+        public static BuildSession BeginBuild(ObjectSpawner sp, ColumnField column, int pad, float voxelSize,
+                                              float seaLevel, int2 coord, TerrainPalette palette,
+                                              MicroParams microParams, int worldSeed, float[] waterLevels)
+            => new BuildSession(sp, column, pad, voxelSize, seaLevel, coord, palette,
+                                microParams, worldSeed, waterLevels);
 
         // ── kolo 6: vzdálené stromy ─────────────────────────────────
         private static bool proxyMode;
@@ -465,7 +690,7 @@ namespace Orivilon.World.Generation
         /// </summary>
         public static List<EcoPlacement> BuildTreeProxies(ObjectSpawner sp, in ColumnField column, int pad, float voxelSize,
                                                           float seaLevel, in TerrainPalette palette, in MicroParams microParams,
-                                                          int worldSeed, float lod0Span)
+                                                          int worldSeed, float lod0Span, float margin = 0f)
         {
             Table t = GetTable(sp);
             col = column;
@@ -491,7 +716,9 @@ namespace Orivilon.World.Generation
             int borderBackup = BorderRejects;
             proxyMode = true;
             proxyGrid = lod0Span;
-            try { RunLayer(sp, t, LTree, 0f, proxyOut); }
+            // Kolo 3: přesní zástupci (pole v rozlišení LOD0) berou i rezervace stromů za hranou sloupce
+            // jako skutečné osazení (okraj 5 m) – jinak by u hrany sloupce vycházely jinak.
+            try { foreach (int ignored in RunLayer(sp, t, LTree, margin, proxyOut)) { } }
             finally
             {
                 proxyMode = false;
@@ -675,6 +902,23 @@ namespace Orivilon.World.Generation
             float a = Mathf.PerlinNoise(x / scale + off.x, z / scale + off.y);
             float b = Mathf.PerlinNoise(x / (scale * 0.43f) + off.y, z / (scale * 0.43f) + off.x);
             return a * 0.72f + b * 0.28f;
+        }
+
+        /// <summary>
+        /// Multiplayer host (ověření nároku na loot): přesná poloha XZ kandidáta buňky (ix, iz) ve standardní
+        /// vrstvě 0–6 – stejný vzorec jako <c>RunLayer</c> (poloha nezávisí na terénu, jen na seedu a buňce).
+        /// False = vrstva má jiné rozmístění (útvary, kry, průduchy…), ověřit nejde.
+        /// </summary>
+        public static bool CandidatePoint(int layer, int ix, int iz, int worldSeed, out Vector2 xz)
+        {
+            xz = default;
+            if (layer < 0 || layer >= CellSize.Length) return false;
+            float cell = CellSize[layer], jit = Jitter[layer];
+            var rng = new Rng(Hash(ix, iz, 0x100 + layer, worldSeed));
+            float x = (ix + 0.5f + (rng.Next() - 0.5f) * 2f * jit) * cell;
+            float z = (iz + 0.5f + (rng.Next() - 0.5f) * 2f * jit) * cell;
+            xz = new Vector2(x, z);
+            return true;
         }
 
         public static uint Hash(int x, int z, int salt, int s)
@@ -950,7 +1194,7 @@ namespace Orivilon.World.Generation
 
         // ── vrstvy ─────────────────────────────────────────────────
 
-        private static void RunLayer(ObjectSpawner sp, Table t, int layer, float margin, List<EcoPlacement> output)
+        private static IEnumerable<int> RunLayer(ObjectSpawner sp, Table t, int layer, float margin, List<EcoPlacement> output)
         {
             float cell = CellSize[layer];
             float jit = Jitter[layer];
@@ -962,6 +1206,7 @@ namespace Orivilon.World.Generation
             for (int iz = iz0; iz <= iz1; iz++)
             for (int ix = ix0; ix <= ix1; ix++)
             {
+                yield return 0;
                 var rng = new Rng(Hash(ix, iz, 0x100 + layer, seed));
                 float x = (ix + 0.5f + (rng.Next() - 0.5f) * 2f * jit) * cell;
                 float z = (iz + 0.5f + (rng.Next() - 0.5f) * 2f * jit) * cell;
@@ -2288,7 +2533,7 @@ namespace Orivilon.World.Generation
         /// nejvýš jednu kru menší než půl buňky, takže se kry nepřekrývají ani přes hranu sloupce (nezávisí na meshi
         /// ani na sousedovi) a mezi nimi zůstávají tmavé pukliny. Velké kanály otevřené vody dělá šum 300 j.
         /// </summary>
-        private static void RunFloes(ObjectSpawner sp, Table t, List<EcoPlacement> output)
+        private static IEnumerable<int> RunFloes(ObjectSpawner sp, Table t, List<EcoPlacement> output)
         {
             float cell = FloeCell;
             int ix0 = Mathf.FloorToInt(colX0 / cell) - 1, ix1 = Mathf.FloorToInt((colX0 + colSpan) / cell) + 1;
@@ -2297,6 +2542,7 @@ namespace Orivilon.World.Generation
             for (int iz = iz0; iz <= iz1; iz++)
             for (int ix = ix0; ix <= ix1; ix++)
             {
+                yield return 0;
                 var rng = new Rng(Hash(ix, iz, 0x7F10, seed));
                 float x = (ix + 0.5f + (rng.Next() - 0.5f) * 2f * FloeJitter) * cell;
                 float z = (iz + 0.5f + (rng.Next() - 0.5f) * 2f * FloeJitter) * cell;
@@ -2364,7 +2610,7 @@ namespace Orivilon.World.Generation
         /// LOD ani kolize vody se nemění – sloup je obyčejný pevný prop, pata zapuštěná do dna, vršek vysoko nad hladinou.
         /// Jedna buňka = nejvýš jeden shluk, takže se shluky nepřekrývají ani přes hranu sloupce terénu.
         /// </summary>
-        private static void RunSeaColumns(ObjectSpawner sp, Table t, List<EcoPlacement> output)
+        private static IEnumerable<int> RunSeaColumns(ObjectSpawner sp, Table t, List<EcoPlacement> output)
         {
             float cell = SeaColCell;
             int ix0 = Mathf.FloorToInt(colX0 / cell) - 1, ix1 = Mathf.FloorToInt((colX0 + colSpan) / cell) + 1;
@@ -2373,6 +2619,7 @@ namespace Orivilon.World.Generation
             for (int iz = iz0; iz <= iz1; iz++)
             for (int ix = ix0; ix <= ix1; ix++)
             {
+                yield return 0;
                 var rng = new Rng(Hash(ix, iz, 0x5C28, seed));
                 float x = (ix + 0.5f + (rng.Next() - 0.5f) * 2f * SeaColJitter) * cell;
                 float z = (iz + 0.5f + (rng.Next() - 0.5f) * 2f * SeaColJitter) * cell;
@@ -2427,7 +2674,7 @@ namespace Orivilon.World.Generation
         /// vidí nadmnožinu skutečně osazených formací a jeho stromy, balvany a tráva se jim vyhnou. Velké formace jdou první,
         /// malé (dlažba, balvany, desky) se vyhnou velkým přes stejné rezervace.
         /// </summary>
-        private static void RunFormations(ObjectSpawner sp, Table t, List<EcoPlacement> output, bool big)
+        private static IEnumerable<int> RunFormations(ObjectSpawner sp, Table t, List<EcoPlacement> output, bool big)
         {
             float cell = big ? FormBigCell : FormSmallCell, margin = big ? 64f : 24f;
             float maxR = 0.5f * (cell * (1f - 2f * FormJitter) - 2.2f);
@@ -2436,6 +2683,7 @@ namespace Orivilon.World.Generation
             for (int iz = iz0; iz <= iz1; iz++)
             for (int ix = ix0; ix <= ix1; ix++)
             {
+                yield return 0;
                 var rng = new Rng(Hash(ix, iz, big ? 0x2F28 : 0x3F28, seed));
                 float x = (ix + 0.5f + (rng.Next() - 0.5f) * 2f * FormJitter) * cell;
                 float z = (iz + 0.5f + (rng.Next() - 0.5f) * 2f * FormJitter) * cell;
@@ -2569,7 +2817,7 @@ namespace Orivilon.World.Generation
         /// prstenec). Výduchy jsou analytické, takže okraj souseda se rezervuje bez pole sloupce (nadmnožina, jako formace).
         /// Mimo region bahenních sopek se nic nestaví ani nerezervuje.
         /// </summary>
-        private static void RunMudVents(ObjectSpawner sp, Table t, List<EcoPlacement> output)
+        private static IEnumerable<int> RunMudVents(ObjectSpawner sp, Table t, List<EcoPlacement> output)
         {
             float cell = BiomeMath.MudVentCell, margin = 24f;
             int ix0 = Mathf.FloorToInt((colX0 - margin) / cell) - 1, ix1 = Mathf.FloorToInt((colX0 + colSpan + margin) / cell) + 1;
@@ -2577,6 +2825,7 @@ namespace Orivilon.World.Generation
             for (int iz = iz0; iz <= iz1; iz++)
             for (int ix = ix0; ix <= ix1; ix++)
             {
+                yield return 0;
                 if (!BiomeMath.MudVentInCell(new int2(ix, iz), offRegion, out float2 c, out float size)) continue;
                 float x = c.x, z = c.y;
                 bool big = size > 1.08f;
@@ -2757,6 +3006,84 @@ namespace Orivilon.World.Generation
         private static int n;
         private static float x0, z0, cell;
         private static bool built;
+
+        internal struct Snapshot
+        {
+            public Vector3[] tv;
+            public int triCount;
+            public int[] binStart;
+            public int[] binItems;
+            public int n;
+            public float x0;
+            public float z0;
+            public float cell;
+            public bool built;
+            public float[] seamDelta;
+            public bool hasSeamDelta;
+            public float sdX0;
+            public float sdZ0;
+            public float sdStep;
+            public int sdSide;
+        }
+
+        internal static Snapshot CaptureSnapshot() => new Snapshot
+        {
+            tv = tv,
+            triCount = triCount,
+            binStart = binStart,
+            binItems = binItems,
+            n = n,
+            x0 = x0,
+            z0 = z0,
+            cell = cell,
+            built = built,
+            seamDelta = seamDelta,
+            hasSeamDelta = hasSeamDelta,
+            sdX0 = sdX0,
+            sdZ0 = sdZ0,
+            sdStep = sdStep,
+            sdSide = sdSide,
+        };
+
+        internal static Snapshot CopySnapshot(Snapshot reusable)
+        {
+            var copy = CaptureSnapshot();
+            copy.tv = reusable.tv;
+            if (copy.tv == null || copy.tv.Length < triCount * 3)
+                copy.tv = new Vector3[Mathf.NextPowerOfTwo(Mathf.Max(64, triCount * 3))];
+            System.Array.Copy(tv, copy.tv, triCount * 3);
+            copy.binStart = CopyArray(binStart, reusable.binStart);
+            copy.binItems = CopyArray(binItems, reusable.binItems);
+            copy.seamDelta = CopyArray(seamDelta, reusable.seamDelta);
+            return copy;
+        }
+
+        private static T[] CopyArray<T>(T[] source, T[] reusable)
+        {
+            if (source == null) return null;
+            if (reusable == null || reusable.Length < source.Length) reusable = new T[source.Length];
+            System.Array.Copy(source, reusable, source.Length);
+            return reusable;
+        }
+
+        internal static void RestoreSnapshot(Snapshot state)
+        {
+            tv = state.tv;
+            triCount = state.triCount;
+            binStart = state.binStart;
+            binItems = state.binItems;
+            n = state.n;
+            x0 = state.x0;
+            z0 = state.z0;
+            cell = state.cell;
+            built = state.built;
+            seamDelta = state.seamDelta;
+            hasSeamDelta = state.hasSeamDelta;
+            sdX0 = state.sdX0;
+            sdZ0 = state.sdZ0;
+            sdStep = state.sdStep;
+            sdSide = state.sdSide;
+        }
 
         // Kolo 24: rozdíl „přirozená výška − výška po šití LOD švu" v mřížce sloupce. Šev se
         // u LOD0 šije jen k hrubšímu sousedovi a po posunu prstence se sloupec přestaví bez něj;

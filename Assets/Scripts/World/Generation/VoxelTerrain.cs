@@ -21,7 +21,7 @@ namespace Orivilon.World.Generation
     /// zatím omezený na to, co se dá uživit v plném rozlišení.
     /// </summary>
     [AddComponentMenu("Orivilon/Voxel Terrain")]
-    public class VoxelTerrain : MonoBehaviour
+    public partial class VoxelTerrain : MonoBehaviour
     {
         public static VoxelTerrain instance;
 
@@ -43,7 +43,7 @@ namespace Orivilon.World.Generation
         public Transform viewer;
 
         [Tooltip("Poloměr nejjemnějšího prstence v chuncích. 5 je 160 m plného rozlišení.")]
-        [Range(1, 16)] public int renderDistance = 5;
+        [Range(1, 128)] public int renderDistance = 5;
 
         [Tooltip("Kolik úrovní detailu. 1 = jen plné rozlišení. Každá další má dvojnásobný voxel a dvojnásobný chunk.")]
         [Range(1, 5)] public int lodCount = 3;
@@ -214,9 +214,49 @@ namespace Orivilon.World.Generation
             public GameObject propsGo;
             public Orivilon.World.Spawning.ObjectSpawner spawner;
             public bool propsRequested;
+            public EcologyPlacer.BuildSession propsBuild;
 
             /// <summary>Kolo 6: vzdálené stromy tohoto (LOD1/LOD2) sloupce už jsou v TreeProxies.</summary>
             public bool proxyRequested;
+
+            /// <summary>Výkonové kolo 14.10.2026: LOD0 sloupec už má skutečné stromy, zástupci zahozeni.</summary>
+            public bool proxyDropped;
+
+            /// <summary>Kolo 3: zástupci postaveni z hrubého pole (přesná data ještě nebyla) – přepíšou se.</summary>
+            public bool proxyApprox;
+
+            /// <summary>Kolo 3: pole obnovené po retire (RehydrateField) se ještě počítá.</summary>
+            public bool fieldPending;
+
+            /// <summary>Do kdy (unscaledTime) se chunky sloupce plynule vyměňují za předchozí LOD.</summary>
+            public float morphUntil;
+
+            /// <summary>Rozpracovaná asynchronní příprava morphu (VoxelTerrain.Geomorph.cs).</summary>
+            public MorphPrep morphPrep;
+
+            /// <summary>Morph se pro tuto verzi sloupce nedělá (bez zdrojů / nad stropem).</summary>
+            public bool morphSkip;
+
+            /// <summary>
+            /// Odcházející sloupec, přes který už je zčásti zveřejněná jiná úroveň: jeho chunky
+            /// jsou o kus zapuštěné, aby nový terén vyhrál hloubkový test (bez z-fightingu),
+            /// a přitom tam, kde náhrada ještě chybí, nezůstala díra.
+            /// </summary>
+            public bool sunk;
+
+            /// <summary>Kolo 5: od kdy sloupec není žádaný (unscaledTime), −1 = žádaný. Pojistka atomické výměny.</summary>
+            public float leavingSince = -1f;
+
+            /// <summary>Kolo 5: atomickou výměnu tohoto odcházejícího sloupce už pustila pojistka (počítá se jednou).</summary>
+            public bool atomicForced;
+
+            /// <summary>Kolo 5: plochu celou kryje zveřejněná náhrada, ale běží mu job – vzhled je schovaný.</summary>
+            public bool replacedHidden;
+
+            /// <summary>Kolo 5: odcházejícímu sloupci jsou z vykreslení vyřazené trojúhelníky nad plochou, kterou už kreslí náhrada.</summary>
+            public bool masked;
+            public int maskVersion = -1;
+            public int[] waterMaskOrig;
         }
 
         private sealed class ChunkEntry
@@ -230,6 +270,45 @@ namespace Orivilon.World.Generation
             public Mesh renderMesh;
             public Mesh colliderMesh;
             public bool colliderAssigned;
+
+            /// <summary>Kolo 3: zvýší se při každém vrácení do poolu – identita pro nouzový collider.</summary>
+            public int generation;
+
+            /// <summary>Potomek s MeshFilter/MeshRenderer (posouvá ho jen SinkColumn).</summary>
+            public Transform renderTf;
+
+            /// <summary>
+            /// Výkonové kolo 14.10.2026: PhysX data collideru se pečou v jobu hned po stavbě
+            /// (<see cref="Physics.BakeMesh(int, bool, MeshColliderCookingOptions)"/>), ne až při
+            /// přiřazení na hlavním vlákně. Mesh se do dokončení nesmí měnit.
+            /// </summary>
+            public JobHandle bake;
+            public bool baking;
+
+            /// <summary>Probíhající plynulá výměna LOD (VoxelTerrain.Geomorph.cs), jinak null.</summary>
+            public Morph morph;
+
+            /// <summary>Kolo 5: původní indexy render meshe, dokud je zamaskovaný (OverlapMask), jinak null.</summary>
+            public int[] maskOrig;
+
+            /// <summary>Čeká ve frontě na pečení (ScheduleBakes, v rámci rozpočtu jobů).</summary>
+            public bool bakeWanted;
+
+            public void CompleteBake()
+            {
+                bakeWanted = false;   // zrušení z fronty (recyklace, přímé přiřazení)
+                if (!baking) return;
+                bake.Complete();
+                baking = false;
+            }
+        }
+
+        /// <summary>Upeče PhysX data meshe mimo hlavní vlákno (Unity to v jobu výslovně dovoluje).</summary>
+        private struct ColliderBakeJob : IJob
+        {
+            public int meshId;
+            public MeshColliderCookingOptions options;
+            public void Execute() => Physics.BakeMesh(meshId, false, options);
         }
 
         private struct Pending
@@ -240,6 +319,7 @@ namespace Orivilon.World.Generation
             public ChunkMeshData data;
             public JobHandle handle;
             public ColumnEntry column;
+            public int par;   // kolik vláken smí chunk zabrat (rozpočet jobů)
         }
 
         /// <summary>
@@ -256,6 +336,51 @@ namespace Orivilon.World.Generation
         private readonly Dictionary<int4, ChunkEntry> chunks = new Dictionary<int4, ChunkEntry>();
         private readonly HashSet<int4> building = new HashSet<int4>();
         private readonly HashSet<int4> resolvedEmpty = new HashSet<int4>();
+
+        // Výkonové kolo 14.10.2026: index chunků (a prázdných chunků) po sloupcích. Zveřejnění
+        // i uvolnění sloupce dřív procházelo VŠECHNY chunky a celý resolvedEmpty – při dávce
+        // desítek sloupců v jednom snímku to dělalo špičky 20–50 ms.
+        private readonly Dictionary<int3, List<int4>> colChunks = new Dictionary<int3, List<int4>>();
+        private readonly Dictionary<int3, List<int4>> colEmpty = new Dictionary<int3, List<int4>>();
+        private readonly Stack<List<int4>> keyListPool = new Stack<List<int4>>();
+
+        private static int3 ColKey(int4 k) => new int3(k.x, k.z, k.w);
+
+        private void IndexAdd(Dictionary<int3, List<int4>> index, int4 k)
+        {
+            int3 c = ColKey(k);
+            if (!index.TryGetValue(c, out List<int4> l))
+            {
+                l = keyListPool.Count > 0 ? keyListPool.Pop() : new List<int4>(8);
+                index[c] = l;
+            }
+            l.Add(k);
+        }
+
+        private void IndexRemove(Dictionary<int3, List<int4>> index, int4 k)
+        {
+            int3 c = ColKey(k);
+            if (!index.TryGetValue(c, out List<int4> l)) return;
+            l.Remove(k);
+            if (l.Count == 0) { index.Remove(c); keyListPool.Push(l); }
+        }
+
+        /// <summary>Klíče zveřejněných chunků sloupce do <see cref="scratchChunkKeys"/>.</summary>
+        private void CollectColumnChunks(int3 column)
+        {
+            scratchChunkKeys.Clear();
+            if (colChunks.TryGetValue(column, out List<int4> l)) scratchChunkKeys.AddRange(l);
+        }
+
+        /// <summary>Zapomene prázdné chunky sloupce (náhrada za resolvedEmpty.RemoveWhere).</summary>
+        private void ForgetColumnEmpty(int3 column)
+        {
+            if (!colEmpty.TryGetValue(column, out List<int4> l)) return;
+            for (int i = 0; i < l.Count; i++) resolvedEmpty.Remove(l[i]);
+            l.Clear();
+            colEmpty.Remove(column);
+            keyListPool.Push(l);
+        }
         private readonly List<Pending> inFlight = new List<Pending>();
         private readonly Stack<ChunkEntry> pool = new Stack<ChunkEntry>();
         private readonly Stack<GameObject> waterPool = new Stack<GameObject>();
@@ -324,7 +449,13 @@ namespace Orivilon.World.Generation
         }
 #endif
 
-        private void Start() => EnsureInitialized();
+        private void Start()
+        {
+            Debug.Log(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "[PhysicsConfig] collider streaming v2; fixed step {0:0.00000} s, max catch-up {1:0.000} s",
+                Time.fixedDeltaTime, Time.maximumDeltaTime));
+            EnsureInitialized();
+        }
 
         /// <summary>
         /// Postaví buildery, kořen chunků a úložiště úprav. Volá se ze <c>Start</c> a znovu
@@ -546,15 +677,24 @@ namespace Orivilon.World.Generation
             {
                 // Značky profileru: bez puštěného profileru nic nestojí a v profilu rozdělí
                 // čas i GC Alloc streameru po krocích (jinak je vidět jen „LateUpdate").
-                using (MkHydro.Auto()) hydro?.Update(new float2(viewer.position.x, viewer.position.z), NoColumnJobsRunning());
-                using (MkCollect.Auto()) CollectFinished();
-                using (MkDesired.Auto()) UpdateDesired();
-                using (MkPromote.Auto()) PromoteReadyColumns();
-                using (MkPublish.Auto()) PublishColumns();
-                using (MkSchedule.Auto()) ScheduleWork();
-                RebuildEdited();
-                UpdateTerrainSeams();
+                BeginJobBudget();
+                try
+                {
+                    using (MkHydro.Auto()) HydroUpdateBudgeted();
+                    using (MkCollect.Auto()) CollectFinished();
+                    using (MkDesired.Auto()) UpdateDesired();
+                    using (MkPromote.Auto()) PromoteReadyColumns();
+                    using (MkPublish.Auto()) PublishColumns();
+                    // Kopání a přestavby švu PŘED novou prací: berou ze stejného rozpočtu
+                    // a mají přednost (kopání hráč vidí hned, šev blokuje zveřejnění sousedů).
+                    RebuildEdited();
+                    UpdateTerrainSeams();
+                    using (MkSchedule.Auto()) ScheduleWork();
+                }
+                finally { EndJobBudget(); }
                 using (MkUnload.Auto()) UnloadFar();
+                UpdateMorphs();
+                UpdateSinks();
                 UpdateWaterSeams();
                 using (MkRetire.Auto()) RetireResolvedColumns();
                 using (MkColliders.Auto()) UpdateColliders();
@@ -568,14 +708,19 @@ namespace Orivilon.World.Generation
             var sw = System.Diagnostics.Stopwatch.StartNew();
             int gc0 = System.GC.CollectionCount(0);
             int regions0 = hydro != null ? hydro.ReadyCount : 0;
-            hydro?.Update(new float2(viewer.position.x, viewer.position.z), NoColumnJobsRunning()); spikeT[0] = Lap(sw);
-            CollectFinished(); spikeT[1] = Lap(sw);
-            UpdateDesired(); spikeT[2] = Lap(sw);
-            PromoteReadyColumns(); spikeT[3] = Lap(sw);
-            PublishColumns(); spikeT[4] = Lap(sw);
-            ScheduleWork(); spikeT[5] = Lap(sw);
-            RebuildEdited(); UpdateTerrainSeams(); spikeT[6] = Lap(sw);
-            UnloadFar(); UpdateWaterSeams(); spikeT[7] = Lap(sw);
+            BeginJobBudget();
+            try
+            {
+                HydroUpdateBudgeted(); spikeT[0] = Lap(sw);
+                CollectFinished(); spikeT[1] = Lap(sw);
+                UpdateDesired(); spikeT[2] = Lap(sw);
+                PromoteReadyColumns(); spikeT[3] = Lap(sw);
+                PublishColumns(); spikeT[4] = Lap(sw);
+                RebuildEdited(); UpdateTerrainSeams(); spikeT[6] = Lap(sw);
+                ScheduleWork(); spikeT[5] = Lap(sw);
+            }
+            finally { EndJobBudget(); }
+            UnloadFar(); UpdateMorphs(); UpdateSinks(); UpdateWaterSeams(); spikeT[7] = Lap(sw);
             RetireResolvedColumns(); spikeT[8] = Lap(sw);
             UpdateColliders(); spikeT[9] = Lap(sw);
             UpdatePropDetail(); spikeT[10] = Lap(sw);
@@ -648,6 +793,9 @@ namespace Orivilon.World.Generation
             if (spikeFrameRecs == null) StartFrameRecorders();
             if (dtMs > SpikeFrameMs || total > 30f)
             {
+                SpikeLog?.Invoke(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "[Spawn] previous frame object/detail work {0:0.0} ms (shared target 2 ms; individual operations cannot be interrupted)",
+                    Orivilon.World.Spawning.ObjectSpawner.SpawnWorkMsInFrame(Time.frameCount - 1)));
                 var fb = new System.Text.StringBuilder(256);
                 for (int k = 0; k < spikeFrameRecs.Count; k++)
                 {
@@ -813,12 +961,17 @@ namespace Orivilon.World.Generation
 
             foreach (var e in chunks.Values) DestroyChunkEntry(e);
             chunks.Clear();
+            colChunks.Clear();
+            colEmpty.Clear();
 
             if (legacyRoot != null) { DestroyImmediate(legacyRoot); legacyRoot = null; }
             while (pool.Count > 0) DestroyChunkEntry(pool.Pop());
+            DisposeAllMorphs();
+            DisposeExactTrees();
 
             if (builders != null)
                 for (int i = 0; i < builders.Length; i++) builders[i]?.Dispose();
+            lootBuilder?.Dispose(); lootBuilder = null;   // kolo MP 3: ověřovací builder hosta
             builders = null;
             builder = null;
 
@@ -866,6 +1019,7 @@ namespace Orivilon.World.Generation
 
             lastViewerColumn = vc;
             desiredDirty = false;
+            coverageVersion++;   // kolo 5: masky překryvu závisí i na tom, co je žádané
 
             int levels = builders.Length;
             if (rings == null || rings.Length != levels) rings = new Ring[levels];
@@ -879,11 +1033,20 @@ namespace Orivilon.World.Generation
                 int cz = Mathf.FloorToInt(p.z / span);
                 int r = l == 0 ? Mathf.Max(1, renderDistance) : Mathf.Max(2, lodRing);
 
-                rings[l] = new Ring
+                rings[l] = MakeRing(cx, cz, r);
+
+                // Výkonové kolo 14.10.2026: hrubší prstenec musí jemnější obsáhnout celý
+                // a s okrajem aspoň jednoho sloupce. Při velkém detailním dosahu (8+) byl
+                // LOD0 prstenec větší než LOD1 – LOD1 pak vyšel prázdný, LOD2 vyřízl díru
+                // jen podle LOD1 a jeho hrubá geometrie ležela PŘES jemný terén (překryv,
+                // z-fighting, „mizení" při přechodu). Výchozí nastavení se tím nemění.
+                if (l > 0)
                 {
-                    lo = new int2(SnapDown(cx - r), SnapDown(cz - r)),
-                    hi = new int2(SnapUp(cx + r), SnapUp(cz + r)),
-                };
+                    int2 holeLo = rings[l - 1].lo / 2, holeHi = (rings[l - 1].hi - 1) / 2;
+                    while (rings[l].lo.x >= holeLo.x || rings[l].lo.y >= holeLo.y
+                           || rings[l].hi.x <= holeHi.x || rings[l].hi.y <= holeHi.y)
+                        rings[l] = MakeRing(cx, cz, ++r);
+                }
             }
 
             desired.Clear();
@@ -918,6 +1081,12 @@ namespace Orivilon.World.Generation
             terrainSeamScan = true;
         }
 
+        private static Ring MakeRing(int cx, int cz, int r) => new Ring
+        {
+            lo = new int2(SnapDown(cx - r), SnapDown(cz - r)),
+            hi = new int2(SnapUp(cx + r), SnapUp(cz + r)),
+        };
+
         /// <summary>Zaokrouhlení dolů na sudé číslo (i pro záporná).</summary>
         private static int SnapDown(int v) => (v >> 1) << 1;
 
@@ -934,14 +1103,108 @@ namespace Orivilon.World.Generation
             return cx * cx + cz * cz;
         }
 
+        /// <summary>
+        /// Kolo 3: plné osazení LOD0 sloupců jen do tohoto čtvercového poloměru (ve sloupcích, stejná
+        /// metrika jako LOD0 prstenec v MakeRing, +1 na zaokrouhlení prstence na sudé). Strop je AKTIVNÍ
+        /// jen při detailu vyšším než PropsMaxColumns – při detailu ≤ 6 je chování přesně jako dřív
+        /// (osazený celý prstenec, sloupce se retirují). 0 = vypnuto.
+        /// </summary>
+        public static int PropsMaxColumns = 0;   // kolo 3 po review: čisté A/B bez přínosu pro snímky → výchozí VYP, A/B přes /perf propscap 6
+        private bool PropsCapActive => PropsMaxColumns > 0 && renderDistance > PropsMaxColumns;
+
+        /// <summary>Leží LOD0 sloupec za stropem (+ <paramref name="extra"/> sloupců hystereze)?</summary>
+        private bool BeyondPropsCap(int2 coord, int extra)
+        {
+            if (!PropsCapActive || lastViewerColumn.x == int.MinValue) return false;
+            int d = Mathf.Max(Mathf.Abs(coord.x - lastViewerColumn.x), Mathf.Abs(coord.y - lastViewerColumn.y));
+            return d > PropsMaxColumns + 1 + extra;
+        }
+
+        public static int StatPropsReleasedFar, StatPropsRehydrated;
+
+        /// <summary>
+        /// Kolo 3 (po review): osazení LOD0 sloupce, který se vzdálil za strop (+2 sloupce hystereze),
+        /// se uvolní a sloupec dostane přesné zástupce stromů ze svého LOD0 pole. Při aktivním stropu
+        /// se LOD0 sloupce neretirují (pole drží, paměť omezená velikostí prstence). Sloupec retirovaný
+        /// DŘÍV (detail ≤ 6, pak přepnuto na 10) dostane pole znovu (jen 2D pole, chunky se nestaví)
+        /// a uvolní se, až je hotové. Při návratu ho SpawnProps osadí znovu ze stejného pole – stejné
+        /// rozmístění, stejné hashe, vykácené stromy filtruje registr zničených jako vždy.
+        /// Nejvýš 2 uvolnění a 2 obnovy pole za snímek.
+        /// </summary>
+        private void ReleaseFarProps()
+        {
+            if (!PropsCapActive || viewer == null) return;
+            int n = 0, rehydrated = 0;
+            foreach (var kv in columns)
+            {
+                if (n >= 2) break;
+                ColumnEntry e = kv.Value;
+                if (e.lod != 0 || !e.propsRequested || e.propsBuild != null || !e.published || e.rebuilding) continue;
+                if (e.spawner != null && e.spawner.SpawnInProgress) continue;
+                if (!BeyondPropsCap(e.coord, 2)) continue;
+                if (e.retired)
+                {
+                    if (rehydrated >= 2) continue;
+                    RehydrateField(e);
+                    rehydrated++;
+                    continue;
+                }
+                if (!FieldReady(e)) continue;   // pole se teprve dopočítává
+                if (EcoProps) VoxelProps.Release(e.spawner);
+                if (e.propsGo != null) Destroy(e.propsGo);
+                e.propsGo = null;
+                e.spawner = null;
+                e.propsRequested = false;
+                e.proxyRequested = false;
+                e.proxyDropped = false;
+                if (WantsTreeProxies(e)) BuildProxiesFor(e);   // tentýž snímek – strom nezmizí
+                StatPropsReleasedFar++;
+                n++;
+            }
+        }
+
+        /// <summary>Znovu naplánuje jen sloupcové pole retirovaného LOD0 sloupce (terén zůstává).</summary>
+        private void RehydrateField(ColumnEntry e)
+        {
+            VoxelChunkBuilder b = builders[0];
+            e.probe = b.AllocProbe(Allocator.Persistent);
+            e.handle = b.ScheduleColumn(e.coord, Allocator.Persistent, e.probe, HydroRef(b.ColumnCenter(e.coord)), e.seamFine, out e.field);
+            e.retired = false;
+            e.fieldPending = true;
+            StatPropsRehydrated++;
+        }
+
+        /// <summary>Je pole sloupce použitelné? Obnovené pole se dokončí, až doběhne job.</summary>
+        private static bool FieldReady(ColumnEntry e)
+        {
+            if (!e.field.IsCreated) return false;
+            if (!e.fieldPending) return true;
+            if (!e.handle.IsCompleted) return false;
+            e.handle.Complete();
+            e.fieldPending = false;
+            return true;
+        }
+
+        /// <summary>Kolo 3: strop práce PromoteReadyColumns za snímek (klasifikace chunků + hladina), ms.</summary>
+        public static float PromoteFrameBudgetMs = 3f;
+
         private void PromoteReadyColumns()
         {
+            long prt0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            int promoted = 0;
             foreach (var e in columns.Values)
             {
                 if (e.ready || !e.handle.IsCompleted) continue;
+                // Kolo 3: v CrossOver stálo povýšení dávky sloupců až 13 ms v jednom snímku.
+                if (promoted > 0 && streamedOnce && !IsTeleporting && PromoteFrameBudgetMs > 0f
+                    && (System.Diagnostics.Stopwatch.GetTimestamp() - prt0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency > PromoteFrameBudgetMs
+                    && ColumnDist(new int3(e.coord.x, e.coord.y, e.lod)) >= UrgentDistSqr)
+                    continue;
+                promoted++;
 
                 e.handle.Complete();
                 e.ready = true;
+                StatColumnsReady++;
 
                 VoxelChunkBuilder b = builders[e.lod];
                 b.ColumnChunkRange(e.coord, e.field, out int minY, out int maxY);
@@ -959,13 +1222,23 @@ namespace Orivilon.World.Generation
                 else BuildWater(e);
             }
 
-            SpawnProps();
-            SpawnTreeProxies();
+            using (MkProps.Auto()) SpawnProps();
+            ReleaseFarProps();
+            using (MkProxies.Auto()) SpawnTreeProxies();
         }
+
+        private static readonly Unity.Profiling.ProfilerMarker MkPropAcquire = new Unity.Profiling.ProfilerMarker("Props.AcquireSpawner");
+        private static readonly Unity.Profiling.ProfilerMarker MkPropBegin = new Unity.Profiling.ProfilerMarker("Props.BeginBuild");
+        private static readonly Unity.Profiling.ProfilerMarker MkPropStep = new Unity.Profiling.ProfilerMarker("Props.PlacementStep");
+        private static readonly Unity.Profiling.ProfilerMarker MkPropSpawn = new Unity.Profiling.ProfilerMarker("Props.SpawnPlacements");
+        private static readonly Unity.Profiling.ProfilerMarker MkPropRaster = new Unity.Profiling.ProfilerMarker("Props.Raster");
+        private static readonly Unity.Profiling.ProfilerMarker MkProps = new Unity.Profiling.ProfilerMarker("VoxelTerrain.SpawnProps");
+        private static readonly Unity.Profiling.ProfilerMarker MkProxies = new Unity.Profiling.ProfilerMarker("VoxelTerrain.SpawnTreeProxies");
 
         /// <summary>Kolo 6: má sloupec dostat vzdálené stromy (a do té doby si nechat pole)?</summary>
         private bool WantsTreeProxies(ColumnEntry e)
-            => e.lod >= 1 && e.lod <= Orivilon.World.Spawning.TreeProxies.MaxLod && !e.proxyRequested
+            => e.lod <= Orivilon.World.Spawning.TreeProxies.MaxLod && !e.proxyRequested
+               && (e.lod >= 1 || !PropsDone(e))
                && PropsActive && EcoProps && Orivilon.World.Spawning.TreeProxies.Enabled && VoxelProps.Available;
 
         /// <summary>
@@ -973,50 +1246,295 @@ namespace Orivilon.World.Generation
         /// osazovače z pole sloupce, kreslí se instancovaně (<see cref="Orivilon.World.Spawning.TreeProxies"/>).
         /// Dva sloupce za snímek; LOD2 sloupec (128 m) stojí pod milisekundu.
         /// </summary>
+        /// <summary>
+        /// Dopočítal LOD0 sloupec rozmístění a začal instancovat skutečné stromy? Do té doby ho
+        /// kreslí instancovaní zástupci – jinak by stromy v nově zjemnělé ploše chyběly, dokud
+        /// osazovač nedojede (při rychlém pohybu klidně několik sekund). Zástupci se zahazují
+        /// už na začátku instancování, ne na konci: jinak by se pár snímků kreslil strom
+        /// dvakrát přes sebe (z-fighting korun).
+        /// </summary>
+        private static bool PropsDone(ColumnEntry e)
+            => e.propsRequested && e.propsBuild == null;
+
+        /// <summary>Osazení LOD0 sloupce úplně doběhlo (objekty stojí, dávky jsou u rendereru).</summary>
+        private static bool PropsFinished(ColumnEntry e)
+            => PropsDone(e) && (e.spawner == null || !e.spawner.SpawnInProgress);
+
+        /// <summary>Diagnostika předání zástupců: převzato po kusech / zahozeno na konci bez protějšku.</summary>
+        public static int StatProxyHandedOver, StatProxyDroppedUnmatched;
+
+        /// <summary>
+        /// Předá stromy LOD0 sloupce ze zástupců na skutečné objekty postupně, podle toho, co je
+        /// opravdu vidět (ObjectSpawner.ReadyTrees). Odebírá se z vlastního klíče i z rodiče a
+        /// prarodiče, které mohou ještě dobíhat (ReleaseDelay). Na konci se zahodí zbytek – ti
+        /// zástupci nemají skutečný protějšek (vykácený, odmítnutý přesnou kontrolou).
+        /// </summary>
+        private void HandOverProxies(ColumnEntry e)
+        {
+            var sp = e.spawner;
+            if (sp != null && sp.ReadyTrees.Count > 0)
+            {
+                long k0 = Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, 0);
+                long k1 = Orivilon.World.Spawning.TreeProxies.Key(e.coord.x >> 1, e.coord.y >> 1, 1);
+                long k2 = Orivilon.World.Spawning.TreeProxies.Key(e.coord.x >> 2, e.coord.y >> 2, 2);
+                StatProxyHandedOver += Orivilon.World.Spawning.TreeProxies.RemoveMatching(k0, sp.ReadyTrees);
+                Orivilon.World.Spawning.TreeProxies.RemoveMatching(k1, sp.ReadyTrees);
+                Orivilon.World.Spawning.TreeProxies.RemoveMatching(k2, sp.ReadyTrees);
+                sp.ReadyTrees.Clear();
+            }
+            if (!PropsFinished(e)) return;
+            if (e.publishedAt > NearT0 && e.publishDist >= 0f)
+            {
+                // Kolo 4: latence zveřejnění → hotové osazení podle vzdálenosti při zveřejnění.
+                float lag = Time.realtimeSinceStartup - e.publishedAt;
+                int b = e.publishDist < 80f ? 0 : e.publishDist < 160f ? 1 : 2;
+                PubPropsCount[b]++; PubPropsSum[b] += lag; if (lag > PubPropsMax[b]) PubPropsMax[b] = lag;
+                if (lag > 2f) PubPropsSlow[b]++;
+            }
+            e.proxyDropped = true;
+            if (!e.proxyRequested) return;
+            long key = Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, 0);
+            StatProxyDroppedUnmatched += Orivilon.World.Spawning.TreeProxies.CountOf(key);
+            Orivilon.World.Spawning.TreeProxies.Remove(key, 0f);
+        }
+
         private void SpawnTreeProxies()
         {
+            // Zástupci LOD0 sloupců se předávají po kusech, jak se objevují skutečné stromy.
+            foreach (var kv in columns)
+            {
+                ColumnEntry e = kv.Value;
+                if (e.lod != 0 || e.proxyDropped || !PropsDone(e)) continue;
+                HandOverProxies(e);   // i bez vlastních zástupců – dobíhající rodič/prarodič
+            }
+
             int started = 0;
             foreach (var kv in columns)
             {
-                if (started >= 2) break;
+                if (started >= 4) break;
                 ColumnEntry e = kv.Value;
                 if (!WantsTreeProxies(e)) continue;
-                if (!e.ready || !e.published || e.rebuilding || !e.field.IsCreated) continue;
-
-                e.proxyRequested = true;
+                if (!e.ready || !e.published || e.rebuilding || !FieldReady(e)) continue;
+                if (Morphing(e)) continue;
+                BuildProxiesFor(e);
                 started++;
-                VoxelChunkBuilder b = builders[e.lod];
-                var sp = VoxelProps.SpawnerAsset;
-                if (sp == null) continue;
-                var list = EcologyPlacer.BuildTreeProxies(sp, e.field, b.ColumnPad, b.voxelSize, b.Params.seaLevel,
-                                                          palette, b.Params.Micro, ResolvedSeed, builder.ChunkSpan);
-                Orivilon.World.Spawning.TreeProxies.Add(
-                    Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, e.lod), sp, list);
             }
+            CollectExactFields();
+            UpgradeApproxProxies();
+            ReleaseCoveredOrphans();
             Orivilon.World.Spawning.TreeProxies.Tick();
         }
 
+        private readonly List<Vector4> proxyScratch = new List<Vector4>(128);
+
         /// <summary>
-        /// Osadí hotové sloupce. Rozpočet na snímek je záměrně nízký: spawner instancuje
-        /// stovky objektů a rozkládá si to do vlastní coroutiny, takže spustit jich naráz
-        /// deset by znamenalo špičku, kterou nikdo neuhlídá.
+        /// Postaví zástupce sloupce a TYTÉŽ stromy odebere předkům, kteří ještě dobíhají
+        /// (osiřelí po uvolnění) – jeden strom se tak nikdy nekreslí dvakrát.
         /// </summary>
+        private void BuildProxiesFor(ColumnEntry e)
+        {
+            e.proxyRequested = true;
+            VoxelChunkBuilder b = builders[e.lod];
+            var sp = VoxelProps.SpawnerAsset;
+            if (sp == null) return;
+            // Kolo 3: přednostně přesná data (pole v rozlišení LOD0, viz VoxelTerrain.ExactProxies.cs).
+            List<Orivilon.World.Spawning.EcoPlacement> list;
+            e.proxyApprox = false;
+            if (e.lod >= 1 && ProxyAudit) AuditStoreApprox(e, sp, b);
+            if (e.lod >= 1 && ExactTreeProxies)
+            {
+                if (!TryExactTrees(e.coord, e.lod, out list))
+                {
+                    RequestExactTrees(e.coord, e.lod);
+                    list = EcologyPlacer.BuildTreeProxies(sp, e.field, b.ColumnPad, b.voxelSize, b.Params.seaLevel,
+                                                          palette, b.Params.Micro, ResolvedSeed, builder.ChunkSpan);
+                    e.proxyApprox = true;
+                    StatExactApprox++;
+                }
+            }
+            else
+                list = EcologyPlacer.BuildTreeProxies(sp, e.field, b.ColumnPad, b.voxelSize, b.Params.seaLevel,
+                                                      palette, b.Params.Micro, ResolvedSeed, builder.ChunkSpan,
+                                                      e.lod == 0 && ExactTreeProxies ? 5f : 0f);
+            proxyScratch.Clear();
+            for (int i = 0; i < list.Count; i++)
+                proxyScratch.Add(new Vector4(list[i].position.x, list[i].position.z, list[i].spawnable, 0f));
+            for (int m = e.lod + 1; m <= Orivilon.World.Spawning.TreeProxies.MaxLod; m++)
+            {
+                int sh = m - e.lod;
+                Orivilon.World.Spawning.TreeProxies.RemoveMatching(
+                    Orivilon.World.Spawning.TreeProxies.Key(e.coord.x >> sh, e.coord.y >> sh, m), proxyScratch);
+            }
+            Orivilon.World.Spawning.TreeProxies.Add(
+                Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, e.lod), sp, list);
+        }
+
+        // Oprava po review 14.10.2026: zástupci uvolněného hrubšího sloupce se nezahazují po
+        // pevné 1,5 s, ale až když jeho plochu převezmou jemnější sloupce (vlastní zástupci
+        // nebo doběhlé osazení). Do té doby z nich děti po kusech odebírají to, co už kreslí
+        // samy. Pojistka OrphanProxyTimeout proti věčnému visení.
+        private struct OrphanProxy { public int3 column; public float since; }
+        private readonly Dictionary<long, OrphanProxy> orphanProxies = new Dictionary<long, OrphanProxy>();
+        private readonly List<long> orphanDone = new List<long>();
+        private const float OrphanProxyTimeout = 20f;
+
+        private void ReleaseCoveredOrphans()
+        {
+            if (orphanProxies.Count == 0) return;
+            orphanDone.Clear();
+            float now = Time.unscaledTime;
+            foreach (var kv in orphanProxies)
+            {
+                OrphanProxy o = kv.Value;
+                if (now - o.since > OrphanProxyTimeout || Orivilon.World.Spawning.TreeProxies.CountOf(kv.Key) == 0
+                    || OrphanCovered(o.column)) orphanDone.Add(kv.Key);
+            }
+            for (int i = 0; i < orphanDone.Count; i++)
+            {
+                orphanProxies.Remove(orphanDone[i]);
+                Orivilon.World.Spawning.TreeProxies.Remove(orphanDone[i], 0f);
+            }
+        }
+
+        /// <summary>Kryjí plochu osiřelého sloupce jeho žádané děti (zástupci nebo hotové osazení)?</summary>
+        private bool OrphanCovered(int3 key)
+        {
+            bool anyDesired = false;
+            for (int m = key.z - 1; m >= 0; m--)
+            {
+                int k = 1 << (key.z - m);
+                for (int dz = 0; dz < k; dz++)
+                for (int dx = 0; dx < k; dx++)
+                {
+                    var c = new int3(key.x * k + dx, key.y * k + dz, m);
+                    if (!desired.Contains(c)) continue;
+                    anyDesired = true;
+                    if (!columns.TryGetValue(c, out ColumnEntry e) || !e.published) return false;
+                    bool covered = m == 0 ? (e.proxyRequested || PropsFinished(e)) : e.proxyRequested;
+                    if (!covered) return false;
+                }
+            }
+            // Plochu převzal rodič (hrubší sloupec) – ten si zástupce staví při zveřejnění.
+            if (!anyDesired) return true;
+            return true;
+        }
+
+        private ColumnEntry activePropsColumn;
+        private const double PropPlacementBudgetMs = 2.0;
+
+        private void AdvancePropPlacements() => AdvancePropPlacements(PropPlacementBudgetMs);
+
+        private void AdvancePropPlacements(double budgetMs)
+        {
+            ColumnEntry e = activePropsColumn;
+            if (e == null) return;
+            if (e.propsBuild == null) { activePropsColumn = null; return; }
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            bool complete;
+            using (MkPropStep.Auto()) complete = e.propsBuild.Step(budgetMs);
+            if (SpikeProbe)
+                spikePropMs += (float)((System.Diagnostics.Stopwatch.GetTimestamp() - started)
+                    * 1000.0 / System.Diagnostics.Stopwatch.Frequency);
+            if (!complete) return;
+            var build = e.propsBuild;
+            if (ProxyAudit && e.lod == 0) AuditCompare(e.coord, build.Placements);
+            using (MkPropSpawn.Auto())
+                e.spawner.SpawnPlacements(e.propsGo.transform, build.Placements,
+                                         new Vector2Int(e.coord.x, e.coord.y));
+            if (SpikeProbe)
+                SpikeLog?.Invoke(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                    "[Props] column {0},{1}: placements total {2:0.0} ms, max slice {3:0.0} ms, candidates {4}",
+                    e.coord.x, e.coord.y, build.ActiveMs, build.MaxSliceMs, build.Placements.Count));
+            build.Dispose();
+            e.propsBuild = null;
+            activePropsColumn = null;
+        }
+
+        private static void CancelPropPlacements(ColumnEntry e)
+        {
+            if (e.propsBuild == null) return;
+            e.propsBuild.Dispose();
+            e.propsBuild = null;
+            e.propsRequested = false;
+            VoxelProps.Release(e.spawner);
+            e.spawner = null;
+            if (e.propsGo != null) Destroy(e.propsGo);
+            e.propsGo = null;
+        }
+
+        /// <summary>
+        /// Runs one resumable placement calculation at a time. Native column data stays
+        /// alive until completion; object instantiation has its own shared frame budget.
+        /// </summary>
+        /// <summary>
+        /// Kolo 4: osazení bez mezer mezi sloupci. Dřív: snímek = buď jeden 2ms krok aktivního sloupce,
+        /// nebo jen start dalšího (bez kroku), a po dokončení sloupce se zbytek snímku zahodil.
+        /// Hráč při chůzi (macOS release, detail 10) čekal od zveřejnění LOD0 sloupce na objekty
+        /// průměrně 5,8 s (max 16 s). Nově se ve snímku pokračuje dalším sloupcem, dokud nedojde
+        /// rozpočet; rozpočet je 2 ms, při frontě ≥ 3 sloupců 4 ms. Pořadí (nejbližší první) a
+        /// determinismus rozmístění se nemění – mění se jen, kolik se toho stihne za snímek.
+        /// A/B: <c>/perf propsfast on|off</c>.
+        /// </summary>
+        public static bool PropsFastPath = true;
+        private const double PropBacklogBudgetMs = 4.0;
+        private int propsBacklog;
+
         private void SpawnProps()
         {
+            if (!PropsFastPath) { SpawnPropsOnce(PropPlacementBudgetMs); return; }
+            long t0 = System.Diagnostics.Stopwatch.GetTimestamp();
+            double budget = propsBacklog >= 3 ? PropBacklogBudgetMs : PropPlacementBudgetMs;
+            for (int guard = 0; guard < 8; guard++)
+            {
+                double used = (System.Diagnostics.Stopwatch.GetTimestamp() - t0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                if (used >= budget - 0.25) break;
+                bool hadActive = activePropsColumn != null;
+                SpawnPropsOnce(budget - used);
+                if (!hadActive && activePropsColumn == null) break;   // nic dalšího k osazení
+                if (hadActive && activePropsColumn != null) break;    // krok neskončil sloupcem → rozpočet vyčerpán
+            }
+        }
+
+        private void SpawnPropsOnce(double stepBudgetMs)
+        {
             if (!PropsActive || !VoxelProps.Available) return;
+            if (activePropsColumn != null)
+            {
+                AdvancePropPlacements(stepBudgetMs);
+                // One shared placement slice per frame, even when a column finishes.
+                return;
+            }
 
             int started = 0;
-            foreach (var e in columns.Values)
+            while (started < maxPropColumnsPerFrame)
             {
-                if (started >= maxPropColumnsPerFrame) break;
-
-                // Osazuje se jen nejjemnější prstenec. Ve vzdálených by stromy stály na
-                // terénu, který je o metry jinde, a stejně jsou pod dohledem dekorací.
-                if (e.lod != 0 || !e.ready || e.retired || e.propsRequested) continue;
-
-                // Ekologické osazení sedá na skutečný mesh, takže čeká na zveřejněný sloupec
-                // (všechny jeho LOD0 chunky hotové). Bonus: propy nikdy nepředběhnou terén.
-                if (EcoProps && (!e.published || e.rebuilding || !e.field.IsCreated)) continue;
+                // Výkonové kolo 14.10.2026: NEJBLIŽŠÍ čekající sloupec, ne první ve slovníku.
+                // Dřív se při průjezdu osazovaly vzdálené sloupce dřív než ty u hráče a stromy
+                // kolem něj chyběly („neviditelné"), dokud fronta nedojela.
+                ColumnEntry e = null;
+                float bestDist = float.MaxValue;
+                int backlog = 0;
+                foreach (var kv in columns)
+                {
+                    ColumnEntry c = kv.Value;
+                    // Osazuje se jen nejjemnější prstenec. Ve vzdálených by stromy stály na
+                    // terénu, který je o metry jinde, a stejně jsou pod dohledem dekorací.
+                    if (c.lod != 0 || !c.ready || c.retired || c.propsRequested) continue;
+                    // Ekologické osazení sedá na skutečný mesh, takže čeká na zveřejněný sloupec
+                    // (všechny jeho LOD0 chunky hotové). Bonus: propy nikdy nepředběhnou terén.
+                    if (EcoProps && (!c.published || c.rebuilding || !c.field.IsCreated)) continue;
+                    if (Morphing(c)) continue;   // terén se ještě sesouvá do konečné polohy
+                    float d = ColumnDist(kv.Key);
+                    // Kolo 3: plné osazení jen do PropsMaxColumns (aktivní jen při detailu > 6). Dál
+                    // kreslí LOD0 sloupec přesné instancované zástupce stromů (stejný zdroj jako LOD0),
+                    // takže vyšší dosah zjemní terén, ale nesází tisíce GameObjectů navíc.
+                    if (BeyondPropsCap(c.coord, 0)) continue;
+                    if (!FieldReady(c)) continue;
+                    backlog++;
+                    if (d < bestDist) { bestDist = d; e = c; }
+                }
+                propsBacklog = backlog;
+                if (e == null) break;
 
                 e.propsRequested = true;
                 started++;
@@ -1027,12 +1545,17 @@ namespace Orivilon.World.Generation
                 long propT0 = SpikeProbe ? System.Diagnostics.Stopwatch.GetTimestamp() : 0;
                 if (EcoProps)
                 {
-                    BuildPropRaster(e);
+                    using (MkPropRaster.Auto()) BuildPropRaster(e);
                     EcologyPlacer.SetCaveParams(builder.Params);   // kolo 12c
-                    e.spawner = VoxelProps.SpawnEco(e.propsGo.transform, e.field, builder.ColumnPad,
-                                                    voxelSize, builder.Params.seaLevel, e.coord,
-                                                    palette, builder.Params.Micro, ResolvedSeed,
-                                                    e.waterLevels);
+                    using (MkPropAcquire.Auto()) e.spawner = VoxelProps.AcquireEcoSpawner(e.propsGo.transform, e.coord);
+                    if (e.spawner != null)
+                    {
+                        using (MkPropBegin.Auto())
+                        e.propsBuild = EcologyPlacer.BeginBuild(e.spawner, e.field, builder.ColumnPad,
+                            voxelSize, builder.Params.seaLevel, e.coord, palette, builder.Params.Micro,
+                            ResolvedSeed, e.waterLevels);
+                        activePropsColumn = e;
+                    }
                 }
                 else
                 e.spawner = VoxelProps.Spawn(e.propsGo.transform, e.field, builder.ColumnPad,
@@ -1060,6 +1583,7 @@ namespace Orivilon.World.Generation
                     else if (d < 150f) PropSpawnNear150++;
                     if (d < 150f) PopInRecord(e, d);
                 }
+                if (activePropsColumn != null) break;
             }
         }
 
@@ -1133,6 +1657,7 @@ namespace Orivilon.World.Generation
                     int3 c = e.surfaceChunks[i];
                     if (!chunks.TryGetValue(new int4(c.x, c.y, c.z, 0), out ChunkEntry ce)) continue;
                     if (ce.colliderMesh == null || ce.colliderMesh.vertexCount == 0) continue;
+                    ce.CompleteBake();
                     rasterMeshes.Add(ce.colliderMesh);
                     rasterMatrices.Add(ce.go.transform.localToWorldMatrix);
                 }
@@ -1222,6 +1747,7 @@ namespace Orivilon.World.Generation
             foreach (var e in columns.Values) e.proxyRequested = true;
             foreach (var e in columns.Values)
             {
+                CancelPropPlacements(e);
                 if (EcoProps) VoxelProps.Release(e.spawner);
                 if (e.propsGo != null) { Destroy(e.propsGo); n++; }
                 e.propsGo = null;
@@ -1302,6 +1828,7 @@ namespace Orivilon.World.Generation
             }
 
             e.waterBuiltAt = Time.time;
+            e.waterMaskOrig = null; e.maskVersion = -1;   // kolo 5: mesh přepsán celý
             e.waterGo.name = $"Water {e.coord.x} {e.coord.y} L{e.lod}";
 
             // Hladina se ukáže až se svým terénem (PublishColumn). Dřív se zapínala hned
@@ -1309,7 +1836,7 @@ namespace Orivilon.World.Generation
             // z hrubšího LOD. Dvě hladiny přes sebe (dvojitá průhlednost, zubaté hrubé
             // okraje) a voda ležící na starém terénu, který k ní nepatří.
             e.hasWater = hasWater;
-            e.waterGo.SetActive(hasWater && e.published);
+            e.waterGo.SetActive(hasWater && e.published && !e.replacedHidden);
             e.waterFilter.sharedMesh = e.waterMesh;
             e.waterRenderer.sharedMaterial = RenderWaterMaterial;
         }
@@ -1373,7 +1900,8 @@ namespace Orivilon.World.Generation
                 e.waterFine = fine;
                 e.hasWater = has;
                 e.waterBuiltAt = Time.time;
-                if (e.waterGo != null) e.waterGo.SetActive(has && e.published);
+                e.waterMaskOrig = null; e.maskVersion = -1;   // kolo 5: mesh přepsán celý, maska se případně obnoví
+                if (e.waterGo != null) e.waterGo.SetActive(has && e.published && !e.replacedHidden);
             }
             double ms = sw.Elapsed.TotalMilliseconds;
             WaterSeamRebuilds += scratchSeam.Count;
@@ -1416,6 +1944,7 @@ namespace Orivilon.World.Generation
 
         private bool terrainSeamScan;
         private readonly List<int3> seamQueue = new List<int3>();
+        private System.Comparison<int3> seamCompare;
         private readonly HashSet<int3> seamCand = new HashSet<int3>();
 
         /// <summary>Kolo 24 diagnostika.</summary>
@@ -1481,10 +2010,16 @@ namespace Orivilon.World.Generation
             var sw = System.Diagnostics.Stopwatch.StartNew();
             int started = 0;
             // Od nejbližšího – blízký šev je vidět víc než ten v mlze.
-            seamQueue.Sort((a, b) => ColumnDist(a).CompareTo(ColumnDist(b)));
+            if (seamCompare == null) seamCompare = (a, b) => ColumnDist(a).CompareTo(ColumnDist(b));
+            seamQueue.Sort(seamCompare);
+            // Výkonové kolo 14.10.2026: přestavby švu berou ze společného rozpočtu jobů a smí
+            // obsadit nejvýš třetinu slotů (aspoň jeden) – nové pole a chunky tak nikdy úplně nestojí, a šev
+            // přitom nečeká donekonečna (zveřejnění souseda má navíc pojistku SeamPublishTimeout).
+            int seamCap = budgetLimited ? Mathf.Max(1, budgetSlots / 3) : SeamRebuildConcurrent;
             for (int i = 0; i < seamQueue.Count; i++)
             {
-                if (started >= SeamRebuildPerFrame || running >= SeamRebuildConcurrent) break;
+                if (started >= SeamRebuildPerFrame || running >= SeamRebuildConcurrent || running >= seamCap) break;
+                if (!UnitsFree(1)) break;
                 int3 key = seamQueue[i];
                 if (!columns.TryGetValue(key, out ColumnEntry e) || !desired.Contains(key)
                     || TerrainFineEdges(e.coord) == e.seamFine)
@@ -1494,7 +2029,9 @@ namespace Orivilon.World.Generation
                 }
                 if (!e.ready || e.pending > 0 || !e.handle.IsCompleted) continue;   // dostaví se, pak znovu
 
+                TryTakeUnits(1);
                 RestartColumn(e);
+                CommitLane(e.handle);
                 e.seamRebuild = true;
                 e.seamBlockedSince = -1f;
                 seamQueue.RemoveAt(i--);
@@ -1668,7 +2205,212 @@ namespace Orivilon.World.Generation
 
         // ── plánování ──────────────────────────────────────────────────
 
+        /// <summary>
+        /// Výkonové kolo 14.10.2026: svět už jednou stál celý (konec loading screenu). Do té doby
+        /// se terén staví na plný výkon všech vláken, potom s rezervou pro fyziku a render.
+        /// </summary>
+        private bool streamedOnce;
+
+        /// <summary>A/B přepínač rozpočtu jobů (/perf budget on|off). Výchozí zapnuto.</summary>
+        public static bool JobBudgetEnabled = true;
+
+        /// <summary>Čítače propustnosti streameru pro /perf (sloupcová pole hotová, chunky postavené, sloupce zveřejněné).</summary>
+        public static int StatColumnsReady, StatChunksBuilt, StatColumnsPublished;
+
+        /// <summary>
+        /// Rozpočet jobů (výkonové kolo 14.10.2026): kolik terénních jobů smí být naráz
+        /// rozpracovaných (<paramref name="slots"/>; sloupcová pole + chunky dohromady) a kolik
+        /// vláken smí zabrat jeden (<see cref="JobBudget.MaxParallel"/>). Jedno vlákno (od 9 dvě)
+        /// tak zůstává vždy volné pro PhysX, culling a render. Při načítání a teleportu (hráč
+        /// čeká, gameplay neběží) bez omezení – vrací false.
+        /// </summary>
+        private bool ComputeJobBudget(out int slots)
+        {
+            slots = int.MaxValue;
+            if (!JobBudgetEnabled || !streamedOnce || IsTeleporting) return false;
+            int workers = Mathf.Max(1, Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerCount);
+            slots = Mathf.Max(1, workers - (workers > 8 ? 2 : 1));
+            return true;
+        }
+
+        /// <summary>Kolik sloupců ještě počítá pole (job opravdu běží nebo čeká ve frontě).</summary>
+        private int ColumnsComputing()
+        {
+            int n = 0;
+            foreach (var kv in columns) if (!kv.Value.ready && !kv.Value.handle.IsCompleted) n++;
+            return n;
+        }
+
+        /// <summary>Kolik chunků má job ještě rozpracovaný (hotové, jen nepředané, vlákno nedrží).</summary>
+        private int ChunksRunning()
+        {
+            int n = 0;
+            for (int i = 0; i < inFlight.Count; i++) if (!inFlight[i].handle.IsCompleted) n += inFlight[i].par;
+            return n;
+        }
+
+        // ── společný rozpočet jobů pro snímek (výkonové kolo 14.10.2026, oprava po review) ──
+        // Všechny herní cesty, které plánují terénní joby – nová pole, chunky, přestavby
+        // švu, kopání, pečení colliderů i hydrologie – berou jednotky z jednoho počítadla.
+        // Jednotka = jedno pracovní vlákno, které job (nebo řetězec jobů) smí naráz zabrat;
+        // paralelní joby se dělí na nejvýš tolik dávek (JobBudget.MaxParallel).
+        //
+        // DRÁHY (lanes): rozpočet má tolik drah, kolik smí terén naráz zabrat vláken. Každá
+        // nová práce (řetězec jobů) se zařadí za poslední práci své dráhy – závislostí, ne
+        // čekáním hlavního vlákna. Joby jedné dráhy tak nikdy neběží souběžně a každý job má
+        // MaxParallel = 1 (jedna dávka), takže spustitelných terénních dávek je v každém
+        // okamžiku nejvýš tolik, kolik je drah (+ 1 pro stavbu hydrologického regionu, která
+        // zabírá vlastní dráhu). Dráha má místo, když za běžící prací čeká nejvýš jedna další –
+        // vlákno tak nezahálí mezi snímky a fronta se nepřeplní.
+        private bool budgetLimited;
+        private int budgetSlots, budgetUsed, budgetChunkPar, laneCount, pendingLane = -1;
+        private JobHandle[] laneTail, lanePrev;
+
+        private void BeginJobBudget()
+        {
+            budgetLimited = ComputeJobBudget(out budgetSlots);
+            budgetChunkPar = budgetLimited ? 1 : 0;
+            JobBudget.MaxParallel = budgetLimited ? 1 : 0;
+            JobBudget.Dependency = default;
+            pendingLane = -1;
+            if (!budgetLimited) { budgetUsed = 0; return; }
+            int max = Unity.Jobs.LowLevel.Unsafe.JobsUtility.JobWorkerMaximumCount + 1;
+            if (laneTail == null || laneTail.Length < max) { laneTail = new JobHandle[max]; lanePrev = new JobHandle[max]; }
+            bool hydroBusy = hydro != null && hydro.BuildingCount > 0;
+            laneCount = Mathf.Clamp(budgetSlots - (hydroBusy ? 1 : 0), 1, laneTail.Length);
+            budgetUsed = BusyLanes() + (hydroBusy ? 1 : 0);
+            if (hydro != null) hydro.AllowBegin = hydroBusy || budgetSlots > 1;   // region si vezme vlastní dráhu
+        }
+
+        private void EndJobBudget()
+        {
+            JobBudget.MaxParallel = 0;
+            JobBudget.Dependency = default;
+            pendingLane = -1;
+            BudgetUnitsInUse = budgetLimited ? BusyLanes() + (hydro != null && hydro.BuildingCount > 0 ? 1 : 0) : 0;
+        }
+
+        private int BusyLanes()
+        {
+            int n = 0;
+            for (int i = 0; i < laneCount; i++) if (!laneTail[i].IsCompleted) n++;
+            return n;
+        }
+
+        private int LanesWithRoom()
+        {
+            int n = 0;
+            for (int i = 0; i < laneCount; i++) if (lanePrev[i].IsCompleted) n++;
+            return n;
+        }
+
+        /// <summary>Po naplánování práce: zařadí ji na konec vybrané dráhy.</summary>
+        private void CommitLane(JobHandle h)
+        {
+            JobBudget.Dependency = default;
+            if (pendingLane < 0) return;
+            lanePrev[pendingLane] = laneTail[pendingLane];
+            laneTail[pendingLane] = h;
+            pendingLane = -1;
+        }
+
+        /// <summary>Diagnostika /perf: obsazené jednotky po naplánování v tomto snímku a velikost rozpočtu.</summary>
+        public int BudgetUnitsInUse { get; private set; }
+        public int BudgetSlots => budgetLimited ? budgetSlots : 0;
+
+        private void HydroUpdateBudgeted()
+        {
+            if (hydro == null) return;
+            int before = hydro.BuildingCount;
+            hydro.Update(new float2(viewer.position.x, viewer.position.z), NoColumnJobsRunning());
+            if (hydro.BuildingCount > before && budgetLimited && before == 0) laneCount = Mathf.Max(1, laneCount - 1);
+        }
+
+        private void HydroRequestBudgeted(float2 center)
+        {
+            if (budgetLimited) hydro.AllowBegin = hydro.BuildingCount > 0 || laneCount > 1;
+            int before = hydro.BuildingCount;
+            hydro.Request(center);
+            if (hydro.BuildingCount > before && budgetLimited && before == 0) laneCount = Mathf.Max(1, laneCount - 1);
+        }
+
+        /// <summary>Jednotky obsazené joby, které ještě běží (hotové, jen nesebrané, vlákno nedrží).</summary>
+        private int UnitsInUse()
+        {
+            int n = ColumnsComputing() + ChunksRunning() + BakesRunning();
+            if (hydro != null && hydro.BuildingCount > 0) n += 1;
+            return n;
+        }
+
+        private readonly List<ChunkEntry> bakeQueue = new List<ChunkEntry>(32);
+        private readonly List<ChunkEntry> bakeRunning = new List<ChunkEntry>(32);
+
+        private int BakesRunning()
+        {
+            int n = 0;
+            for (int i = bakeRunning.Count - 1; i >= 0; i--)
+            {
+                ChunkEntry c = bakeRunning[i];
+                if (!c.baking || c.bake.IsCompleted) { bakeRunning.RemoveAt(i); continue; }
+                n++;
+            }
+            return n;
+        }
+
+        /// <summary>Pečení colliderů (jedno vlákno na kus) – nejvyšší priorita v rozpočtu, jsou krátká.</summary>
+        private void ScheduleBakes()
+        {
+            int i = 0;
+            for (; i < bakeQueue.Count; i++)
+            {
+                ChunkEntry c = bakeQueue[i];
+                if (!c.bakeWanted || c.baking) continue;          // mezitím zrušeno / už se peče
+                if (!TryTakeUnits(1)) break;
+                c.bakeWanted = false;
+                c.bake = new ColliderBakeJob
+                {
+                    meshId = c.colliderMesh.GetInstanceID(),
+                    options = c.meshCollider.cookingOptions,
+                }.Schedule(JobBudget.Dependency);
+                CommitLane(c.bake);
+                c.baking = true;
+                bakeRunning.Add(c);
+            }
+            bakeQueue.RemoveRange(0, i);
+        }
+
+        /// <summary>
+        /// Vybere dráhu s místem (přednostně nečinnou) pro jednu práci; plánovač pak musí
+        /// použít JobBudget.Dependency a po naplánování zavolat CommitLane. Bez omezení vždy true.
+        /// </summary>
+        private bool TryTakeUnits(int units)
+        {
+            if (!budgetLimited) return true;
+            int pick = -1;
+            for (int i = 0; i < laneCount; i++)
+            {
+                if (laneTail[i].IsCompleted) { pick = i; break; }
+                if (pick < 0 && lanePrev[i].IsCompleted) pick = i;
+            }
+            if (pick < 0) return false;
+            pendingLane = pick;
+            JobBudget.Dependency = laneTail[pick];
+            return true;
+        }
+
+        /// <summary>Do této vzdálenosti (středu LOD0 sloupce od hráče, m²) je stavba naléhavá.</summary>
+        private float UrgentDistSqr => 1.6f * ChunkSpan * 1.6f * ChunkSpan;
+
+        private bool UnitsFree(int units) => !budgetLimited || LanesWithRoom() >= units;
+
         private void ScheduleWork()
+        {
+            ScheduleBakes();
+            ScheduleWorkCore(budgetLimited, budgetSlots);
+            ScheduleExactFields();   // kolo 3: nejnižší priorita – jen volné dráhy
+        }
+
+        private void ScheduleWorkCore(bool limited, int slots)
         {
             // Plánování sloupců se drží zpátky, dokud se ty rozdělané nedostaví. Bez toho
             // by při startu vzniklo naráz několik set sloupcových polí – práce se stejně
@@ -1676,11 +2418,76 @@ namespace Orivilon.World.Generation
             int live = 0;
             // Kolo 24: přestavby švu se do limitu nepočítají – nové sloupce na ně čekají při
             // zveřejnění, takže by se jinak mohly vzájemně zablokovat.
-            foreach (var kv in columns) if (!kv.Value.retired && !kv.Value.seamRebuild) live++;
+            // Výkonové kolo 14.10.2026: hotový sloupec čekající jen na sourozence se nepočítá –
+            // jinak by čekající skupiny zaplnily limit a streamer by stál (nic nového by se
+            // neplánovalo, takže by se na sourozence čekalo donekonečna).
+            // Stejně tak zveřejněný LOD0 sloupec, který drží pole už jen pro osazovač: terén má
+            // hotový, a když osazovač při rychlém pohybu nestíhá, nesmí to zastavit stavbu terénu.
+            // Paměť drží zvlášť strop polí (4× limit, ~150 kB na pole).
+            int fields = 0;
+            foreach (var kv in columns)
+            {
+                ColumnEntry ce = kv.Value;
+                if (ce.retired) continue;
+                // Kolo 3: při aktivním stropu plného osazení drží zveřejněné LOD0 sloupce pole
+                // (uvolnění na zástupce a nové osazení při návratu). Je jich nejvýš tolik, kolik má LOD0 prstenec
+                // (paměť omezená dosahem), a do stropu polí se nepočítají – jinak by při detailu
+                // 10 zaplnily strop a streamer by stál (změřeno: 348 nedostavěných sloupců).
+                if (ce.lod == 0 && ce.published && !ce.rebuilding && PropsCapActive) continue;
+                fields++;
+                if (ce.seamRebuild || IsColumnComplete(ce)) continue;
+                if (ce.published && !ce.rebuilding && ce.pending == 0) continue;
+                live++;
+            }
+            if (fields >= maxLiveColumns * 4) live = maxLiveColumns;
+
+            int reserveColumn = 0;
+            // Chunků je nejvýš maxChunksInFlight (počet scratch slotů), takže při hodně vláknech
+            // smí jeden chunk zabrat víc vláken; sloupcové pole vždy jedno.
+            int chunkPar = budgetChunkPar;
+            if (limited)
+            {
+                // Chunky smí vzít všechny volné sloty; jeden se drží pro sloupcová pole, jen
+                // když nějaký žádaný sloupec ještě nezačal (jinak by slot ležel ladem).
+                bool columnDemand = false;
+                if (live < maxLiveColumns)
+                    for (int i = 0; i < desiredSorted.Count; i++)
+                        if (!columns.ContainsKey(desiredSorted[i])) { columnDemand = true; break; }
+                reserveColumn = columnDemand && ColumnsComputing() == 0 && slots > 1 ? 1 : 0;
+            }
+
+            // Chunky první: dokončují viditelný terén. Sloupcová pole pak doplní zbylé sloty.
+            // Počítají se jen joby, které ještě běží – hotový chunk čekající na předání vlákno nedrží.
+            if (limited) JobBudget.MaxParallel = 1;
+            while (inFlight.Count < maxChunksInFlight)
+            {
+                if (!TryPickNearestChunk(out int3 coord, out ColumnEntry column)) break;
+                bool urgent = limited && column.lod == 0
+                              && ColumnDist(new int3(column.coord.x, column.coord.y, 0)) < UrgentDistSqr;
+                if (!urgent && !UnitsFree(1 + reserveColumn)) break;
+
+                VoxelChunkBuilder b = builders[column.lod];
+                int slot = b.RentScratch();
+                if (slot < 0) break;
+
+                if (urgent) { JobBudget.MaxParallel = 0; JobBudget.Dependency = default; }
+                else TryTakeUnits(1);
+                JobHandle h = b.ScheduleChunk(coord, column.field, slot,
+                                              Allocator.Persistent, out ChunkMeshData data,
+                                              JobHandle.CombineDependencies(column.handle, JobBudget.Dependency),
+                                              !b.IsUnderground(column.field, coord.y));
+                if (urgent) JobBudget.MaxParallel = 1; else CommitLane(h);
+                column.pending++;
+                building.Add(new int4(coord, column.lod));
+                inFlight.Add(new Pending { coord = coord, lod = column.lod, slot = slot,
+                                           data = data, handle = h, column = column, par = 1 });
+            }
 
             int newColumns = 0;
+            if (limited) JobBudget.MaxParallel = 1;
             for (int i = 0; i < desiredSorted.Count && newColumns < maxColumnsPerFrame
-                                                    && live < maxLiveColumns; i++)
+                                                    && live < maxLiveColumns
+                                                    && UnitsFree(1); i++)
             {
                 int3 key = desiredSorted[i];
                 if (columns.ContainsKey(key)) continue;
@@ -1692,32 +2499,23 @@ namespace Orivilon.World.Generation
                 // Sloupec se NEPLÁNUJE, dokud nestojí jeho hydrologický region – a rovnou
                 // si o něj řekne. Fronta je seřazená podle vzdálenosti, takže se regiony
                 // staví od hráče ven a nikdy se nečeká na něco, co nikdo nevyžádal.
-                if (hydro != null && !hydro.IsReady(center)) { hydro.Request(center); continue; }
+                if (hydro != null && !hydro.IsReady(center)) { HydroRequestBudgeted(center); continue; }
 
                 var e = new ColumnEntry { coord = c, lod = key.z, probe = b.AllocProbe(Allocator.Persistent), createdAt = Time.realtimeSinceStartup };
+                RequestExactTrees(c, key.z);   // kolo 3: přesní zástupci stromů ať jsou do zveřejnění hotoví
                 e.seamFine = key.z == 0 ? TerrainFineEdges(c) : 0;
+                // Sloupec pod hráčem a hned vedle je naléhavý (bez něj není podlaha): jde mimo
+                // dráhy, s plnou paralelizací – jako při načítání. Jsou to nejvýš jednotky sloupců.
+                bool urgent = limited && key.z == 0 && ColumnDist(key) < UrgentDistSqr;
+                if (urgent) { JobBudget.MaxParallel = 0; JobBudget.Dependency = default; }
+                else TryTakeUnits(1);
                 e.handle = b.ScheduleColumn(c, Allocator.Persistent, e.probe, HydroRef(center), e.seamFine, out e.field);
+                if (urgent) JobBudget.MaxParallel = 1; else CommitLane(e.handle);
                 columns[key] = e;
                 newColumns++;
                 live++;
             }
 
-            while (inFlight.Count < maxChunksInFlight)
-            {
-                if (!TryPickNearestChunk(out int3 coord, out ColumnEntry column)) break;
-
-                VoxelChunkBuilder b = builders[column.lod];
-                int slot = b.RentScratch();
-                if (slot < 0) break;
-
-                JobHandle h = b.ScheduleChunk(coord, column.field, slot,
-                                              Allocator.Persistent, out ChunkMeshData data, column.handle,
-                                              !b.IsUnderground(column.field, coord.y));
-                column.pending++;
-                building.Add(new int4(coord, column.lod));
-                inFlight.Add(new Pending { coord = coord, lod = column.lod, slot = slot,
-                                           data = data, handle = h, column = column });
-            }
         }
 
         /// <summary>
@@ -1736,6 +2534,9 @@ namespace Orivilon.World.Generation
                 if (!e.ready || e.retired || e.surfaceChunks == null || !desired.Contains(kv.Key)) continue;
 
                 float d = ColumnDist(kv.Key);
+                // Výkonové kolo 14.10.2026: přestavba švu je kosmetika nad už viditelným terénem –
+                // nový terén (jinak by se čekalo na hrubou náhradu) má přednost (vzdálenost ×4 ≈ 2× dál).
+                if (e.seamRebuild && e.published) d *= 4f;
                 if (d >= bestDist) continue;
 
                 // Sloupec, který se teprve staví nebo přestavuje, se ptá na STAGED sadu.
@@ -1789,6 +2590,7 @@ namespace Orivilon.World.Generation
 
                 onChunkLoaded?.Invoke();
                 applied++;
+                StatChunksBuilt++;
             }
         }
 
@@ -1803,15 +2605,29 @@ namespace Orivilon.World.Generation
         /// </summary>
         private void ApplyChunk(int4 key, in ChunkMeshData data, ColumnEntry column)
         {
-            ChunkEntry e = pool.Count > 0 ? pool.Pop() : CreateChunkObject();
+            ChunkEntry e = PopFreeChunkEntry();   // kolo 3: bez synchronního čekání na čtení morphu
 
             var coord = new int3(key.x, key.y, key.z);
             e.coord = coord;
             e.lod = key.w;
             e.go.name = $"Chunk {coord.x} {coord.y} {coord.z} L{key.w}";
             e.go.SetActive(false);
+            e.renderTf.localPosition = Vector3.zero;   // mohl být zapuštěný (SinkColumn)
+            e.renderTf.gameObject.SetActive(true);     // kolo 5: mohl být schovaný (HideReplaced)
+            e.maskOrig = null;                         // kolo 5: mesh se přepíše celý, maska zaniká
 
-            data.Apply(e.renderMesh, e.colliderMesh);
+            e.CompleteBake();
+            EnsureMeshNotRead(e.renderMesh);   // znovupoužitý chunk mohla číst příprava morphu
+            // Collider mají jen chunky LOD0 – hrubším se kolizní mesh vůbec nestaví (dřív se
+            // plnil zbytečně u každého chunku; paměť i čas na hlavním vlákně).
+            bool wantsCollider = key.w == 0;
+            data.Apply(e.renderMesh, wantsCollider ? e.colliderMesh : null);
+            if (!wantsCollider) e.colliderMesh.Clear();
+            else if (e.colliderMesh.vertexCount > 0)
+            {
+                // Pečení se jen zařadí; naplánuje ho ScheduleBakes v rámci rozpočtu jobů.
+                if (BakeInJobs) { e.bakeWanted = true; bakeQueue.Add(e); }
+            }
 
             e.filter.sharedMesh = e.renderMesh;
 
@@ -1828,6 +2644,7 @@ namespace Orivilon.World.Generation
 
             // Collider se přiřazuje až podle vzdálenosti – přiřazení spustí cook v PhysX,
             // což je ta drahá část, ne samotný mesh.
+            e.meshCollider.enabled = false;
             e.meshCollider.sharedMesh = null;
             e.colliderAssigned = false;
 
@@ -1842,7 +2659,9 @@ namespace Orivilon.World.Generation
         /// </summary>
         private void PublishColumns()
         {
+            long pt0 = System.Diagnostics.Stopwatch.GetTimestamp();
             scratchPublish.Clear();
+            lastBlockedMorph = 0;
 
             foreach (var kv in columns)
                 if (IsColumnComplete(kv.Value)) scratchPublish.Add(kv.Key);
@@ -1852,19 +2671,158 @@ namespace Orivilon.World.Generation
             // geometrie přes tu starou hrubou a na skoro shodných plochách z toho je
             // z-fighting – tedy zase blikání, jen jinak vypadající. Celá čtveřice se
             // proto zveřejní naráz a rodič se schová ještě v tomtéž snímku v UnloadFar.
+            int complete = scratchPublish.Count;
             for (int i = scratchPublish.Count - 1; i >= 0; i--)
                 if (!SiblingsComplete(scratchPublish[i])) scratchPublish.RemoveAt(i);
+            lastBlockedSiblings = complete - scratchPublish.Count;
+
+            // Oprava po review: morph se připravuje asynchronně (EnsureMorphPrepared). Skupina
+            // (vše pod týmž nejhrubším sloupcem – sourozenci se tak nikdy nerozdělí) se zveřejní,
+            // až mají přípravu hotovou VŠICHNI její členové; do té doby zůstává starý terén.
+            // Přestavby po kopání/švu se nemorfují a nečekají.
+            if (scratchPublish.Count > 1)
+            {
+                if (publishGroupCompare == null) publishGroupCompare = ComparePublishGroup;
+                scratchPublish.Sort(publishGroupCompare);
+            }
+
+            // Kolo 3 (měření Windows buildu v CrossOver): zveřejnění 18–42 sloupců naráz stálo
+            // 12–33 ms v jednom snímku (+ uvolnění rodičů v UnloadFar). Za snímek se proto vezme jen
+            // tolik CELÝCH skupin (nejbližší první), kolik se podle průběžně měřené ceny sloupce vejde
+            // do PublishFrameBudgetMs. Skupina u hráče (urgentní vzdálenost) jde vždy. Omezí se
+            // PŘED filtrem švů, aby šev počítal jen se sloupci, které se v tomto snímku opravdu ukážou.
+            // Pořadí: nejdřív šev (na celém seznamu), pak jen jednotky s hotovou přípravou morphu,
+            // pak rozpočet a nakonec ještě jednou šev – jinak by blokované jednotky zabíraly rozpočet
+            // a streamer by vyhladověl (změřeno: 67 místo 379 zveřejněných sloupců za minutu).
 
             // Kolo 24: šev terénu závisí na sousedovi – co se ukáže, musí sedět s tím, co je vidět vedle.
+            long pt1 = System.Diagnostics.Stopwatch.GetTimestamp();
+            int beforeSeam = scratchPublish.Count;
             FilterSeamPublish(scratchPublish);
-
-            for (int i = 0; i < scratchPublish.Count; i++)
+            if (TrimPublishToBudget(scratchPublish)) FilterSeamPublish(scratchPublish);
+            lastBlockedSeam = beforeSeam - scratchPublish.Count;
+            // Kolo 5: plocha odcházejícího sloupce se převezme celá naráz (viz VoxelTerrain.LodSwap.cs).
+            // Až PO rozpočtu a švu – ty umí vyřadit jen část náhrady; šev se po vyřazení přepočítá.
+            lastBlockedAtomic = 0;
+            for (int it = 0; it < 4; it++)
             {
-                ColumnEntry e = columns[scratchPublish[i]];
-                if (e.published && !e.rebuilding) continue;   // zveřejněn už v tomhle průchodu
-                PublishColumn(e);
+                int beforeAtomic = scratchPublish.Count;
+                if (!FilterAtomicSwap(scratchPublish)) break;
+                lastBlockedAtomic += beforeAtomic - scratchPublish.Count;
+                FilterSeamPublish(scratchPublish);
+            }
+            long pt2 = System.Diagnostics.Stopwatch.GetTimestamp();
+            double morph0 = StatMorphStartMs;
+            int published = 0;
+            for (int i = 0; i < scratchPublish.Count;)
+            {
+                int3 g = PublishGroup(scratchPublish[i]);
+                int j = i;
+                bool ready = true;
+                while (j < scratchPublish.Count && PublishGroup(scratchPublish[j]).Equals(g))
+                {
+                    ColumnEntry ce = columns[scratchPublish[j]];
+                    if (!(ce.published && !ce.rebuilding) && !EnsureMorphPrepared(ce)) ready = false;
+                    j++;
+                }
+                if (!ready) { lastBlockedMorph += j - i; i = j; continue; }
+                for (; i < j; i++)
+                {
+                    ColumnEntry e = columns[scratchPublish[i]];
+                    if (e.published && !e.rebuilding) continue;   // zveřejněn už v tomhle průchodu
+                    PublishColumn(e);
+                    published++;
+                }
+            }
+            if (published > 0)
+            {
+                double pms = (System.Diagnostics.Stopwatch.GetTimestamp() - pt2) * 1000.0 / System.Diagnostics.Stopwatch.Frequency / published;
+                publishMsPerColumn = publishMsPerColumn <= 0.0 ? pms : publishMsPerColumn * 0.8 + pms * 0.2;
+            }
+            if (SpikeProbe)
+            {
+                double f = 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+                long pt3 = System.Diagnostics.Stopwatch.GetTimestamp();
+                if ((pt3 - pt0) * f > 8.0)
+                    SpikeLog?.Invoke(string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                        "[Publish] {0:0.0} ms: hotové+sourozenci {1:0.0}, šev filtr {2:0.0}, zveřejnění {3} sloupců {4:0.0} (z toho morph {5:0.0})",
+                        (pt3 - pt0) * f, (pt1 - pt0) * f, (pt2 - pt1) * f, published, (pt3 - pt2) * f, StatMorphStartMs - morph0));
             }
         }
+
+        /// <summary>Kolo 3: kolik ms smí za snímek stát zveřejňování sloupců (mimo skupiny u hráče).</summary>
+        public static float PublishFrameBudgetMs = 4f;
+
+        /// <summary>Průběžný odhad ceny zveřejnění jednoho sloupce (EMA), ms.</summary>
+        private double publishMsPerColumn;
+        public static int StatPublishDeferred;
+        public static double StatPublishProxyMs;
+
+        // Atomická jednotka zveřejnění = všechno žádané pod nejbližším ZVEŘEJNĚNÝM předkem (≤ 2 úrovně,
+        // stejně jako SiblingsComplete); sloupec bez zveřejněného předka je jednotkou sám.
+        private int3 PublishUnit(int3 k)
+        {
+            int levels = builders != null ? builders.Length : 1;
+            for (int m = k.z + 1; m < levels && m <= k.z + 2; m++)
+            {
+                int sh = m - k.z;
+                var p = new int3(k.x >> sh, k.y >> sh, m);
+                if (ColumnPublished(p)) return p;
+            }
+            return k;
+        }
+
+        private readonly Dictionary<int3, int> unitCount = new Dictionary<int3, int>();
+        private readonly Dictionary<int3, float> unitDist = new Dictionary<int3, float>();
+        private readonly List<int3> unitOrder = new List<int3>(64);
+        private readonly HashSet<int3> unitTake = new HashSet<int3>();
+        private System.Comparison<int3> unitCompare;
+
+        /// <returns>true, když se seznam zkrátil.</returns>
+        private bool TrimPublishToBudget(List<int3> list)
+        {
+            if (PublishFrameBudgetMs <= 0f || list.Count <= 1 || !streamedOnce || IsTeleporting) return false;
+            double per = publishMsPerColumn > 0.0 ? System.Math.Min(publishMsPerColumn, 2.0) : 0.5;
+            int allowance = Mathf.Max(2, (int)(PublishFrameBudgetMs / per));
+            // Dlouhá fronta hotových (typicky čekající na šev se sousedem): aspoň osmina za snímek,
+            // aby se fronta nehromadila (změřeno: −22 % zveřejněných sloupců při pevném stropu).
+            allowance = Mathf.Max(allowance, (list.Count + 7) / 8);
+            if (list.Count <= allowance) return false;
+            unitCount.Clear(); unitDist.Clear(); unitOrder.Clear(); unitTake.Clear(); unitBlocked.Clear();
+            for (int i = 0; i < list.Count; i++)
+            {
+                int3 u = PublishUnit(list[i]);
+                float d = ColumnDist(list[i]);
+                // Jednotka, jejíž člen ještě čeká na přípravu morphu, se v tomto snímku stejně neukáže
+                // (EnsureMorphPrepared přípravu případně rovnou spustí) – rozpočet nezabírá.
+                ColumnEntry ce = columns[list[i]];
+                if (!(ce.published && !ce.rebuilding) && !EnsureMorphPrepared(ce)) unitBlocked.Add(u);
+                if (unitCount.TryGetValue(u, out int c)) { unitCount[u] = c + 1; if (d < unitDist[u]) unitDist[u] = d; }
+                else { unitCount[u] = 1; unitDist[u] = d; unitOrder.Add(u); }
+            }
+            if (unitCompare == null) unitCompare = (x, y) => unitDist[x].CompareTo(unitDist[y]);
+            unitOrder.Sort(unitCompare);
+            int taken = 0;
+            float urgent = UrgentDistSqr;
+            for (int i = 0; i < unitOrder.Count; i++)
+            {
+                int3 u = unitOrder[i];
+                if (unitBlocked.Contains(u)) continue;
+                int c = unitCount[u];
+                if (taken == 0 || taken + c <= allowance || unitDist[u] < urgent) { unitTake.Add(u); taken += c; }
+            }
+            int before = list.Count;
+            for (int i = list.Count - 1; i >= 0; i--)
+            {
+                int3 u = PublishUnit(list[i]);
+                if (unitTake.Contains(u)) continue;
+                if (!unitBlocked.Contains(u)) StatPublishDeferred++;
+                list.RemoveAt(i);
+            }
+            return list.Count != before;
+        }
+
+        private readonly HashSet<int3> unitBlocked = new HashSet<int3>();
 
         /// <summary>Je sloupec dostavěný a čeká jen na zveřejnění?</summary>
         private static bool IsColumnComplete(ColumnEntry e)
@@ -1887,20 +2845,36 @@ namespace Orivilon.World.Generation
         /// </summary>
         private bool SiblingsComplete(int3 key)
         {
-            var parent = new int3(key.x >> 1, key.y >> 1, key.z + 1);
-            if (!ColumnPublished(parent)) return true;
-
-            int px = parent.x * 2, pz = parent.y * 2;
-
-            for (int dz = 0; dz < 2; dz++)
-            for (int dx = 0; dx < 2; dx++)
+            // Výkonové kolo 14.10.2026: nejbližší ZVEŘEJNĚNÝ předek (rodič, prarodič…). Dřív se
+            // hledal jen rodič; když plochu kryl prarodič (rychlý pohyb, změna dosahu), jemné
+            // sloupce se zveřejňovaly po jednom přes hrubou geometrii.
+            int levels = builders != null ? builders.Length : 1;
+            int a = -1;
+            int3 anc = default;
+            // Nejvýš prarodič: skupina pod vzdálenějším předkem by měla až stovky sloupců
+            // a čekání na ni by streamer zdrželo víc, než kolik stojí krátký překryv.
+            for (int m = key.z + 1; m < levels && m <= key.z + 2; m++)
             {
-                var sibling = new int3(px + dx, pz + dz, key.z);
-                if (!desired.Contains(sibling)) continue;
+                int sh = m - key.z;
+                var p = new int3(key.x >> sh, key.y >> sh, m);
+                if (ColumnPublished(p)) { a = m; anc = p; break; }
+            }
+            if (a < 0) return true;
 
-                if (!columns.TryGetValue(sibling, out ColumnEntry s)) return false;
-                if (s.published && !s.rebuilding) continue;
-                if (!IsColumnComplete(s)) return false;
+            // Všechno žádané pod tímto předkem (na všech jemnějších úrovních) se musí
+            // zveřejnit naráz – předek se schová v tomtéž snímku v UnloadFar.
+            for (int m = a - 1; m >= 0; m--)
+            {
+                int k = 1 << (a - m);
+                for (int dz = 0; dz < k; dz++)
+                for (int dx = 0; dx < k; dx++)
+                {
+                    var c = new int3(anc.x * k + dx, anc.y * k + dz, m);
+                    if (!desired.Contains(c)) continue;
+                    if (!columns.TryGetValue(c, out ColumnEntry s)) return false;
+                    if (s.published && !s.rebuilding) continue;
+                    if (!IsColumnComplete(s)) return false;
+                }
             }
 
             return true;
@@ -1926,27 +2900,32 @@ namespace Orivilon.World.Generation
                 seamWaterFrameMs += wms;
                 if (seamWaterFrameMs > TerrainSeamWaterFrameMaxMs) TerrainSeamWaterFrameMaxMs = seamWaterFrameMs;
             }
-            scratchChunkKeys.Clear();
-            foreach (var kv in chunks)
-                if (kv.Key.w == e.lod && kv.Key.x == e.coord.x && kv.Key.z == e.coord.y)
-                    scratchChunkKeys.Add(kv.Key);
+            // Výkonové kolo 14.10.2026: plynulá výměna – nové chunky začnou na starém povrchu.
+            BeginColumnMorph(e);
 
+            var ck = new int3(e.coord.x, e.coord.y, e.lod);
+            CollectColumnChunks(ck);
             for (int i = 0; i < scratchChunkKeys.Count; i++) RecycleChunk(scratchChunkKeys[i]);
 
             // Prázdné chunky staré verze se musí zapomenout taky – po odkopání prázdný
             // chunk být nemusí a naopak.
-            resolvedEmpty.RemoveWhere(c => c.w == e.lod && c.x == e.coord.x && c.z == e.coord.y);
+            ForgetColumnEmpty(ck);
 
             foreach (var kv in e.staged)
             {
                 kv.Value.go.SetActive(true);
+                if (!chunks.ContainsKey(kv.Key)) IndexAdd(colChunks, kv.Key);
                 chunks[kv.Key] = kv.Value;
             }
-            foreach (int4 k in e.stagedEmpty) resolvedEmpty.Add(k);
+            foreach (int4 k in e.stagedEmpty) if (resolvedEmpty.Add(k)) IndexAdd(colEmpty, k);
 
             e.staged.Clear();
             e.stagedEmpty.Clear();
             e.published = true;
+            coverageVersion++;
+            e.masked = false; e.maskVersion = -1;   // nové chunky mají celé meshe
+            e.replacedHidden = false;   // kolo 5: nové chunky jsou vidět; UnloadFar případně schová znovu
+            StatColumnsPublished++;
             e.rebuilding = false;
             if (e.lod == 0) waterSeamDirty = true;
             SeamPublished(e);
@@ -1960,6 +2939,20 @@ namespace Orivilon.World.Generation
 
             // Hladina patří ke sloupci stejně jako jeho chunky – ukáže se v témž snímku.
             if (e.waterGo != null) e.waterGo.SetActive(e.hasWater);
+
+            // Oprava po review: hrubší sloupec, který přebírá plochu po jemnějších (s jejich
+            // skutečnými stromy, které se v tomtéž snímku uvolní), postaví zástupce HNED –
+            // jinak by stromy do jejich postavení chyběly.
+            // Totéž pro LOD0 (do doběhnutí osazení). Na morph se nečeká: strom na konečné výšce
+            // terénu, který se ještě ≤ 0,6 s dosouvá, je na hraně detailního prstence (200+ m)
+            // nepostřehnutelný, kdežto chybějící strom vidět je.
+            if (WantsTreeProxies(e) && e.field.IsCreated && !e.rebuilding)
+            {
+                long px0 = System.Diagnostics.Stopwatch.GetTimestamp();
+                BuildProxiesFor(e);
+                StatPublishProxyMs += (System.Diagnostics.Stopwatch.GetTimestamp() - px0) * 1000.0 / System.Diagnostics.Stopwatch.Frequency;
+            }
+            if (e.lod >= 1) orphanProxies.Remove(Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, e.lod));
         }
 
         /// <summary>Vrátí chunk do poolu a vyřadí ho ze scény.</summary>
@@ -1967,14 +2960,19 @@ namespace Orivilon.World.Generation
         {
             if (!chunks.TryGetValue(key, out ChunkEntry e)) return;
             chunks.Remove(key);
+            IndexRemove(colChunks, key);
             RecycleEntry(e);
         }
 
         private void RecycleEntry(ChunkEntry e)
         {
+            e.CompleteBake();
+            EndMorph(e, false);
             e.go.SetActive(false);
+            e.meshCollider.enabled = false;
             e.meshCollider.sharedMesh = null;
             e.colliderAssigned = false;
+            e.generation++;
             pool.Push(e);
         }
 
@@ -1990,14 +2988,19 @@ namespace Orivilon.World.Generation
         /// </summary>
         private bool ReplacementReady(int3 leaving)
         {
+            // Výkonové kolo 14.10.2026: přes VŠECHNY úrovně, ne jen dítě/rodič. Při rychlém
+            // pohybu, teleportu nebo změně dosahu přebírá plochu i vnuk nebo prarodič – dřív
+            // se v tu chvíli sloupec uvolnil hned a do dostavění náhrady zela díra.
+            int levels = builders != null ? builders.Length : 1;
             int l = leaving.z;
 
-            if (l > 0)
+            for (int m = l - 1; m >= 0; m--)
             {
-                for (int dz = 0; dz < 2; dz++)
-                for (int dx = 0; dx < 2; dx++)
+                int k = 1 << (l - m);
+                for (int dz = 0; dz < k; dz++)
+                for (int dx = 0; dx < k; dx++)
                 {
-                    var child = new int3(leaving.x * 2 + dx, leaving.y * 2 + dz, l - 1);
+                    var child = new int3(leaving.x * k + dx, leaving.y * k + dz, m);
                     if (desired.Contains(child) && !ColumnPublished(child)) return false;
                 }
             }
@@ -2005,11 +3008,76 @@ namespace Orivilon.World.Generation
             // Posun vpravo dělá u záporných čísel dělení dolů, což je přesně to, co
             // souřadnice rodiče potřebuje – dělení se zaokrouhlením k nule by u záporné
             // poloviny světa ukazovalo na sousední sloupec.
-            var parent = new int3(leaving.x >> 1, leaving.y >> 1, l + 1);
-            if (desired.Contains(parent) && !ColumnPublished(parent)) return false;
+            for (int m = l + 1; m < levels; m++)
+            {
+                int sh = m - l;
+                var parent = new int3(leaving.x >> sh, leaving.y >> sh, m);
+                if (desired.Contains(parent) && !ColumnPublished(parent)) return false;
+            }
 
             return true;
         }
+
+        /// <summary>Kryje část plochy sloupce už zveřejněný sloupec jiné úrovně?</summary>
+        private bool OverlappedByPublished(int3 key)
+        {
+            int levels = builders != null ? builders.Length : 1;
+            int l = key.z;
+            for (int m = l - 1; m >= 0; m--)
+            {
+                int k = 1 << (l - m);
+                for (int dz = 0; dz < k; dz++)
+                for (int dx = 0; dx < k; dx++)
+                    if (ColumnPublished(new int3(key.x * k + dx, key.y * k + dz, m))) return true;
+            }
+            for (int m = l + 1; m < levels; m++)
+            {
+                int sh = m - l;
+                if (ColumnPublished(new int3(key.x >> sh, key.y >> sh, m))) return true;
+            }
+            return false;
+        }
+
+        /// <summary>Zapustí / vrátí chunky odcházejícího sloupce (viz <see cref="ColumnEntry.sunk"/>).</summary>
+        private void SinkColumn(ColumnEntry e, bool sink)
+        {
+            e.sunk = sink;
+            sinking.Add(new int3(e.coord.x, e.coord.y, e.lod));   // posun se rozloží do ~0,35 s (bez skoku)
+        }
+
+        private readonly HashSet<int3> sinking = new HashSet<int3>();
+        private readonly List<int3> sinkDone = new List<int3>();
+
+        /// <summary>Hloubka zapuštění vzhledu odcházejícího sloupce (jen render potomek, ne collider).</summary>
+        private float SinkDepth(int lod) => 0.5f * voxelSize * (1 << lod) + 0.25f;
+
+        /// <summary>Plynule posouvá vzhled zapouštěných / vracených sloupců.</summary>
+        private void UpdateSinks()
+        {
+            if (sinking.Count == 0) return;
+            sinkDone.Clear();
+            foreach (int3 k in sinking)
+            {
+                if (!columns.TryGetValue(k, out ColumnEntry e) || !colChunks.TryGetValue(k, out List<int4> l)) { sinkDone.Add(k); continue; }
+                float depth = SinkDepth(k.z);
+                float target = e.sunk ? -depth : 0f;
+                float step = depth / 0.35f * Time.unscaledDeltaTime;
+                bool done = true;
+                for (int i = 0; i < l.Count; i++)
+                {
+                    if (!chunks.TryGetValue(l[i], out ChunkEntry c)) continue;
+                    Vector3 p = c.renderTf.localPosition;
+                    p.y = Mathf.MoveTowards(p.y, target, step);
+                    c.renderTf.localPosition = p;
+                    if (p.y != target) done = false;
+                }
+                if (done) sinkDone.Add(k);
+            }
+            for (int i = 0; i < sinkDone.Count; i++) sinking.Remove(sinkDone[i]);
+        }
+
+        /// <summary>Nejdéle, kolik smí sloupec mimo dohled čekat na náhradu, s.</summary>
+        private const float MaxReplacementWait = 120f;
 
         private bool ColumnPublished(int3 key)
             => columns.TryGetValue(key, out ColumnEntry e) && e.published;
@@ -2019,11 +3087,19 @@ namespace Orivilon.World.Generation
             var go = new GameObject("Chunk");
             go.transform.SetParent(chunkRoot, false);
 
+            // Oprava po review 14.10.2026: vzhled je na vlastním potomkovi. Zapuštění
+            // odcházejícího sloupce (SinkColumn) posouvá jen jeho vykreslení – collider
+            // zůstává na kořeni chunku a fyzika se nikdy nehne.
+            var render = new GameObject("Render");
+            render.layer = go.layer;
+            render.transform.SetParent(go.transform, false);
+
             return new ChunkEntry
             {
                 go = go,
-                filter = go.AddComponent<MeshFilter>(),
-                meshRenderer = go.AddComponent<MeshRenderer>(),
+                renderTf = render.transform,
+                filter = render.AddComponent<MeshFilter>(),
+                meshRenderer = render.AddComponent<MeshRenderer>(),
                 meshCollider = go.AddComponent<MeshCollider>(),
                 renderMesh = new Mesh { name = "chunk_render" },
                 colliderMesh = new Mesh { name = "chunk_collider" },
@@ -2048,12 +3124,42 @@ namespace Orivilon.World.Generation
             {
                 ColumnEntry e = kv.Value;
 
-                if (desired.Contains(kv.Key)) { e.unloadAt = 0f; continue; }
-                if (e.pending > 0) continue;
+                if (desired.Contains(kv.Key))
+                {
+                    e.unloadAt = 0f; e.leavingSince = -1f; e.atomicForced = false;
+                    if (e.sunk) SinkColumn(e, false);
+                    if (e.replacedHidden) HideReplaced(kv.Key, e, false);   // rychlý návrat
+                    if (e.masked) ClearOverlapMask(kv.Key, e);
+                    continue;
+                }
+                if (e.leavingSince < 0f) e.leavingSince = Time.unscaledTime;
+                // Kolo 5: odcházející sloupec se už nezapouští – zůstává na své výšce, dokud ho
+                // náhrada nepřevezme CELÝ (FilterAtomicSwap) a v témž snímku se níž neuvolní.
+                // Původní zapouštění zůstává jen jako A/B (/perf sink on).
+                if (LegacySinkOutgoing) { if (e.published && !e.sunk && OverlappedByPublished(kv.Key)) SinkColumn(e, true); }
+                else
+                {
+                    if (e.sunk) SinkColumn(e, false);
+                    // Překryv vznikne jen výjimečně (pojistka atomické výměny, sloupec u hráče):
+                    // tam, kde už kreslí náhrada, se trojúhelníky starého sloupce nevykreslí.
+                    // Sloupec, za který je hotová celá náhrada, se v tomto průchodu uvolní (nebo schová) – maska by byla zbytečná práce.
+                    if (e.published && !e.replacedHidden && e.maskVersion != coverageVersion && !ReplacementReady(kv.Key))
+                        UpdateOverlapMask(kv.Key, e);
+                }
+                if (e.pending > 0)
+                {
+                    // Celý nahrazený, ale nesmí se uvolnit, dokud mu běží job: schová se jen vzhled.
+                    if (!LegacySinkOutgoing && e.published && !e.replacedHidden && OverlappedByPublished(kv.Key) && ReplacementReady(kv.Key))
+                        HideReplaced(kv.Key, e, true);
+                    continue;
+                }
 
                 if (e.published)
                 {
-                    if (e.unloadAt <= 0f) e.unloadAt = Time.unscaledTime + unloadGrace;
+                    // Pojistka proti věčnému visení; s rozpočtem jobů trvá dostavění náhrady
+                    // déle než dřív, a 4 s by při rychlém letu otevíraly díry. Paměť je
+                    // omezená plochou dohledu: drží se jen sloupce, které žádaný sloupec překrývá.
+                    if (e.unloadAt <= 0f) e.unloadAt = Time.unscaledTime + Mathf.Max(unloadGrace, MaxReplacementWait);
                     if (!ReplacementReady(kv.Key) && Time.unscaledTime < e.unloadAt) continue;
                 }
 
@@ -2079,18 +3185,16 @@ namespace Orivilon.World.Generation
         /// <summary>Uvolní sloupec i všechno, co k němu patří – chunky, vodu a osazení.</summary>
         private void UnloadColumn(int3 key, ColumnEntry e)
         {
-            scratchChunkKeys.Clear();
-            foreach (var kv in chunks)
-                if (kv.Key.w == e.lod && kv.Key.x == e.coord.x && kv.Key.z == e.coord.y)
-                    scratchChunkKeys.Add(kv.Key);
-
+            if (e.published) coverageVersion++;   // kolo 5: masky překryvu se přepočítají
+            var ck = new int3(e.coord.x, e.coord.y, e.lod);
+            CollectColumnChunks(ck);
             for (int i = 0; i < scratchChunkKeys.Count; i++) RecycleChunk(scratchChunkKeys[i]);
 
             foreach (var kv in e.staged) RecycleEntry(kv.Value);
             e.staged.Clear();
             e.stagedEmpty.Clear();
 
-            resolvedEmpty.RemoveWhere(c => c.w == e.lod && c.x == e.coord.x && c.z == e.coord.y);
+            ForgetColumnEmpty(ck);
 
             if (e.waterGo != null)
             {
@@ -2103,16 +3207,21 @@ namespace Orivilon.World.Generation
 
             // Osazení se nepooluje – objekty jsou různé prefaby, uklízí se celý podstrom.
             // Jen spawner (kolo 6) se před tím odpojí a vrátí do poolu.
+            CancelPropPlacements(e);
             if (EcoProps) VoxelProps.Release(e.spawner);
             if (e.propsGo != null) Destroy(e.propsGo);
             e.propsGo = null;
             e.spawner = null;
 
-            // Vzdálené stromy vydrží chvíli déle – jemnější sloupce mezitím osadí skutečné.
-            if (e.proxyRequested)
-                Orivilon.World.Spawning.TreeProxies.Remove(
-                    Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, e.lod),
-                    Orivilon.World.Spawning.TreeProxies.ReleaseDelay);
+            // Vzdálené stromy zůstávají, dokud plochu nepřevezmou jemnější sloupce (OrphanCovered),
+            // a mezitím z nich děti odebírají, co už kreslí samy. Když plochu přebírá hrubší
+            // rodič, ten zástupce postavil už při svém zveřejnění, takže se zahodí hned.
+            if (e.proxyRequested && !e.proxyDropped)
+            {
+                long pk = Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, e.lod);
+                if (e.lod > 0) orphanProxies[pk] = new OrphanProxy { column = key, since = Time.unscaledTime };
+                else Orivilon.World.Spawning.TreeProxies.Remove(pk, 0f);
+            }
 
             DisposeColumn(e);
             columns.Remove(key);
@@ -2137,17 +3246,22 @@ namespace Orivilon.World.Generation
                 // Zveřejněný sloupec má z definice všechny chunky hotové, takže se
                 // jednotlivě dohledávat nemusí. Rozestavěná přestavba pole ještě potřebuje.
                 if (!e.published || e.rebuilding || e.retired || e.pending > 0) continue;
+                if (e.propsBuild != null) continue;
                 if (e.lod == 0 && PropsActive && VoxelProps.Available && !e.propsRequested) continue;
+                if (e.lod == 0 && PropsCapActive) continue;   // kolo 3: pole pro uvolnění/návrat osazení
                 if (WantsTreeProxies(e)) continue;
 
                 e.retired = true;
+                if (e.fieldPending) { e.handle.Complete(); e.fieldPending = false; }
                 if (e.field.IsCreated) e.field.Dispose();
                 if (e.probe.IsCreated) e.probe.Dispose();
             }
         }
 
-        private static void DisposeColumn(ColumnEntry e)
+        private void DisposeColumn(ColumnEntry e)
         {
+            CancelMorphPrep(e);
+            CancelPropPlacements(e);
             if (!e.retired) e.handle.Complete();
             if (e.field.IsCreated) e.field.Dispose();
             if (e.probe.IsCreated) e.probe.Dispose();
@@ -2155,37 +3269,184 @@ namespace Orivilon.World.Generation
 
         private static void DestroyChunkEntry(ChunkEntry e)
         {
+            e.CompleteBake();
+            if (e.morph != null) { DisposeMorph(e.morph); e.morph = null; }
             if (e.renderMesh != null) DestroyImmediate(e.renderMesh);
             if (e.colliderMesh != null) DestroyImmediate(e.colliderMesh);
         }
+
+        private struct ColliderCandidate
+        {
+            public ChunkEntry entry;
+            public float distanceSqr;
+        }
+        private readonly List<ColliderCandidate> colliderCandidates = new List<ColliderCandidate>(64);
+        private static readonly System.Comparison<ColliderCandidate> CompareColliderDistance =
+            (a, b) => a.distanceSqr.CompareTo(b.distanceSqr);
 
         private void UpdateColliders()
         {
             int2 vc = lastViewerColumn;
             int viewerChunkY = Mathf.FloorToInt(viewer.position.y / ChunkSpan);
-            int limitSqr = colliderDistance * colliderDistance;
+            int radius = Mathf.Max(0, colliderDistance);
+            int enableSqr = radius * radius;
+            int disableSqr = (radius + 1) * (radius + 1);
+            float span = ChunkSpan;
+            Vector3 position = viewer.position;
+            colliderCandidates.Clear();
 
             foreach (var kv in chunks)
             {
                 int4 c = kv.Key;
                 ChunkEntry e = kv.Value;
-
-                // Collider dostane jen nejjemnější prstenec. Hrubší leží o metry jinde,
-                // takže by z něj byla neviditelná stěna nebo propadlá podlaha.
                 int dx = c.x - vc.x, dz = c.z - vc.y, dy = c.y - viewerChunkY;
-                bool near = c.w == 0 && dx * dx + dz * dz + dy * dy <= limitSqr;
-
-                if (near && !e.colliderAssigned)
+                int distanceSqr = dx * dx + dz * dz + dy * dy;
+                // Hysteresis avoids removing and reinserting the same static shapes
+                // whenever the viewer crosses a chunk boundary.
+                if (e.colliderAssigned)
                 {
-                    e.meshCollider.sharedMesh = e.colliderMesh.vertexCount > 0 ? e.colliderMesh : null;
-                    e.colliderAssigned = true;
+                    if (c.w != 0 || distanceSqr > disableSqr)
+                    {
+                        e.meshCollider.enabled = false;
+                        e.colliderAssigned = false;
+                    }
+                    continue;
                 }
-                else if (!near && e.colliderAssigned)
+                if (c.w != 0 || distanceSqr > enableSqr || e.colliderMesh.vertexCount == 0) continue;
+                // Upečení ještě běží: počkat, ať se cook nespustí znovu na hlavním vlákně.
+                // Výjimka: chunk pod hráčem (níže) – ten se dokončí hned, propadnout se nesmí.
+                Vector3 minimum = new Vector3(c.x, c.y, c.z) * span;
+                Vector3 closest = Vector3.Max(minimum, Vector3.Min(position, minimum + Vector3.one * span));
+                colliderCandidates.Add(new ColliderCandidate { entry = e, distanceSqr = (closest - position).sqrMagnitude });
+            }
+            colliderCandidates.Sort(CompareColliderDistance);
+            long started = System.Diagnostics.Stopwatch.GetTimestamp();
+            int assigned = 0;
+            for (int i = 0; i < colliderCandidates.Count; i++)
+            {
+                ColliderCandidate candidate = colliderCandidates[i];
+                // Ground and any chunk within 4 metres are never delayed by the budget.
+                if (candidate.distanceSqr > 16f && (assigned >= 2 ||
+                    (System.Diagnostics.Stopwatch.GetTimestamp() - started) * 1000.0
+                        / System.Diagnostics.Stopwatch.Frequency >= 1.0)) break;
+                ChunkEntry e = candidate.entry;
+                if (e.baking || e.bakeWanted)
                 {
-                    e.meshCollider.sharedMesh = null;
-                    e.colliderAssigned = false;
+                    // Ještě se peče / čeká ve frontě: počkat, ať se cook nespustí na hlavním
+                    // vlákně. Chunk do 4 m od hráče se dokončí hned (propadnout se nesmí) –
+                    // když čekal ve frontě, upeče ho Unity při přiřazení, jako dřív.
+                    if (candidate.distanceSqr > 16f && (e.bakeWanted || !e.bake.IsCompleted)) continue;
+                    e.CompleteBake();
+                }
+                AssignCollider(e.meshCollider, e.colliderMesh);
+                e.colliderAssigned = true;
+                assigned++;
+            }
+            UpdateFallbackCollider(vc);
+        }
+
+        // Oprava po review 14.10.2026 (test chůze při přepínání dosahu 10↔3): když pod hráčem
+        // ještě není zveřejněný LOD0 sloupec (jeho stavba po zmenšení a zvětšení dosahu běží),
+        // stojí tam jen hrubý terén bez collideru a hráč propadl světem. Do zveřejnění LOD0 proto
+        // dostane collider hrubý sloupec přímo pod hráčem (z render meshe – ve světových
+        // souřadnicích, collider není zapuštěný). Jakmile LOD0 stojí, nouzový se vypne.
+        // Kolo 3 (review Codexu): položky se drží s generací chunku (poolované ChunkEntry se recyklují
+        // a znovu používají) a s příznakem, zda se mesh v okamžiku cooku ještě morfoval.
+        private struct FallbackRef { public ChunkEntry entry; public int generation; public bool morphing; }
+        private readonly List<FallbackRef> fallbackColliders = new List<FallbackRef>(8);
+        private int3 fallbackColumn = new int3(int.MinValue, int.MinValue, -1);
+        private int fallbackKeyCount;
+        public static int StatFallbackColliderFrames, StatFallbackRebuilt;
+
+        /// <summary>
+        /// Oprava po review 14.10.2026 (nalezeno testem chůze): přiřazení sharedMesh do VYPNUTÉHO
+        /// MeshCollideru, který měl mesh null, Unity občas tiše zahodí – collider se pak zapne
+        /// bez meshe a hráč propadne (regrese vypínání colliderů z předchozího kola). Nejdřív se
+        /// proto zapne a teprve pak přiřadí; když getter i tak vrátí null, přiřadí se znovu.
+        /// </summary>
+        private static void AssignCollider(MeshCollider mc, Mesh mesh)
+        {
+            mc.enabled = true;
+            if (mc.sharedMesh != mesh) mc.sharedMesh = mesh;
+            if (mc.sharedMesh == null && mesh != null)
+            {
+                StatColliderReassign++;
+                mc.sharedMesh = null;
+                mc.sharedMesh = mesh;
+            }
+        }
+
+        public static int StatColliderReassign;
+
+        /// <summary>A/B (/perf bake on|off): pečení kolizních meshů v jobech.</summary>
+        public static bool BakeInJobs = true;
+
+        private void UpdateFallbackCollider(int2 vc)
+        {
+            int3 want = new int3(int.MinValue, int.MinValue, -1);
+            if (!ColumnPublished(new int3(vc.x, vc.y, 0)) && builders != null)
+            {
+                Vector3 p = viewer.position;
+                for (int l = 1; l < builders.Length; l++)
+                {
+                    float span = SpanOf(l);
+                    var k = new int3(Mathf.FloorToInt(p.x / span), Mathf.FloorToInt(p.z / span), l);
+                    if (ColumnPublished(k)) { want = k; break; }
                 }
             }
+            if (want.Equals(fallbackColumn))
+            {
+                if (want.z < 0) return;
+                if (FallbackStillValid(want)) { StatFallbackColliderFrames++; return; }
+                // Stejný klíč, ale sloupec se mezitím přestavěl/recykloval nebo dojel morph: obnovit.
+                StatFallbackRebuilt++;
+            }
+            ReleaseFallback();
+            fallbackColumn = want;
+            fallbackKeyCount = 0;
+            if (want.z < 0 || !colChunks.TryGetValue(want, out List<int4> keys)) return;
+            fallbackKeyCount = keys.Count;
+            for (int i = 0; i < keys.Count; i++)
+            {
+                if (!chunks.TryGetValue(keys[i], out ChunkEntry c) || c.renderMesh == null || c.renderMesh.vertexCount == 0) continue;
+                EnsureMeshNotRead(c.renderMesh);
+                AssignCollider(c.meshCollider, c.renderMesh);   // cook na hlavním vlákně – vzácná nouze
+                fallbackColliders.Add(new FallbackRef { entry = c, generation = c.generation, morphing = c.morph != null });
+            }
+            StatFallbackColliderFrames++;
+        }
+
+        /// <summary>
+        /// Platí nouzové collidery pořád pro aktuální chunky sloupce? Neplatí, když se některý chunk
+        /// recykloval (jiná generace), přestal mít náš mesh, sloupec má jinou sadu chunků, nebo
+        /// collider vznikl uprostřed morphu, který mezitím doběhl (mesh je teď na konečné výšce).
+        /// </summary>
+        private bool FallbackStillValid(int3 col)
+        {
+            if (!colChunks.TryGetValue(col, out List<int4> keys) || keys.Count != fallbackKeyCount) return false;
+            for (int i = 0; i < fallbackColliders.Count; i++)
+            {
+                FallbackRef f = fallbackColliders[i];
+                ChunkEntry c = f.entry;
+                if (c.go == null || c.generation != f.generation) return false;
+                if (!c.colliderAssigned && (!c.meshCollider.enabled || c.meshCollider.sharedMesh != c.renderMesh)) return false;
+                if (f.morphing && c.morph == null) return false;
+            }
+            return true;
+        }
+
+        /// <summary>Vypne jen VLASTNÍ nouzové collidery – recyklovaný a znovu použitý chunk (jiná generace) nechá být.</summary>
+        private void ReleaseFallback()
+        {
+            for (int i = 0; i < fallbackColliders.Count; i++)
+            {
+                FallbackRef f = fallbackColliders[i];
+                ChunkEntry c = f.entry;
+                if (c.go == null || c.generation != f.generation || c.colliderAssigned) continue;
+                c.meshCollider.enabled = false;
+                c.meshCollider.sharedMesh = null;
+            }
+            fallbackColliders.Clear();
         }
 
         /// <summary>
@@ -2322,6 +3583,226 @@ namespace Orivilon.World.Generation
                     if (!columns.TryGetValue(k, out ColumnEntry e) || !e.published || e.seamRebuild) return false;
                 return true;
             }
+        }
+
+        /// <summary>
+        /// Kontrola děr a překryvů (výkonové kolo 14.10.2026): mřížka bodů kolem hráče, pro každý
+        /// se spočítá, kolik úrovní LOD má v tom místě zveřejněný sloupec. 0 = díra (nic se tam
+        /// nekreslí), 2+ = překryv dvou úrovní (z-fighting). Body mimo žádaný dohled se nepočítají.
+        /// </summary>
+        public void CoverageProbe(float radius, float step, out int samples, out int holes, out int overlaps)
+            => CoverageProbe(radius, step, out samples, out holes, out overlaps, null);
+
+        public void CoverageProbe(float radius, float step, out int samples, out int holes, out int overlaps,
+                                  System.Text.StringBuilder firstHole)
+        {
+            samples = holes = overlaps = 0;
+            if (viewer == null || builders == null) return;
+            int levels = builders.Length;
+            Vector3 p = viewer.position;
+            int n = Mathf.CeilToInt(radius / step);
+            for (int iz = -n; iz <= n; iz++)
+            for (int ix = -n; ix <= n; ix++)
+            {
+                float x = p.x + ix * step, z = p.z + iz * step;
+                int cover = 0, sunkCover = 0;
+                bool wanted = false;
+                for (int l = 0; l < levels; l++)
+                {
+                    float span = SpanOf(l);
+                    var key = new int3(Mathf.FloorToInt(x / span), Mathf.FloorToInt(z / span), l);
+                    if (desired.Contains(key)) wanted = true;
+                    if (columns.TryGetValue(key, out ColumnEntry e) && e.published && !e.replacedHidden && !MaskedAt(key, e, x, z)) { if (e.sunk) sunkCover++; else cover++; }
+                }
+                if (!wanted) continue;
+                samples++;
+                if (cover == 0 && sunkCover > 0) cover = 1;   // kryje jen zapuštěný odcházející sloupec – díra to není
+                bool dumpHole = cover == 0 && firstHole != null && !firstHoleDumped;
+                bool dumpOverlap = cover > 1 && firstHole != null && !firstOverlapDumped;
+                if (dumpHole || dumpOverlap)
+                {
+                    if (dumpHole) firstHoleDumped = true; else firstOverlapDumped = true;
+                    firstHole.Append(" || ");
+                    firstHole.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, (cover == 0 ? "díra" : "překryv") + " ({0:0},{1:0}) {2:0} m od hráče:", x, z,
+                        Mathf.Sqrt((x - p.x) * (x - p.x) + (z - p.z) * (z - p.z)));
+                    for (int l = 0; l < levels; l++)
+                    {
+                        float span = SpanOf(l);
+                        var key = new int3(Mathf.FloorToInt(x / span), Mathf.FloorToInt(z / span), l);
+                        firstHole.Append(" L").Append(l).Append(desired.Contains(key) ? "*" : "");
+                        if (columns.TryGetValue(key, out ColumnEntry ce))
+                            firstHole.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+                                "[r{0} p{1} ret{2} reb{3} pend{4} st{5}/{6} seam{7} age{8:0.0}s unl{9:0.0} repl{10}]",
+                                ce.ready ? 1 : 0, ce.published ? 1 : 0, ce.retired ? 1 : 0, ce.rebuilding ? 1 : 0, ce.pending,
+                                ce.staged.Count + ce.stagedEmpty.Count, ce.surfaceChunks != null ? ce.surfaceChunks.Count : -1,
+                                ce.seamRebuild ? 1 : 0, Time.realtimeSinceStartup - ce.createdAt,
+                                ce.unloadAt > 0f ? ce.unloadAt - Time.unscaledTime : -1f, ReplacementReady(key) ? 1 : 0);
+                        else firstHole.Append("[-]");
+                    }
+                }
+                if (cover == 0) holes++;
+                else if (cover > 1) overlaps++;
+            }
+        }
+
+        private int lastBlockedSiblings, lastBlockedSeam, lastBlockedMorph, lastBlockedAtomic;
+        private System.Comparison<int3> publishGroupCompare;
+
+        /// <summary>Skupina zveřejnění = nejhrubší sloupec, pod kterým sloupec leží.</summary>
+        private int3 PublishGroup(int3 k)
+        {
+            int top = (builders != null ? builders.Length : 1) - 1;
+            int sh = top - k.z;
+            return new int3(k.x >> sh, k.y >> sh, top);
+        }
+
+        private int ComparePublishGroup(int3 a, int3 b)
+        {
+            int3 ga = PublishGroup(a), gb = PublishGroup(b);
+            if (!ga.Equals(gb))
+            {
+                int d = ColumnDist(ga).CompareTo(ColumnDist(gb));   // bližší skupina dřív
+                if (d != 0) return d;
+            }
+            if (ga.x != gb.x) return ga.x.CompareTo(gb.x);
+            if (ga.y != gb.y) return ga.y.CompareTo(gb.y);
+            return ColumnDist(a).CompareTo(ColumnDist(b));
+        }
+
+        /// <summary>Diagnostika /perf: první překryv v běhu už je vypsaný.</summary>
+        [System.NonSerialized] public bool firstOverlapDumped, firstHoleDumped;   // jen diagnostika – nepatří do scény
+
+        /// <summary>
+        /// Diagnostika (oprava po review): kolik chunků s ZAPNUTÝM colliderem má kořen mimo
+        /// počátek (fyzika posunutá) a kolik má zapuštěný jen vzhled.
+        /// </summary>
+        public void ColliderSinkProbe(out int movedColliders, out int sunkVisuals)
+        {
+            movedColliders = sunkVisuals = 0;
+            foreach (var kv in chunks)
+            {
+                ChunkEntry c = kv.Value;
+                if (c.go == null) continue;
+                if (c.meshCollider.enabled && c.go.transform.localPosition != Vector3.zero) movedColliders++;
+                if (c.renderTf.localPosition.y != 0f) sunkVisuals++;
+            }
+        }
+
+        /// <summary>
+        /// Diagnostika předání stromů: zveřejněné LOD0 sloupce s rozpracovaným osazením, které
+        /// nekryjí žádní zástupci (vlastní, rodiče ani prarodiče) – tam by stromy chyběly.
+        /// </summary>
+        public static System.Text.StringBuilder TreeGapDump;
+
+        public int TreeGapProbe(out int inHandover)
+        {
+            inHandover = 0;
+            int gaps = 0;
+            foreach (var kv in columns)
+            {
+                ColumnEntry e = kv.Value;
+                if (e.lod != 0 || !e.published || !PropsActive || PropsFinished(e)) continue;
+                inHandover++;
+                // Záznam zástupců (i prázdný = v té ploše žádné stromy nejsou) znamená krytí.
+                bool own = e.proxyRequested && !e.proxyDropped
+                           && Orivilon.World.Spawning.TreeProxies.Has(Orivilon.World.Spawning.TreeProxies.Key(e.coord.x, e.coord.y, 0));
+                bool parent = Orivilon.World.Spawning.TreeProxies.Has(Orivilon.World.Spawning.TreeProxies.Key(e.coord.x >> 1, e.coord.y >> 1, 1))
+                              || Orivilon.World.Spawning.TreeProxies.Has(Orivilon.World.Spawning.TreeProxies.Key(e.coord.x >> 2, e.coord.y >> 2, 2));
+                if (!own && !parent)
+                {
+                    gaps++;   // nedoinstancované stromy by tu chyběly
+                    if (TreeGapDump != null && TreeGapDump.Length == 0)
+                        TreeGapDump.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+                            "LOD0 ({0},{1}) {2:0} m: proxyReq {3} dropped {4} propsReq {5} build {6} spawner {7} morph {8} field {9} retired {10} wants {11} | rodič L1 {12}, L2 {13}",
+                            e.coord.x, e.coord.y, Mathf.Sqrt(ColumnDist(kv.Key)), e.proxyRequested, e.proxyDropped, e.propsRequested,
+                            e.propsBuild != null, e.spawner != null, Morphing(e), e.field.IsCreated, e.retired, WantsTreeProxies(e),
+                            columns.TryGetValue(new int3(e.coord.x >> 1, e.coord.y >> 1, 1), out ColumnEntry p1) ? (p1.published ? "zveř." : "nezveř.") + (p1.proxyRequested ? "+zást." : "") : "-",
+                            columns.TryGetValue(new int3(e.coord.x >> 2, e.coord.y >> 2, 2), out ColumnEntry p2) ? (p2.published ? "zveř." : "nezveř.") + (p2.proxyRequested ? "+zást." : "") : "-");
+                }
+            }
+            return gaps;
+        }
+
+        /// <summary>Diagnostika propadu: stav LOD0 sloupce a jeho chunků/colliderů pod bodem.</summary>
+        public string DescribeGroundAt(Vector3 p)
+        {
+            var sb = new System.Text.StringBuilder(256);
+            int cx = Mathf.FloorToInt(p.x / ChunkSpan), cz = Mathf.FloorToInt(p.z / ChunkSpan);
+            for (int l = 0; l < (builders != null ? builders.Length : 1); l++)
+            {
+                float span = SpanOf(l);
+                var key = new int3(Mathf.FloorToInt(p.x / span), Mathf.FloorToInt(p.z / span), l);
+                sb.Append(" L").Append(l).Append(desired.Contains(key) ? "*" : "");
+                if (columns.TryGetValue(key, out ColumnEntry e))
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, "[r{0} p{1} reb{2} seam{3} pend{4} sunk{5} unl{6:0.0}]",
+                        e.ready ? 1 : 0, e.published ? 1 : 0, e.rebuilding ? 1 : 0, e.seamRebuild ? 1 : 0, e.pending, e.sunk ? 1 : 0,
+                        e.unloadAt > 0 ? e.unloadAt - Time.unscaledTime : -1f);
+                else sb.Append("[-]");
+            }
+            if (colChunks.TryGetValue(new int3(cx, cz, 0), out List<int4> l0))
+                foreach (int4 k in l0)
+                    if (chunks.TryGetValue(k, out ChunkEntry c))
+                        sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture, " ch y{0}: aktivní {1} coll {2}/{3} mesh {4} bake {5}/{6}",
+                            k.y, c.go.activeSelf, c.colliderAssigned, c.meshCollider.enabled, c.meshCollider.sharedMesh != null, c.bakeWanted, c.baking);
+            return sb.ToString();
+        }
+
+        /// <summary>Diagnostika chybějících stromů: stav sloupců, osazení a zástupců v bodě.</summary>
+        public string DescribePropsAt(Vector3 p)
+        {
+            var sb = new System.Text.StringBuilder(256);
+            for (int l = 0; l < (builders != null ? builders.Length : 1); l++)
+            {
+                float span = SpanOf(l);
+                var key = new int3(Mathf.FloorToInt(p.x / span), Mathf.FloorToInt(p.z / span), l);
+                long pk = Orivilon.World.Spawning.TreeProxies.Key(key.x, key.y, l);
+                sb.Append(" L").Append(l).Append(desired.Contains(key) ? "*" : "");
+                if (columns.TryGetValue(key, out ColumnEntry e))
+                    sb.AppendFormat(System.Globalization.CultureInfo.InvariantCulture,
+                        "[p{0} ret{1} sunk{2} propsReq{3} build{4} sp{5} fin{6} proxReq{7} drop{8} prox{9}]",
+                        e.published ? 1 : 0, e.retired ? 1 : 0, e.sunk ? 1 : 0, e.propsRequested ? 1 : 0, e.propsBuild != null ? 1 : 0,
+                        e.spawner != null ? (e.spawner.SpawnInProgress ? "busy" : "ok") : "-", PropsFinished(e) ? 1 : 0,
+                        e.proxyRequested ? 1 : 0, e.proxyDropped ? 1 : 0, Orivilon.World.Spawning.TreeProxies.CountOf(pk));
+                else sb.Append("[-] prox").Append(Orivilon.World.Spawning.TreeProxies.CountOf(pk));
+            }
+            var hits = new Collider[256];
+            int n = Physics.OverlapSphereNonAlloc(p, 20f, hits, ~0, QueryTriggerInteraction.Ignore);
+            var roots = new HashSet<Transform>();
+            for (int i = 0; i < n; i++)
+            {
+                LODGroup g = hits[i].GetComponentInParent<LODGroup>();
+                if (g != null) roots.Add(g.transform);
+            }
+            sb.Append(" | LODGroup objektů v 20 m: ").Append(roots.Count);
+            return sb.ToString();
+        }
+
+        /// <summary>Stav fronty streameru pro /perf: co drží nedostavěné sloupce.</summary>
+        public string StreamingStats()
+        {
+            int live = 0, computing = 0, waiting = 0, noProps = 0, unpublished = 0;
+            foreach (var kv in columns)
+            {
+                ColumnEntry e = kv.Value;
+                if (!e.retired && !e.seamRebuild) live++;
+                if (!e.ready) computing++;
+                else if (IsColumnComplete(e)) waiting++;
+                else if (!e.published) unpublished++;
+                if (e.lod == 0 && e.published && !e.retired && !e.propsRequested && !BeyondPropsCap(e.coord, 0)) noProps++;
+            }
+            return string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "sloupců {0}, živých {1} (limit {2}), počítá pole {3}, staví chunky {4}, hotové čekají na zveřejnění {5} (sourozenci {8}, šev {9}, přestavby švu {10}, rozpočet morphu {11}, atomická výměna {12}), LOD0 čeká na osazení {6}, chunků rozpracováno {7}",
+                columns.Count, live, maxLiveColumns, computing, unpublished, waiting, noProps, inFlight.Count,
+                lastBlockedSiblings, lastBlockedSeam, TerrainSeamPending(), lastBlockedMorph, lastBlockedAtomic);
+        }
+
+        /// <summary>Kolik žádaných sloupců ještě není zveřejněných (měření /perf – drží streamer krok?).</summary>
+        public int StreamingBacklog()
+        {
+            int n = 0;
+            foreach (int3 k in desired)
+                if (!columns.TryGetValue(k, out ColumnEntry e) || !e.published) n++;
+            return n;
         }
 
         /// <summary>
@@ -2936,7 +4417,9 @@ namespace Orivilon.World.Generation
 
                 if (!c.colliderAssigned)
                 {
+                    c.CompleteBake();
                     c.meshCollider.sharedMesh = c.colliderMesh.vertexCount > 0 ? c.colliderMesh : null;
+                    c.meshCollider.enabled = c.meshCollider.sharedMesh != null;   // od kola 14.10. jsou collidery mimo dosah vypnuté
                     c.colliderAssigned = true;
                 }
                 terrainColliders.Add(c.meshCollider);
@@ -3712,6 +5195,7 @@ namespace Orivilon.World.Generation
                 }
 
                 if (e.pending > 0) continue;         // ještě z něj něco staví, počká se
+                if (!TryTakeUnits(1)) break;          // společný rozpočet jobů – zkusí se příští snímek
 
                 // Staré chunky se NESCHOVÁVAJÍ. Zůstanou stát, dokud nová verze sloupce
                 // nedojede celá; teprve PublishColumn je prohodí. Právě tohle byl ten
@@ -3725,6 +5209,7 @@ namespace Orivilon.World.Generation
                 // jinak znovu instancoval stovky stromů a trávy v celém sloupci a bylo by
                 // to znát víc než samotná díra.
                 RestartColumn(e);
+                CommitLane(e.handle);
 
                 dirtyColumns.RemoveAt(i);
             }
@@ -3797,6 +5282,7 @@ namespace Orivilon.World.Generation
                 if (!columns.TryGetValue(c, out ColumnEntry e) || !e.published) return;
 
             IsInitialLoadComplete = true;
+            streamedOnce = true;
             onInitialComplete?.Invoke();
             onInitialComplete = null;
 

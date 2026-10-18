@@ -379,6 +379,7 @@ namespace Orivilon.Building
             for (int i = 0; i < selectedPiece.costItems.Length; i++)
             {
                 RemoveItem(selectedPiece.costItems[i], selectedPiece.costAmounts[i]);
+                Orivilon.Multiplayer.MpLedger.ReportConsume(selectedPiece.costItems[i], selectedPiece.costAmounts[i]);   // MP klient: i u hosta
                 InventoryUI.RefreshAll();
             }
         }

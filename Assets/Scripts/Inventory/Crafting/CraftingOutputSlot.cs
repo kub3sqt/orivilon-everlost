@@ -8,13 +8,13 @@ namespace Orivilon.Inventory.Crafting
 {
     /// <summary>
     /// UI slot zobrazující výsledek craftingu.
-    /// Levé kliknutí přesune výsledek na kurzor a spotřebuje ingredience.
-    /// Shift+levé kliknutí (Craft All) provede maximální možný počet craftů najednou
-    /// a přesune vše do inventáře.
+    /// Stisk LMB/RMB přesune výsledek na kurzor a spotřebuje ingredience (přes InventoryDragDistributor).
+    /// Shift+LMB (Craft All) craftuje, dokud recept sedí a výsledek se vejde do inventáře.
     /// Najetí myší zobrazí popis výsledného itemu.
     /// </summary>
     public class CraftingOutputSlot : MonoBehaviour,
-        IPointerClickHandler,
+        IPointerDownHandler,
+        IPointerUpHandler,
         IPointerEnterHandler,
         IPointerExitHandler
     {
@@ -70,72 +70,29 @@ namespace Orivilon.Inventory.Crafting
             }
         }
 
+        private static int Button(PointerEventData e) =>
+            e.button == PointerEventData.InputButton.Left ? 0 : e.button == PointerEventData.InputButton.Right ? 1 : -1;
+
         /// <summary>
-        /// Zpracovává kliknutí na výstupní slot.
-        /// Shift+LMB: Craft All – provede tolik craftů, kolik je surovin, přidá vše do inventáře.
-        /// LMB bez Shift: přesune výsledek na kurzor (nebo stackuje na existující kurzor).
+        /// Stisk na výstupu: LMB/RMB vezme výsledek na kurzor (prázdný nebo kompatibilní, celý se musí vejít),
+        /// Shift+LMB = Craft All do inventáře. Výstup není skladovací slot – nic se do něj nepokládá.
+        /// Logiku i spotřebu surovin řeší InventoryActions + CraftingController.TryCraftOnce.
         /// </summary>
-        public void OnPointerClick(PointerEventData eventData)
+        public void OnPointerDown(PointerEventData eventData)
         {
-            var cursor = InventoryCursor.Instance;
-            if (cursor == null) return;
-
-            var item = CraftingData.Instance.resultItem;
-            if (item == null) return;
-
-            bool shift = Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift);
-
-            if (shift && eventData.button == PointerEventData.InputButton.Left)
-            {
-                int craftCount = CraftingController.Instance.GetMaxCraftCount();
-                if (craftCount <= 0) return;
-
-                int totalAmount = craftCount * CraftingController.Instance.ResultAmount;
-
-                bool added = InventoryData.Instance.AddItemSmart(
-                    CraftingData.Instance.resultItem,
-                    totalAmount
-                );
-
-                if (!added) return;
-
-                for (int i = 0; i < craftCount; i++)
-                    CraftingController.Instance.ConsumeIngredients();
-
-                CraftingController.Instance.Recalculate();
-                InventoryUI.RefreshAll();
-                ItemDescriptionUI.Instance?.ClearFromSlot();
-                return;
-            }
-
-            if (eventData.button != PointerEventData.InputButton.Left)
-                return;
-
-            if (cursor.HeldSlot == null)
-            {
-                cursor.SetHeldSlot(new InventorySlotData
-                {
-                    item = item,
-                    amount = CraftingController.Instance.ResultAmount
-                });
-
-                ItemDescriptionUI.Instance?.LockToCursor(item);
-                CraftingController.Instance.ConsumeIngredients();
-                CraftingController.Instance.Recalculate();
-            }
-            else if (cursor.TryAddToHeldSlot(item, CraftingController.Instance.ResultAmount))
-            {
-                CraftingController.Instance.ConsumeIngredients();
-                CraftingController.Instance.Recalculate();
-            }
+            InventoryDragDistributor.PointerDown(SlotRef.Output, Button(eventData));
+            ItemDescriptionUI.Instance?.ClearFromSlot();
         }
+
+        public void OnPointerUp(PointerEventData eventData) => InventoryDragDistributor.PointerUp(Button(eventData));
 
         /// <summary>
         /// Při najetí myší zobrazí popis výsledného itemu, pokud kurzor nic nedrží.
         /// </summary>
         public void OnPointerEnter(PointerEventData eventData)
         {
-            if (InventoryCursor.Instance.HeldSlot != null) return;
+            InventoryDragDistributor.PointerEnter(SlotRef.Output);
+            if (!InventoryActions.Cursor.IsEmpty) return;
 
             var item = CraftingData.Instance.resultItem;
             if (item != null)
@@ -147,7 +104,8 @@ namespace Orivilon.Inventory.Crafting
         /// </summary>
         public void OnPointerExit(PointerEventData eventData)
         {
-            if (InventoryCursor.Instance.HeldSlot != null) return;
+            InventoryDragDistributor.PointerExit(SlotRef.Output);
+            if (!InventoryActions.Cursor.IsEmpty) return;
             ItemDescriptionUI.Instance?.ClearFromSlot();
         }
     }

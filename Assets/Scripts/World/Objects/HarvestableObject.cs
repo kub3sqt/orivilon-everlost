@@ -98,6 +98,18 @@ namespace Orivilon.World.Objects
 
             if (currentHealth <= 0)
             {
+                // Multiplayer klient: loot hodí a připíše host (nárok s klíčem objektu); přebytek nad místo
+                // v inventáři vypadne u klienta přes běžný drop (NetworkWorldSync.Ledger). Offline/host beze změny.
+                var mpId = GetComponent<DeterministicObjectId>();
+                if (Orivilon.Multiplayer.MpLedger.ClientActive)
+                {
+                    // Kolo MP 3: objekt zůstává stát, dokud host neověří skutečné osazení a nevydá verdikt.
+                    // Kladný → zničí ho NetworkWorldSync (OnLootResult), záporný → lze zkusit znovu.
+                    currentHealth = 1;
+                    if (mpId != null && mpId.HasKey)
+                        Orivilon.Multiplayer.MpLedger.ClaimLoot(Orivilon.Multiplayer.MpLedger.LootKind.Harvest, mpId.ChunkCoord, mpId.KeyA, mpId.KeyB, mpId.KeyCode, transform.position);
+                    return;
+                }
                 foreach (var drop in drops)
                 {
                     if (drop == null || drop.item == null)
@@ -110,7 +122,11 @@ namespace Orivilon.World.Objects
                     if (amount <= 0)
                         continue;
 
-                    InventoryData.Instance.AddItem(drop.item, amount);
+                    // Co se do plného inventáře nevejde, vypadne před hráče (dřív se ztratilo).
+                    int added = InventoryData.Instance.AddItemUpTo(drop.item, amount);
+                    if (added < amount &&
+                        !ItemDropService.TrySpawnInFrontOfPlayer(drop.item, amount - added, ItemDropService.HarvestDropPickupDelay))
+                        Debug.LogWarning($"Těžba: {amount - added}× {drop.item.id} se nevešlo do inventáře a nešlo vyhodit.");
                 }
 
                 Orivilon.SaveSystem.SaveSystem.MarkObjectDestroyed(gameObject);

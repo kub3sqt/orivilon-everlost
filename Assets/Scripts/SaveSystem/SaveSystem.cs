@@ -26,12 +26,30 @@ namespace Orivilon.SaveSystem
         /// </summary>
         public static void SaveEverything()
         {
-            SaveWorld();
-            SaveTerrainEdits();
-            SaveDestroyedObjectsRegistry();
-            SavePlayer();
-            // Arcanum: samostatný soubor player/arcanum.json, ukládaný spolu s inventářem.
-            Orivilon.UI.Arcanum.ArcanumProgress.Save();
+            // Kolo MP 3: všechny soubory světa jako jedno uložení (SaveTransaction) – po pádu platí buď celé
+            // předchozí, nebo celé nové uložení (zničené objekty, inventář, dropy, účty klientů, Arcanum).
+            string folder = GameManager.selectedWorld != null ? GameManager.selectedWorld.folderPath : null;
+            SaveTransaction.Begin(folder);
+            try
+            {
+                SaveWorld();
+                SaveTerrainEdits();
+                SaveDestroyedObjectsRegistry();
+                SavePlayer();
+                // Vyhozené předměty: samostatný soubor world/dropped_items.json (starší savy ho nemají = žádné).
+                Orivilon.World.Objects.ItemDropService.SaveAll();
+                // Arcanum: samostatný soubor player/arcanum.json, ukládaný spolu s inventářem.
+                Orivilon.UI.Arcanum.ArcanumProgress.Save();
+                SaveTransaction.Commit();
+            }
+            catch (System.Exception e)
+            {
+                SaveTransaction.Abort();
+                Debug.LogError("SaveSystem: uložení se nepovedlo, platí předchozí uložení: " + e.Message);
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+                if (e.Message.StartsWith("QA:")) throw;
+#endif
+            }
         }
 
         /// <summary>
@@ -63,7 +81,7 @@ namespace Orivilon.SaveSystem
             };
 
             string worldDataFile = Path.Combine(GameManager.selectedWorld.folderPath, "world_data.json");
-            File.WriteAllText(worldDataFile, JsonUtility.ToJson(worldData, true));
+            SaveTransaction.WriteText(worldDataFile, JsonUtility.ToJson(worldData, true));
 
             WorldSaveManager.instance?.SaveWorldIndex();
             Debug.Log($"SaveSystem: World info saved to {worldDataFile}");
@@ -115,7 +133,7 @@ namespace Orivilon.SaveSystem
             string file = Path.Combine(folder, "player.json");
 
             string json = JsonUtility.ToJson(data, true);
-            File.WriteAllText(file, json);
+            SaveTransaction.WriteText(file, json);
 
             Debug.Log($"SaveSystem: Player position and rotation saved to {file}");
         }
@@ -142,6 +160,7 @@ namespace Orivilon.SaveSystem
                 return null;
             }
 
+            SaveTransaction.EnsureRecovered(GameManager.selectedWorld.folderPath);
             string file = Path.Combine(GameManager.selectedWorld.folderPath, "player", "player.json");
             Debug.Log($"LoadPlayerData: Looking for file: {file}");
 
@@ -187,7 +206,22 @@ namespace Orivilon.SaveSystem
 
             if (inv == null) return save;
 
-            foreach (var slot in inv.Slots)
+            // Snímek savu = inventář + to, co je dočasně mimo něj (stack na kurzoru, suroviny v gridu).
+            // Ty se do souboru jinak neukládají – autosave/F5 s otevřeným inventářem by je po načtení
+            // ztratil. Vloží se do kopie slotů stejně jako při zavření inventáře; živá data se nemění
+            // a formát JSON zůstává stejný (kompatibilní se staršími savy).
+            var snapshot = new InventorySlotData[inv.Slots.Length];
+            for (int i = 0; i < snapshot.Length; i++)
+            {
+                var src = inv.Slots[i];
+                snapshot[i] = new InventorySlotData { item = src != null ? src.item : null, amount = src != null ? src.amount : 0 };
+            }
+            AddTransient(snapshot, InventoryActions.Cursor);
+            var craft = Orivilon.Inventory.Crafting.CraftingData.Instance;
+            if (craft != null && craft.gridSlots != null)
+                foreach (var g in craft.gridSlots) AddTransient(snapshot, g);
+
+            foreach (var slot in snapshot)
             {
                 if (slot == null || slot.IsEmpty)
                 {
@@ -205,6 +239,14 @@ namespace Orivilon.SaveSystem
             return save;
         }
 
+        private static void AddTransient(InventorySlotData[] snapshot, InventorySlotData extra)
+        {
+            if (extra == null || extra.IsEmpty) return;
+            int added = InventoryData.InsertSmart(snapshot, extra.item, extra.amount);
+            if (added < extra.amount)
+                Debug.LogWarning($"SaveInventory: {extra.amount - added}× {extra.item.id} z kurzoru/gridu se do uloženého inventáře nevešlo.");
+        }
+
         /// <summary>
         /// Aplikuje načtená data inventáře na aktuální InventoryData.Instance.
         /// Hledá itemy podle ID přes Resources.LoadAll. Neznámá ID zaloguje jako varování.
@@ -216,6 +258,14 @@ namespace Orivilon.SaveSystem
             if (inv == null || data == null) return;
 
             var slots = inv.Slots;
+
+            // Načtený inventář nahrazuje i kurzor a grid (save je v sobě už obsahuje, viz SaveInventory) –
+            // jinak by se při načtení za běhu jejich obsah zdvojil.
+            InventoryDragDistributor.CancelGesture();
+            InventoryActions.Cursor.Clear();
+            var craft = Orivilon.Inventory.Crafting.CraftingData.Instance;
+            if (craft != null && craft.gridSlots != null)
+                foreach (var g in craft.gridSlots) g?.Clear();
 
             for (int i = 0; i < slots.Length; i++)
             {
@@ -242,7 +292,7 @@ namespace Orivilon.SaveSystem
                 }
             }
 
-            inv.NotifyInventoryChanged();
+            InventoryActions.Commit();   // obnoví sloty, hotbar, recept i kurzor (dřív jen hotbar → staré ikony)
         }
 
         /// <summary>
@@ -373,12 +423,12 @@ namespace Orivilon.SaveSystem
 
             if (data.chunks.Count == 0)
             {
-                if (File.Exists(file)) File.Delete(file);
+                SaveTransaction.Delete(file);
                 return;
             }
 
             Directory.CreateDirectory(folder);
-            File.WriteAllText(file, JsonUtility.ToJson(data));
+            SaveTransaction.WriteText(file, JsonUtility.ToJson(data));
 
             Debug.Log($"SaveSystem: uloženo {data.chunks.Count} upravených chunků terénu.");
         }
@@ -394,6 +444,7 @@ namespace Orivilon.SaveSystem
             VoxelTerrain terrain = VoxelTerrain.instance;
             if (terrain == null || terrain.Edits == null) return;
 
+            SaveTransaction.EnsureRecovered(GameManager.selectedWorld.folderPath);
             string file = Path.Combine(GameManager.selectedWorld.folderPath, "world", "terrain_edits.json");
             if (!File.Exists(file)) return;
 
@@ -418,6 +469,7 @@ namespace Orivilon.SaveSystem
         {
             if (GameManager.selectedWorld == null) return null;
 
+            SaveTransaction.EnsureRecovered(GameManager.selectedWorld.folderPath);
             string file = Path.Combine(GameManager.selectedWorld.folderPath, "world_data.json");
             if (!File.Exists(file)) return null;
 
@@ -462,8 +514,8 @@ namespace Orivilon.SaveSystem
             if (deterministicId == null) return;
 
             EnsureDestroyedObjectsLoaded();
-            if (destroyedObjectHashes.Add(deterministicId.Hash))
-                SaveDestroyedObjectsRegistry();
+            // Kolo MP 3: jen v paměti – na disk až s celým uložením (SaveEverything), spolu s lootem z objektu.
+            destroyedObjectHashes.Add(deterministicId.Hash);
         }
 
         /// <summary>
@@ -473,8 +525,32 @@ namespace Orivilon.SaveSystem
         public static void MarkObjectDestroyed(long objectHash)
         {
             EnsureDestroyedObjectsLoaded();
-            if (destroyedObjectHashes.Add(objectHash))
-                SaveDestroyedObjectsRegistry();
+            destroyedObjectHashes.Add(objectHash);   // kolo MP 3: na disk až s celým uložením
+        }
+
+        /// <summary>Multiplayer klient: hromadné zapsání zničených objektů od hosta (jeden zápis souboru).</summary>
+        public static void MarkObjectsDestroyed(System.Collections.Generic.IEnumerable<long> hashes)
+        {
+            EnsureDestroyedObjectsLoaded();
+            foreach (var h in hashes) destroyedObjectHashes.Add(h);   // kolo MP 3: na disk až s celým uložením
+        }
+
+        /// <summary>
+        /// Kolo MP 3 – multiplayer klient: registr světa hosta je jediná pravda. Guest svět ho převezme celý (i když
+        /// host po pádu obnovil starší uložení a objekt tak znovu existuje), ne jako sjednocení s vlastním.
+        /// </summary>
+        public static void ReplaceDestroyedHashes(System.Collections.Generic.IEnumerable<long> hashes)
+        {
+            EnsureDestroyedObjectsLoaded();
+            destroyedObjectHashes.Clear();
+            foreach (var h in hashes) destroyedObjectHashes.Add(h);
+        }
+
+        /// <summary>Multiplayer host: celý registr zničených objektů světa (late join klienta, kolo MP 17.10.2026).</summary>
+        public static void CopyDestroyedHashes(System.Collections.Generic.List<long> into)
+        {
+            EnsureDestroyedObjectsLoaded();
+            if (destroyedObjectHashes != null) into.AddRange(destroyedObjectHashes);
         }
 
         public static void SaveDestroyedObjectsRegistry()
@@ -486,7 +562,7 @@ namespace Orivilon.SaveSystem
             Directory.CreateDirectory(Path.GetDirectoryName(file));
 
             DestroyedObjectsRegistry registry = DestroyedObjectsRegistry.FromHashSet(destroyedObjectHashes);
-            File.WriteAllText(file, JsonUtility.ToJson(registry, true));
+            SaveTransaction.WriteText(file, JsonUtility.ToJson(registry, true));
         }
 
         public static void ResetDestroyedObjectsCache()
@@ -513,6 +589,7 @@ namespace Orivilon.SaveSystem
 
             destroyedObjectHashes = new HashSet<long>();
             destroyedObjectHashesWorldPath = currentWorldPath;
+            SaveTransaction.EnsureRecovered(currentWorldPath);
 
             string file = GetDestroyedObjectsRegistryPath();
             if (!File.Exists(file))

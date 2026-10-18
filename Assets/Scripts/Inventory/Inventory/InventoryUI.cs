@@ -7,8 +7,7 @@ namespace Orivilon.Inventory.Inventory
 {
     /// <summary>
     /// Statická pomocná třída pro hromadné obnovení UI inventáře.
-    /// Metody jsou označeny [Obsolete] kvůli použití FindObjectsOfType,
-    /// které je výkonnostně náročné – vhodné pro budoucí refaktoring na cached reference.
+    /// Zůstává kvůli kompatibilitě volajících; obnova jde přes událost InventoryData.OnInventoryChanged.
     /// </summary>
     public static class InventoryUI
     {
@@ -20,14 +19,12 @@ namespace Orivilon.Inventory.Inventory
         [System.Obsolete]
         public static void RefreshAll()
         {
-            var slots = Object.FindObjectsOfType<InventorySlot>(true);
-
-            foreach (var slot in slots)
-            {
-                slot.Refresh();
-            }
-
-            HotbarController.Instance?.RefreshActiveSlot();
+            // Sloty jsou přihlášené na InventoryData.OnInventoryChanged (OnEnable/OnDisable),
+            // takže stačí jediná událost – žádné FindObjectsOfType a žádný druhý refresh kanál.
+            if (InventoryData.Instance != null)
+                InventoryData.Instance.NotifyInventoryChanged();
+            else
+                HotbarController.Instance?.RefreshActiveSlot();
         }
 
         /// <summary>
@@ -40,12 +37,7 @@ namespace Orivilon.Inventory.Inventory
         [System.Obsolete]
         public static InventorySlot GetSlotByIndex(int index)
         {
-            foreach (var slot in Object.FindObjectsOfType<InventorySlot>())
-            {
-                if (slot.slotIndex == index)
-                    return slot;
-            }
-            return null;
+            return InventorySlot.FindActive(index);
         }
     }
 }

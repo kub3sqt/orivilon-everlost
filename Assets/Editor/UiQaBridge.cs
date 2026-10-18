@@ -228,6 +228,7 @@ namespace Orivilon.EditorTools
             if (line == "settingsfile") { outFn(Orivilon.UI.Refresh.EditorTools.SettingsQA.FileText()); return true; }
             if (line.StartsWith("menufix ")) { outFn(Orivilon.UI.Refresh.EditorTools.SteamMacFix.Run(line.Substring(8).Trim())); return true; }
             if (line.StartsWith("compassui ")) { outFn(Orivilon.UI.Refresh.EditorTools.CompassAuthoring.Run(line.Substring(10).Trim())); return true; }
+            if (MpQaBridge.TryRun(line, outFn)) return true;   // MP 17.10.2026
             if (line.StartsWith("mpqa ")) { outFn(Orivilon.UI.Refresh.EditorTools.MpLoadingQA.Run(line.Substring(5).Trim())); return true; }
             if (line.StartsWith("qaworlds ")) { outFn(Orivilon.UI.Refresh.EditorTools.SettingsQA.QaWorlds(line.Substring(9).Trim())); return true; }
             if (line.StartsWith("occupyport ")) { outFn(Orivilon.UI.Refresh.EditorTools.SettingsQA.OccupyPort(line.EndsWith("on"))); return true; }

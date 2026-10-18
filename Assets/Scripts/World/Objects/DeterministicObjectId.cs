@@ -16,5 +16,20 @@ namespace Orivilon.World.Objects
             Hash = hash;
             ChunkCoord = chunkCoord;
         }
+
+        /// <summary>
+        /// Vstupy hashe (chunk, buňka a/b, kód spawnable) – multiplayer: klient jimi dokládá hostovi nárok na
+        /// loot (host hash přepočítá a z kódu zná prefab), kolo MP 17.10.2026. Na hash ani save nemá vliv.
+        /// </summary>
+        public int KeyA { get; private set; }
+        public int KeyB { get; private set; }
+        public int KeyCode { get; private set; }
+        public bool HasKey { get; private set; }
+
+        public void Initialize(long hash, Vector2Int chunkCoord, int a, int b, int code)
+        {
+            Initialize(hash, chunkCoord);
+            KeyA = a; KeyB = b; KeyCode = code; HasKey = true;
+        }
     }
 }

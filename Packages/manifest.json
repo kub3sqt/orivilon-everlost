@@ -1,6 +1,7 @@
 {
   "dependencies": {
     "com.adjoint.editor": "https://github.com/adjointdev/adjoint-beta-dist.git",
+    "com.lachee.discordrpc": "https://github.com/Lachee/discord-rpc-unity.git#791aa95d2aecac9de423aa260f1f569755308a93",
     "com.madsbangh.easybuttons": "https://github.com/madsbangh/EasyButtons.git#upm",
     "com.unity.2d.sprite": "1.0.0",
     "com.unity.burst": "1.8.28",

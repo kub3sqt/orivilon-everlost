@@ -25,6 +25,12 @@ namespace Orivilon.Inventory.Crafting
         /// <summary>Počet kusů výsledného itemu, který aktuální recept vyrábí.</summary>
         public int ResultAmount { get; private set; }
 
+        /// <summary>Beztvarý recept, který sedí na aktuální grid (null = tvarovaný nebo žádný).</summary>
+        private ShapelessRecipe matchedShapeless;
+
+        /// <summary>Tvarovaný recept, který sedí (multiplayer: hostovi se hlásí, co se vyrobilo).</summary>
+        private ShapedRecipe matchedShaped;
+
         /// <summary>Cache reference na výstupní slot craftingu.</summary>
         private CraftingOutputSlot outputSlot;
 
@@ -52,17 +58,18 @@ namespace Orivilon.Inventory.Crafting
         /// </summary>
         public void Recalculate()
         {
-            Debug.Log("[CRAFTING] Recalculate()");
             ResultAmount = 0;
+            matchedShapeless = null;
+            matchedShaped = null;
             CraftingData.Instance.resultItem = null;
 
-            Debug.Log($"[CRAFTING] Shaped recipes count: {shapedRecipes.Count}");
             foreach (var recipe in shapedRecipes)
             {
                 if (MatchShaped(recipe))
                 {
                     CraftingData.Instance.resultItem = recipe.result;
                     ResultAmount = recipe.resultAmount;
+                    matchedShaped = recipe;
 
                     outputSlot?.Refresh();
                     return;
@@ -75,6 +82,7 @@ namespace Orivilon.Inventory.Crafting
                 {
                     CraftingData.Instance.resultItem = recipe.result;
                     ResultAmount = recipe.resultAmount;
+                    matchedShapeless = recipe;
 
                     outputSlot?.Refresh();
                     return;
@@ -82,6 +90,25 @@ namespace Orivilon.Inventory.Crafting
             }
 
             outputSlot?.Refresh();
+        }
+
+        /// <summary>
+        /// Provede jeden craft: přepočítá recept, spotřebuje přesně jeho suroviny a vrátí výsledek.
+        /// Výsledek NEUKLÁDÁ – volající (InventoryActions) ho musí umístit; proto kapacitu ověří předem.
+        /// </summary>
+        /// <returns>True, pokud recept seděl a suroviny byly spotřebovány.</returns>
+        public bool TryCraftOnce(out InventoryItemData item, out int amount)
+        {
+            Recalculate();
+            item = CraftingData.Instance.resultItem;
+            amount = ResultAmount;
+            if (item == null || amount <= 0) return false;
+            // Multiplayer klient: host si craft ověří proti svému účtu (suroviny musí mít); jinak ho vrátí.
+            if (Orivilon.Multiplayer.MpLedger.ClientActive)
+                Orivilon.Multiplayer.MpLedger.ReportCraft(matchedShaped != null, matchedShaped != null ? matchedShaped.name : matchedShapeless != null ? matchedShapeless.name : "");
+            ConsumeIngredients();
+            Recalculate();
+            return true;
         }
 
         /// <summary>
@@ -140,7 +167,6 @@ namespace Orivilon.Inventory.Crafting
         /// <returns>True, pokud grid odpovídá vzoru receptury v libovolném posunutí.</returns>
         private bool MatchShaped(ShapedRecipe recipe)
         {
-            Debug.Log($"[CRAFTING] Testing shaped recipe: {recipe.name}");
             int gridWidth = 3;
             int gridHeight = 3;
 
@@ -171,10 +197,6 @@ namespace Orivilon.Inventory.Crafting
         /// <returns>True, pokud vzor přesně odpovídá obsahu gridu na dané pozici.</returns>
         private bool MatchPatternAt(ShapedRecipe recipe, int offsetX, int offsetY, bool mirrored)
         {
-            Debug.Log(
-                $"TRY recipe={recipe.name} offset=({offsetX},{offsetY}) mirror={mirrored}"
-            );
-
             for (int y = 0; y < recipe.height; y++)
             {
                 for (int x = 0; x < recipe.width; x++)
@@ -193,11 +215,6 @@ namespace Orivilon.Inventory.Crafting
                     {
                         if (!slot.IsEmpty)
                         {
-                            Debug.Log(
-                                $"FAIL recipe={recipe.name} at gridIndex={gridIndex} " +
-                                $"expected={(expected ? expected.name : "null")} " +
-                                $"actual={(slot.IsEmpty ? "empty" : slot.item.name)}"
-                            );
                             return false;
                         }
 
@@ -206,11 +223,6 @@ namespace Orivilon.Inventory.Crafting
                     {
                         if (slot.IsEmpty || slot.item != expected)
                         {
-                            Debug.Log(
-                                $"FAIL recipe={recipe.name} at gridIndex={gridIndex} " +
-                                $"expected={(expected ? expected.name : "null")} " +
-                                $"actual={(slot.IsEmpty ? "empty" : slot.item.name)}"
-                            );
                             return false;
                         }
                     }
@@ -234,28 +246,44 @@ namespace Orivilon.Inventory.Crafting
         }
 
         /// <summary>
-        /// Odečte ingredience z craftovacího gridu po úspěšném craftu.
-        /// Z každého neprázdného slotu odebere 1 kus. Sloty s 0 ks se vymaží.
+        /// Odečte suroviny receptu, který na grid aktuálně sedí.
+        /// Tvarovaný recept: 1 kus z každého obsazeného slotu (= buňky vzoru).
+        /// Beztvarý recept: přesně jeho seznam ingrediencí – párování počítá kusy, ne sloty, takže
+        /// „1 kus ze slotu“ by u slotu se 2 kusy vzal jen polovinu ceny (duplikace výsledků).
         /// Na konci vynuluje výsledek a obnoví UI.
         /// </summary>
         public void ConsumeIngredients()
         {
-            Debug.Log("CONSUME INGREDIENTS");
-
-            foreach (var slot in CraftingData.Instance.gridSlots)
+            var grid = CraftingData.Instance.gridSlots;
+            if (matchedShapeless != null && matchedShapeless.ingredients != null)
             {
-                if (slot == null || slot.IsEmpty)
-                    continue;
-
-                slot.amount--;
-
-                if (slot.amount <= 0)
+                foreach (var ingredient in matchedShapeless.ingredients)
                 {
-                    slot.item = null;
-                    slot.amount = 0;
+                    for (int i = 0; i < grid.Length; i++)
+                    {
+                        var slot = grid[i];
+                        if (slot == null || slot.IsEmpty || slot.item != ingredient) continue;
+                        slot.amount--;
+                        if (slot.amount <= 0) slot.Clear();
+                        break;
+                    }
+                }
+            }
+            else
+            {
+                foreach (var slot in grid)
+                {
+                    if (slot == null || slot.IsEmpty)
+                        continue;
+
+                    slot.amount--;
+
+                    if (slot.amount <= 0)
+                        slot.Clear();
                 }
             }
 
+            matchedShapeless = null;
             CraftingData.Instance.resultItem = null;
             ResultAmount = 0;
 
@@ -286,6 +314,10 @@ namespace Orivilon.Inventory.Crafting
 
             if (maxCrafts == int.MaxValue)
                 return 0;
+
+            // Beztvarý recept páruje přesný počet kusů – po jednom craftu je grid prázdný.
+            if (matchedShapeless != null)
+                return 1;
 
             return maxCrafts;
         }

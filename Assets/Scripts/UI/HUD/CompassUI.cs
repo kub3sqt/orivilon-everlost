@@ -245,6 +245,8 @@ namespace Orivilon.UI.HUD
                     group = go.GetComponent<CanvasGroup>(),
                     stemTop = stem.anchoredPosition.y
                 };
+                // Popisky markerů nesou jména hráčů ze Steamu – jako prostý text, bez TMP tagů.
+                if (view.label != null) view.label.richText = false;
                 view.defaultSprite = view.icon.sprite;
                 view.group.alpha = 0f;
                 markerPool.Add(view);

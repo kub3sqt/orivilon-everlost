@@ -22,6 +22,15 @@
         "com.unity.netcode.gameobjects": "1.0.0-pre.4"
       }
     },
+    "com.lachee.discordrpc": {
+      "version": "https://github.com/Lachee/discord-rpc-unity.git#791aa95d2aecac9de423aa260f1f569755308a93",
+      "depth": 0,
+      "source": "git",
+      "dependencies": {
+        "com.unity.nuget.newtonsoft-json": "3.0.3"
+      },
+      "hash": "791aa95d2aecac9de423aa260f1f569755308a93"
+    },
     "com.madsbangh.easybuttons": {
       "version": "https://github.com/madsbangh/EasyButtons.git#upm",
       "depth": 0,

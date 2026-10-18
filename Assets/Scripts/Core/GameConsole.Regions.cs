@@ -329,7 +329,7 @@ namespace Orivilon.Core
                         CmdFly(new[] { "let", "on" });
                         pendingYaw = yawV; pendingPitch = 28f;
                         pendingLook = true; pendingSince = Time.unscaledTime;
-                        t.Teleport(cam, false);
+                        TeleportSelf(t, cam, false);
                     }
                     Diag(string.Format(CultureInfo.InvariantCulture, "[biomy pohled] s{0} {1}: cíl ({2:0},{3:0}) povrch {4:0} m, kamera ({5:0},{6:0},{7:0}) yaw {8:0}",
                         t.WorldSeed, BiomeMath.Name(want), at.x, at.z, surfAt, cam.x, cam.y, cam.z, yawV));
@@ -348,7 +348,7 @@ namespace Orivilon.Core
                     Vector3 camN = new Vector3(v.x, 0f, v.z) + backN * backD + Vector3.up * (Mathf.Max(v.y, sCam) + upD);
                     CmdFly(new[] { "let", "on" });
                     pendingYaw = yawN; pendingPitch = a.Length > 3 ? Mathf.Clamp(Mathf.Atan2(upD, backD) * Mathf.Rad2Deg * 0.85f, 28f, 70f) : 28f; pendingLook = true; pendingSince = Time.unscaledTime;
-                    t.Teleport(camN, false);
+                    TeleportSelf(t, camN, false);
                     Ok("nadhled");
                     break;
                 }
@@ -374,7 +374,7 @@ namespace Orivilon.Core
                     Vector3 cam = at + new Vector3(0f, Mathf.Max(sA, sC) + 150f, -220f);
                     CmdFly(new[] { "let", "on" });
                     pendingYaw = 0f; pendingPitch = 26f; pendingLook = true; pendingSince = Time.unscaledTime;
-                    t.Teleport(cam, false);
+                    TeleportSelf(t, cam, false);
                     Diag(string.Format(CultureInfo.InvariantCulture, "[biomy {0}] s{1} {2}{3}: cíl ({4:0},{5:0}) povrch {6:0} m",
                         sub, t.WorldSeed, wa >= 0 ? BiomeMath.Name(wa) : "", wb >= 0 ? "/" + BiomeMath.Name(wb) : "", at.x, at.z, sA));
                     Ok(sub);
@@ -749,10 +749,9 @@ namespace Orivilon.Core
             // Kolo 25: veřejný /biome tp let nevypíná (stav ověřuje CheckFly na konci). Jen interní
             // snímkový „/biome zeme" dál přistává pěšky, jako dřív.
             if (look) CmdFly(new[] { "let", "off" });
-            t.Teleport(at, true);
-            yield return null;
-            float until = Time.unscaledTime + 30f;
-            while ((t.IsTeleporting || !t.IsSettled) && Time.unscaledTime < until) yield return null;
+            TeleportSelf(t, at, true);
+            yield return WaitSelfTeleport(t, 30f);
+            if (tpAnswer < 0) { t.ReleaseSearchHydro(); search = null; yield break; }   // host teleport zamítl
 
             // Kolo 15: mokřad leží u vody, kterou zná až postavená hydrologie. Po dorazu (region
             // hydrologie už stojí) se proto hledá skutečný mokřad do 3 km – spirála po 32 m.
@@ -779,10 +778,8 @@ namespace Orivilon.Core
                 }
                 if (hit)
                 {
-                    t.Teleport(at, true);
-                    yield return null;
-                    until = Time.unscaledTime + 30f;
-                    while ((t.IsTeleporting || !t.IsSettled) && Time.unscaledTime < until) yield return null;
+                    TeleportSelf(t, at, true);
+                    yield return WaitSelfTeleport(t, 30f);
                 }
             }
 
@@ -823,10 +820,8 @@ namespace Orivilon.Core
             }
             if (ok && (new Vector2(best.x - at.x, best.z - at.z)).sqrMagnitude > 0.25f)
             {
-                t.Teleport(best, true);
-                yield return null;
-                until = Time.unscaledTime + 20f;
-                while ((t.IsTeleporting || !t.IsSettled) && Time.unscaledTime < until) yield return null;
+                TeleportSelf(t, best, true);
+                yield return WaitSelfTeleport(t, 20f);
             }
             if (look)
             {

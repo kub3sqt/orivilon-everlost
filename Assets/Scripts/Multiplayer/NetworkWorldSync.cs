@@ -23,7 +23,7 @@ namespace Orivilon.Multiplayer
     ///   Klient/Host postaví díl   → BroadcastBuildingPlaced  → ostatní postaví lokálně
     ///   Nový klient se připojí    → SendWorldStateTo          → klient aplikuje full state
     /// </summary>
-    public class NetworkWorldSync : MonoBehaviour
+    public partial class NetworkWorldSync : MonoBehaviour
     {
         // ── Singleton ──────────────────────────────────────────────────────────
         public static NetworkWorldSync Instance { get; private set; }
@@ -89,6 +89,12 @@ namespace Orivilon.Multiplayer
             // Aplikuj pending state jakmile je herní scéna aktivní
             if (pendingState != null && !pendingStateApplied)
                 TryApplyPendingState();
+
+            // Kolo MP 17.10.2026: průběžný čas hosta a zrcadlo síťových dropů.
+            UpdateTimeSync();
+            UpdateDrops();
+            UpdateLedgerHost();
+            UpdateLedgerClient();
         }
 
         private void OnDestroy()
@@ -133,6 +139,22 @@ namespace Orivilon.Multiplayer
         {
             UnregisterMessageHandlers();
             handlersRegistered = false;
+            OnSessionEnded();
+        }
+
+        /// <summary>Konec session (host i klient): zrcadlo dropů, čekající požadavky a zámek času pryč.</summary>
+        public void OnSessionEnded()
+        {
+            ClearDropSession();
+            ClearSessionState();
+        }
+
+        /// <summary>Server: zpráva od klienta, který je opravdu připojený (schválený)? NGO to filtruje taky –
+        /// tady je to pojistka pro každý handler, který mění svět.</summary>
+        private static bool IsConnectedSender(ulong senderId)
+        {
+            var nm = NetworkManager.Singleton;
+            return nm != null && nm.IsServer && senderId != nm.LocalClientId && nm.ConnectedClients.ContainsKey(senderId);
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -195,12 +217,21 @@ namespace Orivilon.Multiplayer
                 return;
             }
 
+            // Kolo MP 17.10.2026: všechny zničené objekty světa (registr hostova savu z dřívějších session
+            // + tato session). Dřív šly jen hashe této session, takže klient viděl a mohl znovu vytěžit
+            // objekty zničené dřív. Zpráva může být velká → fragmentovaný kanál.
+            var allDestroyed = new List<long>(destroyedHashes);
+            var seen = new HashSet<long>(destroyedHashes);
+            var saved = new List<long>();
+            Orivilon.SaveSystem.SaveSystem.CopyDestroyedHashes(saved);
+            foreach (var h in saved) if (seen.Add(h)) allDestroyed.Add(h);
+
             // Odhadni buffer: 256 hlavičky + 8 B/hash + 100 B/budova
             int bufferSize = 512
-                + destroyedHashes.Count  * 8
+                + allDestroyed.Count  * 8
                 + placedBuildings.Count  * 100;
 
-            using var writer = new FastBufferWriter(bufferSize, Allocator.Temp);
+            using var writer = new FastBufferWriter(bufferSize, Allocator.Temp, 64 * 1024 * 1024);
 
             // Hlavička světa
             writer.WriteValueSafe(GameManager.selectedWorld.worldName);
@@ -216,8 +247,8 @@ namespace Orivilon.Multiplayer
             writer.WriteValueSafe(hostPos);
 
             // Zničené objekty
-            writer.WriteValueSafe(destroyedHashes.Count);
-            foreach (var h in destroyedHashes)
+            writer.WriteValueSafe(allDestroyed.Count);
+            foreach (var h in allDestroyed)
                 writer.WriteValueSafe(h);
 
             // Postavené budovy
@@ -230,10 +261,10 @@ namespace Orivilon.Multiplayer
             }
 
             NetworkManager.Singleton.CustomMessagingManager.SendNamedMessage(
-                NetworkMessages.WorldStateResponse, clientId, writer);
+                NetworkMessages.WorldStateResponse, clientId, writer, NetworkDelivery.ReliableFragmentedSequenced);
 
             Debug.Log($"[NetworkWorldSync] Stav světa odeslán klientovi {clientId}: " +
-                      $"{destroyedHashes.Count} zničených obj., {placedBuildings.Count} budov.");
+                      $"{allDestroyed.Count} zničených obj., {placedBuildings.Count} budov.");
         }
 
         /// <summary>
@@ -292,6 +323,10 @@ namespace Orivilon.Multiplayer
             msg.RegisterNamedMessageHandler(NetworkMessages.PlayerPositionBcast,  OnPlayerPositionBcast);
             msg.RegisterNamedMessageHandler(NetworkMessages.PlayerPosition,       OnPlayerPositionFromClient);
             msg.RegisterNamedMessageHandler(NetworkMessages.PlayerName,           OnPlayerName);
+            msg.RegisterNamedMessageHandler(NetworkMessages.PlayerDisconnected,   OnPlayerDisconnectedMsg);
+            RegisterSessionHandlers(msg);
+            RegisterDropHandlers(msg);
+            RegisterLedgerHandlers(msg);
 
             handlersRegistered = true;
             Debug.Log("[NetworkWorldSync] Named-message handlery zaregistrovány.");
@@ -313,6 +348,10 @@ namespace Orivilon.Multiplayer
             msg.UnregisterNamedMessageHandler(NetworkMessages.PlayerPositionBcast);
             msg.UnregisterNamedMessageHandler(NetworkMessages.PlayerPosition);
             msg.UnregisterNamedMessageHandler(NetworkMessages.PlayerName);
+            msg.UnregisterNamedMessageHandler(NetworkMessages.PlayerDisconnected);
+            UnregisterSessionHandlers(msg);
+            UnregisterDropHandlers(msg);
+            UnregisterLedgerHandlers(msg);
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -323,8 +362,8 @@ namespace Orivilon.Multiplayer
 
         private void OnWorldStateRequest(ulong senderId, FastBufferReader reader)
         {
-            // Server přijal žádost od klienta
-            if (!NetworkManager.Singleton.IsServer) return;
+            // Server přijal žádost od klienta (jen schválený klient – heslo se neobejde touto cestou)
+            if (!IsConnectedSender(senderId)) return;
             SendWorldStateTo(senderId);
         }
 
@@ -396,20 +435,16 @@ namespace Orivilon.Multiplayer
 
         private void OnObjectDestroyedFromClient(ulong senderId, FastBufferReader reader)
         {
-            // Server: klient poslal zničení objektu
-            if (!NetworkManager.Singleton.IsServer) return;
-
+            // Kolo MP 3: deterministické objekty (stromy, kameny, pickupy) ničí jen host verdiktem nároku na loot
+            // (NetworkWorldSync.Ledger) – po ověření skutečného osazení a se ziskem v účtu ve stejném kroku.
+            // Holé „zničil jsem“ od klienta by obešlo autoritu (zničení cizích zdrojů bez nároku), proto se ignoruje.
+            // Handler zůstává registrovaný kvůli kompatibilitě protokolu se staršími klienty.
+            if (!IsConnectedSender(senderId)) return;
             reader.ReadValueSafe(out long hash);
-
-            if (!destroyedHashes.Contains(hash))
-                destroyedHashes.Add(hash);
-
-            // Odešli broadcast všem klientům (kromě odesílatele)
-            BroadcastToAllClients_ObjectDestroyed(hash, exclude: senderId);
-
-            // Znic lokálně na serveru
-            DestroyLocalObject(hash);
+            if (!loggedIgnoredDestroy) { loggedIgnoredDestroy = true; Debug.Log("[NetworkWorldSync] Zničení objektu od klienta ignorováno – objekty ničí jen verdikt hosta (#" + hash + ")."); }
         }
+
+        private bool loggedIgnoredDestroy;
 
         private void OnObjectDestroyedBcast(ulong _, FastBufferReader reader)
         {
@@ -421,7 +456,7 @@ namespace Orivilon.Multiplayer
 
         private void OnBuildingPlacedFromClient(ulong senderId, FastBufferReader reader)
         {
-            if (!NetworkManager.Singleton.IsServer) return;
+            if (!IsConnectedSender(senderId)) return;
 
             reader.ReadValueSafe(out string pieceId);
             reader.ReadValueSafe(out Vector3 pos);
@@ -451,7 +486,7 @@ namespace Orivilon.Multiplayer
 
         private void OnPlayerPositionFromClient(ulong senderId, FastBufferReader reader)
         {
-            if (!NetworkManager.Singleton.IsServer) return;
+            if (!IsConnectedSender(senderId)) return;
 
             reader.ReadValueSafe(out Vector3 pos);
             reader.ReadValueSafe(out Quaternion rot);
@@ -479,8 +514,10 @@ namespace Orivilon.Multiplayer
         {
             if (NetworkManager.Singleton.IsServer)
             {
-                // Payload od klienta: [string name]
-                reader.ReadValueSafe(out string name);
+                if (!IsConnectedSender(senderId)) return;
+                // Payload od klienta: [string name] – dál jde jen očištěné jméno
+                reader.ReadValueSafe(out string rawName);
+                string name = PlayerNames.Sanitize(rawName, senderId);
 
                 // Broadcast ostatním klientům: [ulong originalSender][string name]
                 using var w = new FastBufferWriter(128, Allocator.Temp);
@@ -651,18 +688,20 @@ namespace Orivilon.Multiplayer
 
         private void ApplyWorldState(ReceivedWorldState state)
         {
-            // 1) Zniš objekty které host zničil
-            foreach (var hash in state.destroyedHashes)
-                DestroyLocalObject(hash);
+            // 1) Zniš objekty které host zničil – hromadně: registr jedním zápisem, jeden průchod objekty
+            //    (dřív FindObjectsByType na každý hash; s celým registrem hostova světa by to zamrzlo).
+            var set = new HashSet<long>(state.destroyedHashes);
+            Orivilon.SaveSystem.SaveSystem.ReplaceDestroyedHashes(set);   // kolo MP 3: host je jediná pravda
+            foreach (var did in FindObjectsByType<DeterministicObjectId>(FindObjectsSortMode.None))
+                if (did != null && set.Contains(did.Hash)) Destroy(did.gameObject);
+            Orivilon.World.Spawning.ObjectSpawner.DestroyInstancedByHashes(set);
 
             // 2) Postav budovy které host postavil
             foreach (var b in state.placedBuildings)
                 SpawnBuilding(b);
 
-            // 3) Synchronizuj herní čas
-            var sun = FindFirstObjectByType<Orivilon.SunRotation>();
-            if (sun != null)
-                sun.SetTime(state.timeOfDay);
+            // 3) Synchronizuj herní čas (počáteční snímek; průběžně ho pak drží Everlost.Time)
+            ApplyHostTime(state.timeOfDay, null);
 
             // 4) Pokud klient nemá vlastní save data, spawni ho na pozici hosta
             if (state.hostSpawnPosition != Vector3.zero)
@@ -752,11 +791,15 @@ namespace Orivilon.Multiplayer
         /// Vytvoří lokální WorldData pro hosta na základě dat přijatých od serveru.
         /// Složka světa se vytvoří v persistentDataPath/worlds/mp_{worldName}/
         /// </summary>
+        /// <summary>QA (development build / editor): kořen klientských kopií světů mimo hráčovy světy. Null = běžná cesta.</summary>
+        public static string GuestRootOverride;
+
         private static WorldData CreateGuestWorldData(string worldName, string seed, int worldSeed)
         {
             string folderName = $"mp_{System.Text.RegularExpressions.Regex.Replace(worldName, @"[^a-zA-Z0-9_]", "_")}";
             string folderPath = System.IO.Path.Combine(
-                UnityEngine.Application.persistentDataPath, "worlds", folderName);
+                string.IsNullOrEmpty(GuestRootOverride) ? System.IO.Path.Combine(UnityEngine.Application.persistentDataPath, "worlds") : GuestRootOverride,
+                folderName);
 
             System.IO.Directory.CreateDirectory(folderPath);
             System.IO.Directory.CreateDirectory(System.IO.Path.Combine(folderPath, "player"));
