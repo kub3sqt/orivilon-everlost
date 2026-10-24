@@ -110,3 +110,4 @@ production/session-state/
 .claude/worktrees/
 __pycache__/
 *.pyc
+ProfilerCaptures/
