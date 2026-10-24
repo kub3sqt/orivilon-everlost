@@ -61,3 +61,11 @@ commands:
   test: '"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/MacOS/Unity" -batchmode -runTests -projectPath . -testPlatform EditMode -testResults test-results/editmode.xml'
   run: 'Builds/Win64/Everlost.exe -screen-width 1280 -screen-height 720 -screen-fullscreen 0'
   smoke: '"/Applications/Unity/Hub/Editor/6000.3.10f1/Unity.app/Contents/MacOS/Unity" -batchmode -quit -projectPath . -logFile -'
+
+platform:
+  targets: [PC]              # Steam: Windows, macOS, Linux (enum has no per-OS values)
+  primary_input: "Keyboard/Mouse"
+  gamepad_support: "Partial"
+  touch_support: "None"
+  multiplayer: true
+  cert_tier: steam
