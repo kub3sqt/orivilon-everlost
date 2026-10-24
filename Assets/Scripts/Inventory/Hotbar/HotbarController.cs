@@ -7,7 +7,7 @@ namespace Orivilon.Inventory.Hotbar
 {
     /// <summary>
     /// Singleton řídící aktivní slot hotbaru a item držený v ruce hráče.
-    /// Přepínání slotů probíhá kolečkem myši (cyklicky) nebo kliknutím na slot v UI.
+    /// Přepínání slotů probíhá kolečkem myši (cyklicky), číselnými klávesami 1–8 nebo kliknutím na slot v UI.
     /// Po každé změně informuje PlayerEquipment (herní logika nástroje)
     /// i HandItemRenderer (vizuální model v ruce).
     /// Během pauzy nebo otevřeného menu scroll ignoruje.
@@ -23,6 +23,15 @@ namespace Orivilon.Inventory.Hotbar
 
         /// <summary>Index aktuálně aktivního slotu (0–8).</summary>
         private int currentIndex = 0;
+
+        /// <summary>
+        /// 23.10.2026: zvýraznění aktivního slotu je pro hraní – při otevřeném inventáři je skryté (index zůstává),
+        /// po zavření se obnoví a vybaví se AKTUÁLNÍ obsah slotu.
+        /// </summary>
+        private bool glowHidden;
+
+        /// <summary>Je otevřený inventář (equip index se v něm nemění, glow je skrytý)?</summary>
+        public static bool InventoryOpen => GameManager.instance != null && GameManager.instance.IsInventoryOpen;
 
         /// <summary>Pevná velikost hotbaru.</summary>
         private const int HOTBAR_SIZE = InventoryData.HotbarSize;
@@ -56,6 +65,14 @@ namespace Orivilon.Inventory.Hotbar
         /// </summary>
         private void Update()
         {
+            bool hide = InventoryOpen;
+            if (hide != glowHidden)
+            {
+                glowHidden = hide;
+                ApplyGlow();
+                if (!hide) UpdateHeldItem();   // obsah původního slotu se mohl v inventáři změnit
+            }
+
             if (GameManager.instance != null && (GameManager.instance.IsPaused || GameManager.instance.isMenuOpen))
                 return;
 
@@ -68,6 +85,13 @@ namespace Orivilon.Inventory.Hotbar
             // jedno stisknutí Q vyhodilo dva kusy.
             if (Instance == this && Input.GetKeyDown(KeyCode.Q) && Orivilon.World.Objects.ItemDropService.GameplayInputAllowed())
                 DropActive(Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl));
+
+            // Číselné klávesy 1–8 = přímý výběr slotu (dřív chyběly úplně – jen kolečko a klik v UI). Jen singleton
+            // a jen při volném herním vstupu (ne v pauze, menu, inventáři ani při psaní); v otevřeném inventáři
+            // čísla patří InventoryDragDistributor (výměna slotu pod kurzorem).
+            if (Instance == this && Orivilon.World.Objects.ItemDropService.GameplayInputAllowed())
+                for (int k = 0; k < HOTBAR_SIZE; k++)
+                    if (Input.GetKeyDown(KeyCode.Alpha1 + k) || Input.GetKeyDown(KeyCode.Keypad1 + k)) { SetActiveSlot(k); break; }
 
             float scroll = Input.GetAxis("Mouse ScrollWheel");
 
@@ -90,11 +114,17 @@ namespace Orivilon.Inventory.Hotbar
                 index = 0;
 
             currentIndex = index;
-
-            for (int i = 0; i < slots.Length; i++)
-                slots[i].SetActive(i == currentIndex);
-
+            ApplyGlow();
             UpdateHeldItem();
+        }
+
+        /// <summary>Aktuálně vybraný (vybavený) slot hotbaru.</summary>
+        public int CurrentIndex => currentIndex;
+
+        private void ApplyGlow()
+        {
+            for (int i = 0; i < slots.Length; i++)
+                slots[i].SetActive(!glowHidden && i == currentIndex);
         }
 
         /// <summary>

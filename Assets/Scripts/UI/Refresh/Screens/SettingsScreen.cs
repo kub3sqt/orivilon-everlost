@@ -19,20 +19,38 @@ namespace Orivilon.UI.Refresh
     ///
     /// <para>While open, game shortcuts are blocked (<see cref="BlocksInput"/>) and the parent screen is hidden
     /// through <see cref="hideWhileOpen"/>; time scale, cursor and the parent's state are left as they were.</para>
+    ///
+    /// <para>Key bindings (rows with <see cref="SettingRow.bind"/>, actions from <see cref="KeyBindings.Actions"/>):
+    /// clicking the key starts listening, the next key or mouse button becomes the binding in the working copy
+    /// (Apply saves it like any other setting). Escape only stops listening. Reserved keys (F5, 1–8, Esc…) and
+    /// keys of another action are refused with a status message and the old key stays; nothing else is changed.
+    /// <b>Reset keys</b> resets only the key bindings of the working copy.</para>
     /// </summary>
     public class SettingsScreen : MonoBehaviour
     {
         public static bool IsOpen => openCount > 0;
         /// <summary>True while open and on the frame it closed (so the Escape that closed it is not reused).</summary>
-        public static bool BlocksInput => openCount > 0 || closedFrame == Time.frameCount;
+        public static bool BlocksInput => openCount > 0 || closedFrame == Time.frameCount || Time.unscaledTime < closingUntil;
+        /// <summary>Close morph still running: the parent screen is not back yet, so Escape/shortcuts stay blocked.</summary>
+        private static float closingUntil = -1f;
 
         public CanvasGroup group;
         [Tooltip("Parent screen parts hidden while Settings is open (main menu frame + buttons, or the pause menu).")]
         public CanvasGroup[] hideWhileOpen = new CanvasGroup[0];
         public ScrollRect scroll;
         public Button applyButton, backButton, resetButton;
+        [Tooltip("Resets only the key bindings (working copy, Apply to use them).")]
+        public Button resetKeysButton;
         public TMP_Text statusText;
         public float fadeTime = 0.15f;
+
+        [Header("Open / close transition (menu polish 23.10.2026)")]
+        [Tooltip("Settings frame: opens from its \"Closed\" state (heading collapsed to the logo tab, panel collapsed) to " +
+                 "\"Default\" – the same morph as the world list. Empty = plain fade.")]
+        public UiFrame frame;
+        [Tooltip("Content that fades in/out with the morph (heading text, body). The frame itself stays opaque.")]
+        public CanvasGroup[] contentGroups = new CanvasGroup[0];
+        public string openState = "Default", closedState = "Closed";
 
         [Header("Display keep / revert")]
         public GameObject confirmPanel;
@@ -49,9 +67,17 @@ namespace Orivilon.UI.Refresh
         private float confirmUntil = -1f;
         private float statusUntil = -1f;
         private float fade;
+        private bool restorePending;   // closing: the parent screen comes back when the frame has collapsed
         private readonly Dictionary<string, SettingRow> rows = new Dictionary<string, SettingRow>();
         private readonly List<Vector3> hiddenState = new List<Vector3>();   // alpha, blocks, interactable
         private bool updatingUi;
+
+        // key binding capture
+        private string listenKey;
+        private int listenFrame = -1;
+        private string message;
+        private float messageUntil = -1f;
+        private static KeyCode[] captureKeys;
 
         public bool IsShown => open;
         public SettingsData Working => work;
@@ -66,10 +92,12 @@ namespace Orivilon.UI.Refresh
                 if (r.prev != null) r.prev.onClick.AddListener(() => Step(row.key, -1));
                 if (r.next != null) r.next.onClick.AddListener(() => Step(row.key, +1));
                 if (r.slider != null) r.slider.onValueChanged.AddListener(v => Slide(row.key, v));
+                if (r.bind != null) r.bind.onClick.AddListener(() => BeginListen(row.key));
             }
             if (applyButton != null) applyButton.onClick.AddListener(ApplyChanges);
             if (backButton != null) backButton.onClick.AddListener(Back);
             if (resetButton != null) resetButton.onClick.AddListener(ResetDefaults);
+            if (resetKeysButton != null) resetKeysButton.onClick.AddListener(ResetKeys);
             if (keepButton != null) keepButton.onClick.AddListener(KeepDisplay);
             if (revertButton != null) revertButton.onClick.AddListener(RevertDisplay);
             SetVisible(false, true);
@@ -78,6 +106,7 @@ namespace Orivilon.UI.Refresh
         private void OnDisable()
         {
             if (open) Close();
+            if (restorePending) { RestoreParent(); fade = 0f; ApplyFade(); }
         }
 
         // ── open / close ─────────────────────────────────────────────────────
@@ -88,20 +117,38 @@ namespace Orivilon.UI.Refresh
             if (open || SettingsManager.Instance == null) return;
             open = true; openCount++;
             work = SettingsManager.Clone(SettingsManager.Instance.Current);
-            hiddenState.Clear();
-            foreach (var g in hideWhileOpen)
+            if (restorePending)
             {
-                if (g == null) { hiddenState.Add(Vector3.zero); continue; }
-                hiddenState.Add(new Vector3(g.alpha, g.blocksRaycasts ? 1 : 0, g.interactable ? 1 : 0));
-                g.alpha = 0f; g.blocksRaycasts = false; g.interactable = false;
+                // reopened while the close morph was still running: the parent is still hidden and its saved
+                // state is still valid – keep it (capturing now would store the hidden alpha 0)
+                restorePending = false;
+            }
+            else
+            {
+                hiddenState.Clear();
+                foreach (var g in hideWhileOpen)
+                {
+                    if (g == null) { hiddenState.Add(Vector3.zero); continue; }
+                    hiddenState.Add(new Vector3(g.alpha, g.blocksRaycasts ? 1 : 0, g.interactable ? 1 : 0));
+                    g.alpha = 0f; g.blocksRaycasts = false; g.interactable = false;
+                }
             }
             if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
             if (confirmPanel != null) confirmPanel.SetActive(false);
             confirmUntil = -1f; statusUntil = -1f;
+            listenKey = null; messageUntil = -1f;
             RefreshAll();
             if (scroll != null) scroll.verticalNormalizedPosition = 1f;
             SetVisible(true, false);
+            if (Morphs)
+            {
+                // from wherever the frame is (collapsed, or half way through a close) to the open layout
+                if (group != null && group.alpha < 0.999f) { frame.SetState(closedState, 0f); fade = 0f; }
+                frame.SetState(openState, frame.morphTime);
+            }
         }
+
+        private bool Morphs => frame != null && frame.Find(openState) != null && frame.Find(closedState) != null;
 
         /// <summary>Back: discards unapplied edits and returns to the screen Settings was opened from.</summary>
         public void Back()
@@ -113,21 +160,47 @@ namespace Orivilon.UI.Refresh
         public void Close()
         {
             if (!open) return;
+            listenKey = null; messageUntil = -1f;
             open = false; openCount = Mathf.Max(0, openCount - 1); closedFrame = Time.frameCount;
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            SetVisible(false, false);
+            if (Morphs && isActiveAndEnabled)
+            {
+                // collapse back into the logo tab; the parent screen returns when the morph has finished
+                frame.SetState(closedState, frame.morphTime);
+                restorePending = true;
+                closingUntil = Time.unscaledTime + Mathf.Max(frame.morphTime, fadeTime) + 0.05f;
+            }
+            else RestoreParent();
+        }
+
+        private void RestoreParent()
+        {
+            restorePending = false;
+            closingUntil = -1f;
             for (int i = 0; i < hideWhileOpen.Length && i < hiddenState.Count; i++)
             {
                 var g = hideWhileOpen[i]; if (g == null) continue;
                 g.alpha = hiddenState[i].x; g.blocksRaycasts = hiddenState[i].y > 0.5f; g.interactable = hiddenState[i].z > 0.5f;
             }
-            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
-            SetVisible(false, false);
         }
 
         private void SetVisible(bool on, bool instant)
         {
             if (group == null) return;
             group.blocksRaycasts = on; group.interactable = on;
-            if (instant) { fade = on ? 1f : 0f; group.alpha = fade; }
+            if (instant) { fade = on ? 1f : 0f; ApplyFade(); }
+        }
+
+        /// <summary>With the morph the frame stays opaque while open or collapsing and only the content fades;
+        /// without it the whole screen fades as before.</summary>
+        private void ApplyFade()
+        {
+            if (group == null) return;
+            float e = UiKit.EaseOut(fade);
+            if (!Morphs) { group.alpha = e; return; }
+            group.alpha = open || restorePending ? 1f : e;
+            foreach (var c in contentGroups) if (c != null) c.alpha = e;
         }
 
         private void Update()
@@ -138,11 +211,17 @@ namespace Orivilon.UI.Refresh
                 if (!Mathf.Approximately(fade, target))
                 {
                     fade = Mathf.MoveTowards(fade, target, Time.unscaledDeltaTime / Mathf.Max(0.01f, fadeTime));
-                    group.alpha = UiKit.EaseOut(fade);
+                    ApplyFade();
+                }
+                if (restorePending && !frame.Animating && Mathf.Approximately(fade, 0f))
+                {
+                    RestoreParent();
+                    ApplyFade();
                 }
             }
             if (!open) return;
 
+            if (listenKey != null) { Listen(); UpdateStatus(); return; }
             if (Input.GetKeyDown(KeyCode.Escape)) { Back(); return; }
 
             if (confirmUntil > 0f)
@@ -260,6 +339,14 @@ namespace Orivilon.UI.Refresh
             foreach (var kv in rows)
             {
                 var r = kv.Value; string key = kv.Key;
+                if (r.bind != null)
+                {
+                    int ai = KeyBindings.ActionIndex(key);
+                    bool waiting = listenKey == key;
+                    Text(r, waiting ? "Press a key..." : ai >= 0 ? KeyBindings.Label(KeyBindings.Actions[ai].get(work)) : "-");
+                    if (r.listening != null && r.listening.activeSelf != waiting) r.listening.SetActive(waiting);
+                    continue;
+                }
                 bool locked = Locked(key);
                 if (r.slider != null)
                 {
@@ -297,6 +384,8 @@ namespace Orivilon.UI.Refresh
         {
             if (statusText == null) return;
             if (confirmUntil > 0f) statusText.text = "";
+            else if (Time.unscaledTime < messageUntil) statusText.text = message;
+            else if (listenKey != null) statusText.text = "Press a key or mouse button – Esc cancels";
             else if (Time.unscaledTime < statusUntil) statusText.text = "Settings applied";
             else statusText.text = Dirty ? "Unsaved changes – Apply to use them" : "";
         }
@@ -307,6 +396,8 @@ namespace Orivilon.UI.Refresh
         {
             var sm = SettingsManager.Instance;
             if (!open || sm == null || confirmUntil > 0f) return;
+            StopListen();
+            messageUntil = -1f;
             var before = SettingsManager.Clone(sm.Current);
             var target = Normalized(work);
             bool display = SettingsManager.DisplayDiffers(target, before);
@@ -351,10 +442,97 @@ namespace Orivilon.UI.Refresh
         public void ResetDefaults()
         {
             if (!open || confirmUntil > 0f) return;
+            listenKey = null; messageUntil = -1f;
             work = new SettingsData();
             SettingsManager.Validate(work);
             RefreshAll();
         }
+
+        // ── key bindings ─────────────────────────────────────────────────────
+
+        /// <summary>Key row clicked: wait for the next key / mouse button (the click itself is ignored).</summary>
+        public void BeginListen(string key)
+        {
+            if (!open || confirmUntil > 0f || KeyBindings.ActionIndex(key) < 0) return;
+            listenKey = key; listenFrame = Time.frameCount; messageUntil = -1f;
+            // a selected button would take Space/Enter as Submit and restart listening
+            if (EventSystem.current != null) EventSystem.current.SetSelectedGameObject(null);
+            RefreshAll();
+        }
+
+        private void StopListen()
+        {
+            if (listenKey == null) return;
+            listenKey = null;
+            RefreshAll();
+        }
+
+        /// <summary>QA: true while a key row waits for a key.</summary>
+        public string ListeningFor => listenKey;
+
+        private void Listen()
+        {
+            if (Time.frameCount == listenFrame) return;   // the click that started listening
+            if (Input.GetKeyDown(KeyCode.Escape)) { StopListen(); return; }
+            if (captureKeys == null)
+            {
+                var all = (KeyCode[])System.Enum.GetValues(typeof(KeyCode));
+                var l = new List<KeyCode>(all.Length);
+                foreach (var k in all) if (k != KeyCode.None && k < KeyCode.JoystickButton0 && !l.Contains(k)) l.Add(k);
+                captureKeys = l.ToArray();
+            }
+            foreach (var k in captureKeys)
+                if (Input.GetKeyDown(k)) { TryBind(listenKey, k); return; }
+        }
+
+        /// <summary>
+        /// Binds <paramref name="k"/> to the action in the working copy, or refuses it (reserved key / key of
+        /// another action) with a status message – the previous key stays and no other action is touched.
+        /// Public for QA.
+        /// </summary>
+        public bool TryBind(string key, KeyCode k)
+        {
+            int ai = KeyBindings.ActionIndex(key);
+            if (!open || ai < 0) return false;
+            var act = KeyBindings.Actions[ai];
+            string reason = KeyBindings.ReservedFor(k);
+            if (reason != null)
+            {
+                // the left button is how you click in menus: a click elsewhere only tells, it keeps listening
+                Say(KeyBindings.Label(k) + " is reserved for " + reason);
+                if (k != KeyCode.Mouse0) listenKey = null;
+                RefreshAll();
+                return false;
+            }
+            foreach (var other in KeyBindings.Actions)
+            {
+                if (other.key == key || KeyBindings.MayShare(key, other.key)) continue;
+                if (KeyBindings.TryParse(other.get(work), out var ok) && ok == k)
+                {
+                    Say(KeyBindings.Label(k) + " is already used by " + other.name);
+                    listenKey = null;
+                    RefreshAll();
+                    return false;
+                }
+            }
+            act.set(work, k.ToString());
+            listenKey = null; messageUntil = -1f;
+            RefreshAll();
+            return true;
+        }
+
+        /// <summary>Reset keys: defaults for the key bindings only (working copy; Apply to use them).</summary>
+        public void ResetKeys()
+        {
+            if (!open || confirmUntil > 0f) return;
+            listenKey = null;
+            var def = new SettingsData();
+            foreach (var a in KeyBindings.Actions) a.set(work, a.get(def));
+            Say("Key bindings reset – Apply to use them");
+            RefreshAll();
+        }
+
+        private void Say(string text) { message = text; messageUntil = Time.unscaledTime + 3.5f; }
 
         /// <summary>QA: seconds left in the keep/revert countdown (-1 = none).</summary>
         public float ConfirmLeft => confirmUntil > 0f ? confirmUntil - Time.unscaledTime : -1f;

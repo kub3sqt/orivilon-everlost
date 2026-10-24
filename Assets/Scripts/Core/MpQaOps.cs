@@ -32,6 +32,35 @@ namespace Orivilon.Core
                     case "pickup": return Pickup(a.Length > 1 ? a[1] : null);
                     case "count": return Count(a[1]);
                     case "sun": return Sun();
+                    case "needs": return Needs(a);
+                    case "tooltip": return Orivilon.Inventory.Inventory.ItemTooltip.QaState();
+                    case "hotbar": return HotbarState();
+                    case "czitem":   // runtime item (ne asset) s češtinou a dlouhým popisem do slotu – test tooltipu
+                    {
+                        var it = ScriptableObject.CreateInstance<InventoryItemData>();
+                        it.id = "qa:cz"; it.itemName = "Žluťoučký kůň – Ďábelské ódy";
+                        it.description = a.Length > 1 && a[1] == "empty" ? "" : "Příliš žluťoučký kůň úpěl ďábelské ódy. ĚŠČŘŽÝÁÍÉŮÚ ěščřžýáíéůú. Dlouhý popis, který se musí zalomit na více řádků a zůstat čitelný i u okraje obrazovky.";
+                        it.maxStack = 1; it.icon = InventoryData.Instance.Slots[0].IsEmpty ? null : InventoryData.Instance.Slots[0].item.icon;
+                        int slot = a.Length > 2 ? int.Parse(a[2]) : 62;
+                        InventoryData.Instance.Slots[slot].Set(it, 1);
+                        InventoryActions.Commit();
+                        return "czitem → slot " + slot;
+                    }
+                    case "needsrec": return NeedsRec();
+#if FACEPUNCH_STEAMWORKS
+                    case "steamloop": return SteamLoop(a);
+                    case "friendjoin": return FriendJoin(ulong.Parse(a[1], CultureInfo.InvariantCulture));
+                    case "menuerr": return MenuErr();
+                    case "qalobby": return QaLobby(a);
+                    case "preflight": SteamLobbyManager.Instance?.BeginJoin(ulong.Parse(a[1], CultureInfo.InvariantCulture), "QA host"); return "preflight " + a[1] + " | " + JoinStat();
+                    case "joinstat": return JoinStat();
+                    case "pwdialog": return PwDialog(a.Length > 1 ? a[1] : "");
+                    case "aptest": try { return ApprovalTest(a); } catch (System.Exception e) { return "aptest výjimka: " + e.ToString().Replace('\n', ' ').Substring(0, System.Math.Min(900, e.ToString().Length)); }
+#endif
+                    case "menu":   // skutečný odchod do menu (Pauza → Main Menu): uložení, odchod z lobby, ukončení sítě
+                        if (GameManager.instance == null) return "menu: GameManager chybí";
+                        GameManager.instance.OnMainMenuButtonClicked();
+                        return "menu (odchod do hlavního menu)";
                     case "fakefriends": return FakeFriends();
                     case "space": return Space(a[1], int.Parse(a[2]));
                     case "excess": return "excess " + a[1] + " " + a[2] + " ok=" + ItemDropService.TrySpawnInFrontOfPlayer(Item(a[1]), int.Parse(a[2]), ItemDropService.HarvestDropPickupDelay);
@@ -69,6 +98,7 @@ namespace Orivilon.Core
                     case "claim": return Claim(a);
                     case "leave": return Leave();
                     case "inv": return Inv();
+                    case "avatar": return Avatar(a);
                 }
             }
             catch (System.Exception e) { return "ERR mp " + line + ": " + e.Message; }
@@ -126,16 +156,239 @@ namespace Orivilon.Core
             return sb.ToString();
         }
 
+#if FACEPUNCH_STEAMWORKS
+        // ── 23.10.2026: Steam join – testy bez druhého Steam účtu ──────────────────────────────────────
+
+        // Skutečné Steam sockety v jednom procesu (IP smyčka 127.0.0.1, ne relay): co Steam/Facepunch hlásí jako
+        // identitu protistrany – vlastnost ConnectionInfo.Identity proti poli identity a dotazu GetConnectionInfo.
+        private sealed class LoopServer : Steamworks.SocketManager
+        {
+            public static string Log = "";
+            public static Steamworks.Data.Connection Last;
+            public override void OnConnecting(Steamworks.Data.Connection c, Steamworks.Data.ConnectionInfo info) { Log += " S.connecting " + Describe(info); Last = c; base.OnConnecting(c, info); }
+            public override void OnConnected(Steamworks.Data.Connection c, Steamworks.Data.ConnectionInfo info) { Log += " S.connected " + Describe(info); Last = c; base.OnConnected(c, info); }
+            public override void OnDisconnected(Steamworks.Data.Connection c, Steamworks.Data.ConnectionInfo info) { Log += " S.disconnected " + Describe(info); base.OnDisconnected(c, info); }
+        }
+        private sealed class LoopClient : Steamworks.ConnectionManager
+        {
+            public override void OnConnected(Steamworks.Data.ConnectionInfo info) { LoopServer.Log += " C.connected " + Describe(info); base.OnConnected(info); }
+            public override void OnDisconnected(Steamworks.Data.ConnectionInfo info) { LoopServer.Log += " C.disconnected " + Describe(info); base.OnDisconnected(info); }
+        }
+        private static LoopServer loopServer;
+        private static LoopClient loopClient;
+        private const System.Reflection.BindingFlags AllInst = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+
+        private static string Describe(Steamworks.Data.ConnectionInfo info)
+        {
+            object boxed = info;
+            var f = typeof(Steamworks.Data.ConnectionInfo).GetField("identity", AllInst);
+            string field = f != null ? ((Steamworks.Data.NetIdentity)f.GetValue(boxed)).SteamId.Value.ToString(CultureInfo.InvariantCulture) : "?";
+            return "[state " + info.State + " vlastnost Identity " + info.Identity.SteamId.Value + " pole identity " + field + "]";
+        }
+
+        private static string SteamLoop(string[] a)
+        {
+            if (!Steamworks.SteamClient.IsValid) return "steamloop: Steam neběží";
+            string cmd = a.Length > 1 ? a[1] : "start";
+            if (cmd == "close") { loopClient?.Close(); loopServer?.Close(); loopClient = null; loopServer = null; return "steamloop close"; }
+            if (cmd == "res")
+            {
+                loopServer?.Receive(); loopClient?.Receive();
+                string q = loopServer != null ? MultiplayerManager.QaSteamIdOf(LoopServer.Last.Id) : "-";
+                return "steamloop res me " + Steamworks.SteamClient.SteamId.Value + " | GetConnectionInfo(spojení " + LoopServer.Last.Id + ") " + q + " |" + LoopServer.Log;
+            }
+            LoopServer.Log = "";
+            loopServer = Steamworks.SteamNetworkingSockets.CreateNormalSocket<LoopServer>(Steamworks.Data.NetAddress.AnyIp(27999));
+            loopClient = Steamworks.SteamNetworkingSockets.ConnectNormal<LoopClient>(Steamworks.Data.NetAddress.LocalHost(27999));
+            return "steamloop start server " + (loopServer != null) + " client " + (loopClient != null);
+        }
+
+        /// <summary>
+        /// Schválení klienta na SKUTEČNÉM Steam hostovi (FacepunchTransport + NGO, relay socket) bez druhého účtu:
+        /// příchozí spojení se vloží do transportu jeho vlastním callbackem ISocketManager.OnConnected, NGO z něj
+        /// udělá čekajícího klienta a pak se volá skutečné ApproveConnection s payloadem, jaký staví klient.
+        /// Se spuštěným „steamloop“ jde o skutečné Steam spojení (identita = vlastní účet), jinak o fiktivní.
+        /// aptest [mismatch|wrongpw|nopw]
+        /// </summary>
+        private static string ApprovalTest(string[] a)
+        {
+            var mm = MultiplayerManager.Instance; var nm = NetworkManager.Singleton;
+            if (mm == null || nm == null) return "aptest: MultiplayerManager chybí";
+            if (!Steamworks.SteamClient.IsValid) return "aptest: Steam neběží";
+            var sb = new StringBuilder("aptest");
+            bool started = false;
+            if (!nm.IsListening)
+            {
+                var w = new Orivilon.SaveSystem.WorldData("ApTest", "1") { folderPath = System.IO.Path.Combine(Application.persistentDataPath, "qa-perf", "aptest") };
+                var prev = GameManager.selectedWorld;
+                mm.StartHostSteam(w, Steamworks.SteamClient.AppId.Value);
+                GameManager.selectedWorld = prev;
+                started = true;
+            }
+            var t = nm.NetworkConfig.NetworkTransport as Netcode.Transports.Facepunch.FacepunchTransport;
+            if (t == null || !nm.IsHost) { if (started) mm.Shutdown(); return "aptest: Steam host neběží"; }
+
+            bool real = loopServer != null && LoopServer.Last.Id != 0;
+            ulong peer = real ? Steamworks.SteamClient.SteamId.Value : 76561190000004242UL;
+            object conn = real ? (object)LoopServer.Last : new Steamworks.Data.Connection();
+            if (!real) (typeof(Steamworks.Data.Connection).GetField("<Id>k__BackingField", AllInst) ?? typeof(Steamworks.Data.Connection).GetField("Id", AllInst)).SetValue(conn, 4242u);
+            object info = new Steamworks.Data.ConnectionInfo();
+            typeof(Steamworks.Data.ConnectionInfo).GetField("identity", AllInst).SetValue(info, (Steamworks.Data.NetIdentity)(Steamworks.SteamId)peer);
+            sb.Append(" vlastnost Identity=").Append(((Steamworks.Data.ConnectionInfo)info).Identity.SteamId.Value);
+            ((Steamworks.ISocketManager)t).OnConnected((Steamworks.Data.Connection)conn, (Steamworks.Data.ConnectionInfo)info);
+
+            uint connId = ((Steamworks.Data.Connection)conn).Id;
+            object cm = typeof(NetworkManager).GetField("ConnectionManager", AllInst).GetValue(nm);
+            var map = cm.GetType().GetMethod("TransportIdToClientId", AllInst).Invoke(cm, new object[] { (ulong)connId });
+            ulong clientId = (ulong)map.GetType().GetField("Item1").GetValue(map);
+            sb.Append(real ? " SKUTEČNÉ spojení " : " fiktivní spojení ").Append(connId).Append(" ngoClient=").Append(clientId);
+
+            string hostKey = Steamworks.SteamClient.SteamId.Value.ToString(CultureInfo.InvariantCulture);
+            string mode = a.Length > 1 ? a[1] : "ok";
+            ulong claimed = mode == "mismatch" ? peer + 1 : peer;
+            string pw = mode == "wrongpw" ? "spatne" : (mode == "nopw" ? "" : (string)typeof(MultiplayerManager).GetField("hostPassword", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic).GetValue(null));
+            var req = new NetworkManager.ConnectionApprovalRequest { ClientNetworkId = clientId, Payload = JoinGate.BuildPayload(claimed, hostKey, pw, MultiplayerManager.SessionNonce) };
+            var resp = new NetworkManager.ConnectionApprovalResponse();
+            typeof(MultiplayerManager).GetMethod("ApproveConnection", AllInst).Invoke(mm, new object[] { req, resp });
+            sb.Append(" | ").Append(mode).Append(": approved=").Append(resp.Approved).Append(" reason=").Append(string.IsNullOrEmpty(resp.Reason) ? "-" : resp.Reason)
+              .Append(" key=").Append(mm.GetPlayerKey(clientId) ?? "-");
+
+            ((Steamworks.ISocketManager)t).OnDisconnected((Steamworks.Data.Connection)conn, (Steamworks.Data.ConnectionInfo)info);
+            if (started) mm.Shutdown();
+            return sb.ToString();
+        }
+#endif
+
+        /// <summary>23.10.2026: vybraný slot hotbaru, viditelný glow a vybavený item.</summary>
+        private static string HotbarState()
+        {
+            var h = Orivilon.Inventory.Hotbar.HotbarController.Instance;
+            if (h == null) return "hotbar: není";
+            var sb = new StringBuilder("hotbar index " + h.CurrentIndex + " held '" + (h.GetHeldItem() != null ? h.GetHeldItem().id : "-") + "' glow");
+            foreach (var ui in Object.FindObjectsByType<Orivilon.Inventory.Hotbar.HotbarSlotUI>(FindObjectsInactive.Include, FindObjectsSortMode.None))
+            {
+                var img = typeof(Orivilon.Inventory.Hotbar.HotbarSlotUI).GetField("outlineImage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?.GetValue(ui) as UnityEngine.UI.Image;
+                if (img != null && img.gameObject.activeInHierarchy) sb.Append(' ').Append(ui.transform.GetSiblingIndex()).Append(ui.gameObject.activeInHierarchy ? "" : "(skrytý hotbar)");
+            }
+            var inv = InventoryData.Instance;
+            sb.Append(" | sloty");
+            for (int i = 0; i < InventoryData.HotbarSize && inv != null; i++) sb.Append(' ').Append(i).Append('=').Append(inv.Slots[i].IsEmpty ? "-" : inv.Slots[i].item.id.Replace("everlost:", "") + "x" + inv.Slots[i].amount);
+            return sb.Append(" | inventory ").Append(GameManager.instance != null && GameManager.instance.IsInventoryOpen).ToString();
+        }
+
+        /// <summary>22.10.2026: potřeby lokálního hráče (needs) nebo jejich nastavení (needs zdraví hlad žízeň).</summary>
+        private static string Needs(string[] a)
+        {
+            var n = Orivilon.Player.PlayerNeeds.Find(GameObject.FindWithTag("Player"));
+            if (n == null) return "needs: PlayerNeeds chybí";
+            if (a.Length >= 4)
+                n.ApplySavedState(float.Parse(a[1], CultureInfo.InvariantCulture), float.Parse(a[2], CultureInfo.InvariantCulture), float.Parse(a[3], CultureInfo.InvariantCulture));
+            n.TryGetState(out float h, out float f, out float w);
+            return string.Format(CultureInfo.InvariantCulture, "needs hp {0:0.00} food {1:0.00} water {2:0.00} loading {3}", h, f, w, SceneLoader.IsLoading);
+        }
+
+        /// <summary>Host: potřeby uložené v účtech klientů.</summary>
+        private static string NeedsRec()
+        {
+            var sb = new StringBuilder("needsrec");
+            foreach (var r in MpLedgerStore.Records.Values)
+                sb.Append(string.Format(CultureInfo.InvariantCulture, " [{0} has {1} hp {2:0.00} food {3:0.00} water {4:0.00}]", r.key, r.hasNeeds, r.health, r.food, r.water));
+            return sb.ToString();
+        }
+
         private static string Sun()
         {
             var s = Object.FindFirstObjectByType<SunRotation>();
             float sunI = -1f;
             if (s != null && s.sunTransform != null) { var l = s.sunTransform.GetComponent<Light>(); if (l != null) sunI = l.intensity; }
-            return string.Format(CultureInfo.InvariantCulture, "time {0:0.00} night {1:0.00} sunI {2:0.00} paused {3} netDriven {4}",
-                SunRotation.timeOfDayStatic, SunRotation.nightBlendStatic, sunI, s != null && s.paused, SunRotation.NetworkDriven);
+            int count = Object.FindObjectsByType<SunRotation>(FindObjectsInactive.Include, FindObjectsSortMode.None).Length;
+            Color fog = RenderSettings.fogColor, amb = RenderSettings.ambientSkyColor;
+            var needs = Orivilon.Player.PlayerNeeds.Find(GameObject.FindWithTag("Player"));
+            string nd = needs != null ? string.Format(CultureInfo.InvariantCulture, " | needs hp {0:0.00} food {1:0.00} water {2:0.00}", needs.health, needs.food, needs.water) : " | needs -";
+            return string.Format(CultureInfo.InvariantCulture, "time {0:0.00} inst {5:0.00} night {1:0.00} sunI {2:0.00} paused {3} netDriven {4} suns {6} applied {7} fog {8:0.00},{9:0.00},{10:0.00} amb {11:0.00},{12:0.00},{13:0.00} sky {14} scene {15}",
+                SunRotation.timeOfDayStatic, SunRotation.nightBlendStatic, sunI, s != null && s.paused, SunRotation.NetworkDriven,
+                s != null ? s.timeOfDay : -1f, count, s != null ? s.NetworkAppliedVersion : -2,
+                fog.r, fog.g, fog.b, amb.r, amb.g, amb.b, RenderSettings.skybox != null ? RenderSettings.skybox.name : "-",
+                UnityEngine.SceneManagement.SceneManager.GetActiveScene().name) + nd;
         }
 
         private static InventoryItemData Item(string id) => ItemDropService.FindItem(id.Contains(":") ? id : "everlost:" + id);
+
+        /// <summary>Postava v004: avatar harvest on|off, select &lt;id&gt;, view fp|back|front, facehost, state.</summary>
+        private static string Avatar(string[] a)
+        {
+            var av = Orivilon.Player.TravelerAvatar.Local;
+            if (av == null) return "avatar: chybí";
+            switch (a.Length > 1 ? a[1] : "state")
+            {
+                case "harvest":
+                    Orivilon.Player.TravelerAvatar.QaIgnoreCursor = true;
+                    av.SetHarvesting(a.Length > 2 && a[2] == "on");
+                    return "avatar harvest " + (a.Length > 2 ? a[2] : "?");
+                case "select":
+                {
+                    var it = Item(a[2]);
+                    var inv = InventoryData.Instance;
+                    for (int i = 0; i < InventoryData.HotbarSize; i++)
+                        if (!inv.Slots[i].IsEmpty && inv.Slots[i].item == it) { Orivilon.Inventory.Hotbar.HotbarController.Instance.SetActiveSlot(i); return "avatar select " + a[2] + " slot " + i; }
+                    for (int j = InventoryData.HotbarSize; j < inv.Slots.Length; j++)
+                        if (!inv.Slots[j].IsEmpty && inv.Slots[j].item == it)
+                        {
+                            // přesun do posledního slotu hotbaru (výměna), pak výběr
+                            int h = InventoryData.HotbarSize - 1;
+                            var hi = inv.Slots[h].item; int ha = inv.Slots[h].amount; bool he = inv.Slots[h].IsEmpty;
+                            inv.Slots[h].Set(inv.Slots[j].item, inv.Slots[j].amount);
+                            if (he) inv.Slots[j].Clear(); else inv.Slots[j].Set(hi, ha);
+                            InventoryActions.Commit();
+                            Orivilon.Inventory.Hotbar.HotbarController.Instance.SetActiveSlot(h);
+                            return "avatar select " + a[2] + " přesunuto do slotu " + h;
+                        }
+                    return "avatar select: " + a[2] + " není v inventáři";
+                }
+                case "view":
+                {
+                    var v = Object.FindFirstObjectByType<Orivilon.Player.TravelerCameraView>();
+                    if (v == null) return "avatar view: chybí";
+                    v.SetMode(a[2] == "back" ? Orivilon.Player.TravelerViewMode.ThirdBack : a[2] == "front" ? Orivilon.Player.TravelerViewMode.ThirdFront : Orivilon.Player.TravelerViewMode.FirstPerson);
+                    return "avatar view " + a[2];
+                }
+                case "walk":
+                {
+                    // mp avatar walk <x> <y> [sprint 0/1] – stejný vstup jako klávesy (DebugMove), „walk 0 0" zastaví.
+                    float x = float.Parse(a[2], CultureInfo.InvariantCulture), y = float.Parse(a[3], CultureInfo.InvariantCulture);
+                    Orivilon.Player.FirstPersonController.DebugMove = new Vector2(x, y);
+                    Orivilon.Player.FirstPersonController.DebugSprint = a.Length > 4 && a[4] == "1";
+                    return "avatar walk " + x.ToString(CultureInfo.InvariantCulture) + " " + y.ToString(CultureInfo.InvariantCulture) + (Orivilon.Player.FirstPersonController.DebugSprint ? " sprint" : "");
+                }
+                case "jump":
+                {
+                    var fpc = Object.FindFirstObjectByType<Orivilon.Player.FirstPersonController>();
+                    var m = typeof(Orivilon.Player.FirstPersonController).GetMethod("Jump", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+                    if (fpc == null || m == null) return "avatar jump: chybí";
+                    if (fpc.MoveState != Orivilon.Player.PlayerMoveState.Grounded) return "avatar jump: není na zemi (" + fpc.MoveState + ")";
+                    m.Invoke(fpc, null);
+                    return "avatar jump";
+                }
+                case "facehost":
+                {
+                    var host = GameObject.Find("RemotePlayer_Host");
+                    var fpc = Object.FindFirstObjectByType<Orivilon.Player.FirstPersonController>();
+                    if (host == null || fpc == null) return "avatar facehost: host chybí";
+                    Vector3 d = host.transform.position - fpc.transform.position;
+                    fpc.SetLook(Mathf.Atan2(d.x, d.z) * Mathf.Rad2Deg, 8f);
+                    return string.Format(CultureInfo.InvariantCulture, "avatar facehost {0:0.0} m", d.magnitude);
+                }
+                default:
+                {
+                    var sb = new StringBuilder("avatar local " + av.Action + " move " + av.MoveState + " speed " + av.Speed.ToString("F1", CultureInfo.InvariantCulture) + " item " + (av.HeldItem != null ? av.HeldItem.id : "-") + " view " + Orivilon.Player.TravelerCameraView.Mode);
+                    var lf = Object.FindFirstObjectByType<Orivilon.Player.FirstPersonController>();
+                    if (lf != null && lf.rb != null) { var lv = lf.rb.linearVelocity; sb.Append(" | rb vh " + new Vector2(lv.x, lv.z).magnitude.ToString("F1", CultureInfo.InvariantCulture)); }
+                    foreach (var r in Object.FindObjectsByType<Orivilon.Player.TravelerAvatar>(FindObjectsSortMode.None))
+                        if (!r.IsLocal) sb.Append(" | remote " + r.name + " " + r.Action + " move " + r.MoveState + " speed " + r.Speed.ToString("F1", CultureInfo.InvariantCulture) + " item " + (r.HeldItem != null ? r.HeldItem.id : "-") + " body " + (r.Body != null ? r.Body.transform.lossyScale.y.ToString("F2", CultureInfo.InvariantCulture) : "-") + " pos " + r.transform.position.ToString("F1"));
+                    return sb.ToString();
+                }
+            }
+        }
 
         private static string Give(string id, int n)
         {
@@ -212,6 +465,97 @@ namespace Orivilon.Core
             if (!ui.IsOpen) ui.Open();
             ui.Fill(list);
             return "fakefriends 3";
+        }
+
+        // ── 23.10.2026: kontrola lobby před joinem – vlastní SOUKROMÁ lobby (nikomu se neukáže), bez NGO hosta ──
+        private static Steamworks.Data.Lobby? qaLobby;
+
+        private static string QaLobby(string[] a)
+        {
+            if (!Steamworks.SteamClient.IsValid) return "qalobby: Steam neběží";
+            string cmd = a.Length > 1 ? a[1] : "id";
+            if (cmd == "create")
+            {
+                bool locked = a.Length > 2 && a[2] == "1";
+                qaLobby = null;
+                CreateQaLobby(locked);
+                return "qalobby create (locked " + locked + ") – výsledek přes 'qalobby id'";
+            }
+            if (!qaLobby.HasValue) return "qalobby: není";
+            var l = qaLobby.Value;
+            if (cmd == "lock") { l.SetData("locked", a.Length > 2 ? a[2] : "1"); return "qalobby lock " + l.GetData("locked"); }
+            if (cmd == "leave") { l.Leave(); qaLobby = null; return "qalobby leave"; }
+            return "qalobby id " + l.Id.Value + " locked " + l.GetData("locked") + " v " + l.GetData("v") + " members " + l.MemberCount + "/" + l.MaxMembers;
+        }
+
+        private static async void CreateQaLobby(bool locked)
+        {
+            SteamLobbyManager.QaSkipNextLobbyEnter = true;
+            var r = await Steamworks.SteamMatchmaking.CreateLobbyAsync(4);
+            if (!r.HasValue) { SteamLobbyManager.QaSkipNextLobbyEnter = false; return; }
+            var l = r.Value;
+            l.SetPrivate();
+            l.SetJoinable(true);
+            l.SetData("everlost", "1");
+            l.SetData("v", SteamLobbyManager.ProtocolVersion);
+            l.SetData("worldName", "QA preflight");
+            l.SetData("host", "QA host");
+            l.SetData("locked", locked ? "1" : "0");
+            qaLobby = l;
+        }
+
+        private static string JoinStat()
+        {
+            var d = Orivilon.UI.Menu.MultiplayerDialog.Instance;
+            string friends = "";
+            foreach (var t in Object.FindObjectsByType<TMPro.TMP_Text>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+                if (t.gameObject.name == "FriendsStatus" && !string.IsNullOrEmpty(t.text)) friends = t.text.Replace('\n', ' ');
+            return "joinstat StartClient " + MultiplayerManager.StartClientCalls + " joinLoading " + SteamLobbyManager.JoinLoadingStarts
+                + " SceneLoader.IsLoading " + SceneLoader.IsLoading + " preflight " + (SteamLobbyManager.Instance != null && SteamLobbyManager.Instance.PreflightRunning)
+                + " dialog " + (d != null && d.IsOpen) + " scéna " + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name
+                + " | stav '" + friends + "' | trace " + SteamLobbyManager.PreflightTrace;
+        }
+
+        /// <summary>Dialog hesla: „cancel“ = Zrušit, jinak potvrdit dané heslo (stejně jako tlačítko).</summary>
+        private static string PwDialog(string pw)
+        {
+            var d = Orivilon.UI.Menu.MultiplayerDialog.Instance;
+            if (d == null || !d.IsOpen) return "pwdialog: dialog není otevřený";
+            if (pw == "cancel") { d.Cancel(); return "pwdialog cancel | " + JoinStat(); }
+            var input = d.GetComponentInChildren<TMPro.TMP_InputField>(true);
+            if (input != null) input.text = pw;
+            d.Confirm();
+            return "pwdialog confirm | " + JoinStat();
+        }
+
+        /// <summary>23.10.2026: join z menu Multiplayer stejnou cestou jako tlačítko (řádek kamaráda → PLAY/JOIN).</summary>
+        private static string FriendJoin(ulong lobbyId)
+        {
+            FakeFriends();
+            var ui = Object.FindFirstObjectByType<Orivilon.UI.Menu.FriendsListUI>();
+            if (ui == null) return "friendjoin: FriendsListUI chybí";
+            var row = GameObject.Find("Friend_" + lobbyId);
+            var btn = row != null ? row.GetComponentInChildren<UnityEngine.UI.Button>() : null;
+            if (btn == null) return "friendjoin: řádek Friend_" + lobbyId + " chybí";
+            btn.onClick.Invoke();
+            ui.JoinSelected();
+            return "friendjoin " + lobbyId + " | steam " + (SteamLobbyManager.Instance != null && SteamLobbyManager.Instance.SteamReady) + " | " + SteamLobbyManager.Instance?.Status;
+        }
+
+        /// <summary>Co hráč po neúspěšném joinu vidí v menu (stav seznamu kamarádů, řádek chyby u světa, kurzor).</summary>
+        private static string MenuErr()
+        {
+            var sb = new StringBuilder("menuerr scéna " + UnityEngine.SceneManagement.SceneManager.GetActiveScene().name + " loading " + SceneLoader.IsLoading
+                + " input " + SceneLoader.InputBlocked + " kurzor " + Cursor.lockState + "/" + Cursor.visible + " pending '" + SceneLoader.PendingMenuError + "'");
+            foreach (var t in Object.FindObjectsByType<TMPro.TMP_Text>(FindObjectsInactive.Exclude, FindObjectsSortMode.None))
+            {
+                string n = t.gameObject.name;
+                if (string.IsNullOrEmpty(t.text)) continue;
+                string low = t.text.ToLowerInvariant();
+                if (low.Contains("couldn") || low.Contains("closed") || low.Contains("host") || low.Contains("version") || low.Contains("password") || low.Contains("steam") || low.Contains("lobby") || low.Contains("join"))
+                    sb.Append(" | ").Append(n).Append(": ").Append(t.text.Replace('\n', ' '));
+            }
+            return sb.ToString();
         }
 
         private static string Dialog(string kind)

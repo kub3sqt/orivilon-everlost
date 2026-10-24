@@ -435,6 +435,112 @@ MonoBehaviour:
       fit: 1
       fitTo: {fileID: 0}
       fitPad: 56
+  - name: WorldsCompact
+    pieces:
+    - piece: {fileID: 4400122609972418930}
+      anchorMin: {x: 0, y: 1}
+      anchorMax: {x: 1, y: 1}
+      offsetMin: {x: -60, y: -12}
+      offsetMax: {x: 60, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 4691597928816699711}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 1, y: 0}
+      offsetMin: {x: -60, y: -60}
+      offsetMax: {x: 60, y: 12}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 3864838571509744179}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 0, y: 1}
+      offsetMin: {x: -60, y: -60}
+      offsetMax: {x: 12, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 1545114734933176345}
+      anchorMin: {x: 1, y: 0}
+      anchorMax: {x: 1, y: 1}
+      offsetMin: {x: -12, y: -60}
+      offsetMax: {x: 60, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 5426623985824193918}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 0, y: 0}
+      offsetMin: {x: -60, y: -60}
+      offsetMax: {x: 336, y: 50}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 4116940763950082553}
+      anchorMin: {x: 1, y: 0}
+      anchorMax: {x: 1, y: 0}
+      offsetMin: {x: -220, y: -60}
+      offsetMax: {x: 60, y: 50}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 2065422744150066303}
+      anchorMin: {x: 0, y: 1}
+      anchorMax: {x: 0, y: 1}
+      offsetMin: {x: -60, y: -104}
+      offsetMax: {x: 0, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 94321614522353344}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 0, y: 0}
+      offsetMin: {x: -60, y: 172}
+      offsetMax: {x: 0, y: 428}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 3474337728563030455}
+      anchorMin: {x: 0, y: 1}
+      anchorMax: {x: 0, y: 1}
+      offsetMin: {x: -60, y: -104}
+      offsetMax: {x: 550, y: 60}
+      fit: 1
+      fitTo: {fileID: 0}
+      fitPad: 56
+    - piece: {fileID: 4605384357550843044}
+      anchorMin: {x: 1, y: 1}
+      anchorMax: {x: 1, y: 1}
+      offsetMin: {x: -309, y: -56}
+      offsetMax: {x: 60, y: 60}
+      fit: 2
+      fitTo: {fileID: 0}
+      fitPad: 64
+    - piece: {fileID: 6837495326288085401}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 1, y: 1}
+      offsetMin: {x: 0, y: 0}
+      offsetMax: {x: 0, y: 0}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 4573816637405655162}
+      anchorMin: {x: 1, y: 1}
+      anchorMax: {x: 1, y: 1}
+      offsetMin: {x: -24, y: -164}
+      offsetMax: {x: 96, y: -66}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 241893479459121998}
+      anchorMin: {x: 0, y: 1}
+      anchorMax: {x: 0, y: 1}
+      offsetMin: {x: 110, y: -140}
+      offsetMax: {x: 550, y: -68}
+      fit: 1
+      fitTo: {fileID: 0}
+      fitPad: 56
   initialState: Menu
   morphTime: 0.22
 --- !u!1 &7269923570931647182

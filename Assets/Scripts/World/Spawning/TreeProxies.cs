@@ -5,14 +5,14 @@ using UnityEngine.Rendering;
 namespace Orivilon.World.Spawning
 {
     /// <summary>
-    /// Vzdálené stromy (kolo 6): v LOD1 a LOD2 prstenci (od ~190 m do ~500 m, kde končí mlha)
+    /// Vzdálené stromy: v LOD1 až LOD3 prstenci (při lodRing 4 přibližně do 1 km)
     /// se kreslí nejnižší LOD existujících prefabů stromů instancovaně – bez GameObjectů,
     /// colliderů a bez nových assetů.
     ///
     /// <para><b>Proč.</b> Skutečné stromy se osazují jen na LOD0 sloupcích (do ~190 m), protože
-    /// sedají na přesný mesh a nesou collider, save ID a interakci. Mlha ale končí ~450 m,
-    /// takže stromy (70–120 m vysoké) na hraně LOD0 viditelně vyskakovaly a za ní byla
-    /// holá krajina.</para>
+    /// sedají na přesný mesh a nesou collider, save ID a interakci. Zástupci za hranou
+    /// LOD0 udržují lesní siluetu i v dálkovém oparu. LOD1/2 používá přesná pole,
+    /// nejvzdálenější LOD3 hrubé pole terénu bez dalších přesných jobů.</para>
     ///
     /// <para><b>Jak.</b> Pozice počítá týž osazovač (<see cref="Orivilon.World.Generation.EcologyPlacer"/>)
     /// týmž hashem buňky, jen z pole hrubšího sloupce a bez meshových kontrol. Druh, natočení
@@ -48,8 +48,12 @@ namespace Orivilon.World.Spawning
         /// </summary>
         public static bool FarTrunkShader = false;
 
-        /// <summary>Do kterého LOD prstence se vzdálené stromy kreslí (LOD2 = do ~500 m).</summary>
-        public const int MaxLod = 2;
+        /// <summary>Do kterého LOD prstence se vzdálené stromy kreslí (LOD3 = přibližně 1 km při lodRing 4).</summary>
+        public const int MaxLod = 3;
+
+        // Přesná pole mají smysl u přechodu do interaktivních stromů. V dálce by
+        // jejich počet rostl s plochou a soupeřil s terénem o rozpočet jobů.
+        public const int ExactMaxLod = 2;
 
         /// <summary>Jak dlouho zůstanou stromy uvolněného sloupce, s.</summary>
         public const float ReleaseDelay = 1.5f;
@@ -226,7 +230,7 @@ namespace Orivilon.World.Spawning
                 for (int i = 0; i < scratchKeys.Count; i++) Drop(scratchKeys[i]);
             }
             // Dosah ořezu visí na pásmu mizení – když ho /atmo stromy změní, přeregistrovat.
-            if (ObjectSpawner.TreeFadeEnd != lastFadeEnd) dirty = true;
+            if (ObjectSpawner.EffectiveTreeFadeEnd != lastFadeEnd) dirty = true;
             if (dirty)
             {
                 dirty = false;
@@ -284,7 +288,7 @@ namespace Orivilon.World.Spawning
                     s.arr[s.count++] = it.m * ps[k].offset;
                 }
             }
-            lastFadeEnd = ObjectSpawner.TreeFadeEnd;
+            lastFadeEnd = ObjectSpawner.EffectiveTreeFadeEnd;
             Bounds b;
             float maxD = 0f;
             if (Cull && sl.Count > 0)

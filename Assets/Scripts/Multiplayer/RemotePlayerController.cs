@@ -7,7 +7,7 @@ namespace Orivilon.Multiplayer
 {
     /// <summary>
     /// Vizuální reprezentace vzdáleného hráče ve světě.
-    /// Zobrazuje kapsli (nebo vlastní model z prefabu) a jméno hráče nad hlavou.
+    /// Zobrazuje cestovatele (nebo vlastní model z prefabu) a jméno hráče nad hlavou.
     /// Plynule interpoluje k cílové pozici/rotaci přijaté ze sítě.
     /// </summary>
     public class RemotePlayerController : MonoBehaviour
@@ -82,15 +82,8 @@ namespace Orivilon.Multiplayer
         /// <summary>
         /// Poslední známý stav pohybu vzdáleného hráče.
         ///
-        /// <para>Zatím se po síti neposílá – <c>NetworkPlayerBridge</c> odesílá jen
-        /// pozici a rotaci. Háček existuje proto, aby rozšíření drátového formátu
-        /// byla změna JEN v <c>NetworkWorldSync</c>: lokální hráč už stav vystavuje
-        /// jako <c>FirstPersonController.NetworkMoveState</c> a hlásí ho událostí
-        /// <c>MoveStateChanged</c>, tady ho stačí přijmout.</para>
-        ///
-        /// <para>Proč to nejde odvodit z pozice: plavání není vidět na rychlosti.
-        /// Hráč stojící po krk ve vodě a hráč stojící na břehu mají tutéž transformaci
-        /// a mají se hýbat i znít jinak.</para>
+        /// <para>Stav přichází s volitelným animačním dodatkem zprávy pozice.
+        /// Starší klient bez dodatku používá výchozí Grounded.</para>
         /// </summary>
         public PlayerMoveState MoveState { get; private set; } = PlayerMoveState.Grounded;
 
@@ -142,30 +135,14 @@ namespace Orivilon.Multiplayer
         // ══════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// Vytvoří výchozí vizuál vzdáleného hráče (modrá kapsle + jmenovka).
+        /// Vytvoří výchozí vizuál vzdáleného hráče (cestovatel + jmenovka).
         /// Volá se z MultiplayerManager pokud remotePlayerPrefab není přiřazeno.
         /// </summary>
         public static GameObject CreateDefaultVisual()
         {
             var root = new GameObject("RemotePlayer");
 
-            // Kapsle (přibližné rozměry hráče)
-            var capsule = GameObject.CreatePrimitive(PrimitiveType.Capsule);
-            capsule.transform.SetParent(root.transform, false);
-            capsule.transform.localPosition = new Vector3(0f, 1f, 0f); // střed kapsle ve výšce 1
-
-            // Odliš od terénu barvou
-            var rend = capsule.GetComponent<Renderer>();
-            if (rend != null)
-            {
-                rend.material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
-                rend.material.color = new Color(0.2f, 0.5f, 1f); // modrá
-            }
-
-            // Odstraň případný collider aby neblokoval interakci
-            var col = capsule.GetComponent<Collider>();
-            if (col != null)
-                Destroy(col);
+            root.AddComponent<TravelerAvatar>().InitializeRemote();
 
             // Jmenovka (TextMeshPro – World Space)
             var tmp = CreateNameLabel(root.transform, true);

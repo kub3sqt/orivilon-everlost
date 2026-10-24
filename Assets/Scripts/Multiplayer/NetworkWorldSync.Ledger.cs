@@ -27,6 +27,11 @@ namespace Orivilon.Multiplayer
         public uint lastSeq;
         public List<string> log = new List<string>();
 
+        // 22.10.2026 – potřeby klienta v hostově světě (starší savy: hasNeeds = false → nový hráč s plnými hodnotami).
+        // Ukládají se se stejným souborem/transakcí jako účet; nula je platná hodnota.
+        public bool hasNeeds;
+        public float health, food, water;
+
         public int Count(string id)
         {
             foreach (var c in items) if (c.id == id) return c.count;

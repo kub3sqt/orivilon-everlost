@@ -27,6 +27,25 @@ namespace Orivilon.Inventory.Hotbar
         /// <summary>Data aktuálně drženého itemu (nebo null pokud hráč nic nedrží).</summary>
         private InventoryItemData currentItem;
 
+        private Transform travelerGrip;
+
+        /// <summary>
+        /// Jen za běhu: kotva předmětu se přesune na kost prop.R paží z první osoby (postava v004). Reference
+        /// v Inspectoru i offsety itemů zůstávají; starý Animator kotvy (HitLoop) se vypne, švih hraje klip postavy.
+        /// </summary>
+        public void BindTravelerGrip(Transform grip)
+        {
+            if (grip == null || handAnchor == null || travelerGrip == grip) return;
+            travelerGrip = grip;
+            var legacyAnimator = handAnchor.GetComponent<Animator>();
+            if (legacyAnimator != null) legacyAnimator.enabled = false;
+            handAnchor.SetParent(grip, false);
+            handAnchor.localPosition = Vector3.zero;
+            handAnchor.localRotation = Quaternion.identity;
+            handAnchor.localScale = Vector3.one;   // jednotky modelu postavy – nástroje v004 mají počátek v úchopu
+            SetItem(currentItem != null ? currentItem : Orivilon.Player.PlayerEquipment.HeldTool);
+        }
+
         /// <summary>Veřejný přístup k datům aktuálně drženého itemu.</summary>
         public InventoryItemData CurrentItem => currentItem;
 
@@ -60,6 +79,12 @@ namespace Orivilon.Inventory.Hotbar
             if (item == null || item.handPrefab == null)
                 return;
 
+            if (travelerGrip != null)
+            {
+                currentInstance = Orivilon.Player.TravelerHeldItem.Spawn(item, handAnchor, false);
+                return;
+            }
+
             currentInstance = Instantiate(
                 item.handPrefab,
                 handAnchor
@@ -82,12 +107,14 @@ namespace Orivilon.Inventory.Hotbar
             var colliders = root.GetComponentsInChildren<Collider>(true);
             foreach (var col in colliders)
             {
+                col.enabled = false;
                 Destroy(col);
             }
 
             var rigidbodies = root.GetComponentsInChildren<Rigidbody>(true);
             foreach (var rb in rigidbodies)
             {
+                rb.isKinematic = true;
                 Destroy(rb);
             }
         }

@@ -176,10 +176,10 @@ namespace Orivilon.World.Spawning
         private Dictionary<Vector2Int, ChunkSpawnState> spawnedChunks = new Dictionary<Vector2Int, ChunkSpawnState>();
 
         /// <summary>
-        /// Pokud true, tráva a SmallObjects nevrhají stíny (jejich stíny nejsou okem
-        /// rozlišitelné, ale zdvojnásobovaly počet draw callů ve shadow passu).
+        /// Pokud true, SmallObjects nevrhají stíny. Tráva stíny vrhá i při této
+        /// optimalizaci, jinak trsy vizuálně nedosedají na terén.
         /// </summary>
-        [Tooltip("Vypnout vrhání stínů pro trávu a malé objekty (velká úspora výkonu).")]
+        [Tooltip("Vypnout vrhání stínů pro malé objekty. Tráva stíny nadále vrhá.")]
         public bool disableShadowsForSmallDecorations = true;
 
         /// <summary>Maximální počet instancí vytvořených za jeden snímek při spawnu chunku.</summary>
@@ -1203,9 +1203,8 @@ namespace Orivilon.World.Spawning
                 // 2500 testů na sloupec a snímek by sežralo víc, než kolik by ušetřilo.
                 Bounds bounds = VegetationRenderer.WorldBounds(src.mesh, matrices, count);
 
-                var shadows = disableShadowsForSmallDecorations
-                    ? UnityEngine.Rendering.ShadowCastingMode.Off
-                    : UnityEngine.Rendering.ShadowCastingMode.On;
+                // Tráva potřebuje kontakt s terénem; úspora stínů patří jen SmallObjects.
+                var shadows = UnityEngine.Rendering.ShadowCastingMode.On;
 
                 int handle = VegetationRenderer.Instance.Register(
                     src.mesh, src.material, matrices, count,
@@ -1472,11 +1471,27 @@ namespace Orivilon.World.Spawning
         public static float TreeFogFade = 0.3f;
 
         /// <summary>
-        /// Kolo 30: pásmo (m od kamery), ve kterém strom zmizí i bez mlhy. TreeProxies sahají jen do LOD2
-        /// prstence (zaručeně ~512 m); výšková mlha z vrcholu by jinak odkryla jejich useknutý okraj.
+        /// Kolo 30: pásmo (m od kamery), ve kterém strom zmizí i bez mlhy. TreeProxies sahají do LOD3
+        /// prstence (při lodRing 4 přibližně 1024 m); výšková mlha z vrcholu by jinak odkryla jejich useknutý okraj.
         /// Stejná funkce jako mlhové pásmo, takže kmen nikdy nezmizí dřív než listí. 0 = vypnuto.
         /// </summary>
-        public static float TreeFadeStart = 400f, TreeFadeEnd = 500f;
+        public static float TreeFadeStart = 750f, TreeFadeEnd = 1000f;
+
+        // Při nižším počtu LOD musí stromy zmizet před hranicí svého pokrytí.
+        public static float EffectiveTreeFadeEnd
+        {
+            get
+            {
+                if (TreeFadeEnd <= 0f) return TreeFadeEnd;
+                var terrain = VoxelTerrain.instance;
+                if (terrain == null) return TreeFadeEnd;
+                int lod = Mathf.Min(TreeProxies.MaxLod, Mathf.Clamp(terrain.lodCount, 1, 5) - 1);
+                float reach = lod == 0 ? terrain.ChunkSpan * terrain.renderDistance
+                    : terrain.ChunkSpan * (1 << lod) * Mathf.Max(2, terrain.lodRing);
+                return Mathf.Min(TreeFadeEnd, reach * 0.96f);
+            }
+        }
+
 
         private static readonly Dictionary<Material, Material> trunkVariants = new Dictionary<Material, Material>(4);
         private static readonly List<Material> trunkMaterials = new List<Material>(8);
@@ -1560,7 +1575,8 @@ namespace Orivilon.World.Spawning
             Shader.SetGlobalFloat("_TrunkDiag", TrunkDiagMask);
             Shader.SetGlobalFloat("_TrunkAlbedoFloor", TrunkLook ? TrunkAlbedoFloor : 0f);
             Shader.SetGlobalFloat("_TreeFogFade", TreeFogFade);
-            Shader.SetGlobalVector("_TreeFadeDist", new Vector4(TreeFadeStart, TreeFadeEnd, 0f, 0f));
+            Shader.SetGlobalVector("_TreeFadeDist", new Vector4(TreeFadeEnd > 0f ? TreeFadeStart * EffectiveTreeFadeEnd / TreeFadeEnd : TreeFadeStart,
+                EffectiveTreeFadeEnd, 0f, 0f));
         }
 
         /// <summary>Diagnostika pro konzoli.</summary>
@@ -1640,18 +1656,21 @@ namespace Orivilon.World.Spawning
 
         /// <summary>
         /// Úpravy malých dekorací po instancování: odstranění LODGroup (tráva/SmallObjects)
-        /// a vypnutí vrhání stínů (stíny malých objektů nejsou vidět, ale stály draw cally).
+        /// a vypnutí vrhání stínů pouze u SmallObjects.
         /// </summary>
         private void ApplySmallDecorationTweaks(GameObject spawnedObject, SpawnCategory category)
         {
             RemoveLODForSmallObjects(spawnedObject, category);
 
-            if (disableShadowsForSmallDecorations &&
-                (category == SpawnCategory.Grass || category == SpawnCategory.SmallObjects))
+            if (category == SpawnCategory.Grass ||
+                (disableShadowsForSmallDecorations && category == SpawnCategory.SmallObjects))
             {
+                var shadows = category == SpawnCategory.Grass
+                    ? UnityEngine.Rendering.ShadowCastingMode.On
+                    : UnityEngine.Rendering.ShadowCastingMode.Off;
                 var renderers = spawnedObject.GetComponentsInChildren<Renderer>(true);
                 for (int i = 0; i < renderers.Length; i++)
-                    renderers[i].shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                    renderers[i].shadowCastingMode = shadows;
             }
         }
 

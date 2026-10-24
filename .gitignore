@@ -99,3 +99,15 @@ InitTestScene*.unity*
 /[Aa]ssets/[Ii]nit[Tt]est[Ss]cene*.unity*
 _reports/
 .DS_Store
+
+# CCGS (Claude Code Game Studios)
+.claude/settings.local.json
+CLAUDE.local.md
+project.local.yaml
+production/session-logs/
+production/session-state/
+.claude/agent-memory/
+.claude/worktrees/
+__pycache__/
+*.pyc
+ProfilerCaptures/

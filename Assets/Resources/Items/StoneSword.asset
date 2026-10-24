@@ -13,14 +13,17 @@ MonoBehaviour:
   m_Name: StoneSword
   m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
   id: everlost:stone_sword
-  icon: {fileID: 21300000, guid: 10c829ee4ccbf61409c68518a1565046, type: 3}
+  icon: {fileID: 21300000, guid: 6c80719f9d9c840989cb69160dba4cae, type: 3}
   itemName: Stone Sword
   description: Used to chop heads
   stackable: 0
   maxStack: 1
-  handPrefab: {fileID: 8415684271870291171, guid: 66b2ba0c13fc84b47a83a463473e56cd,
+  handPrefab: {fileID: 6989692638852960695, guid: ae4d501902f4941c8bfa0012928b819d,
     type: 3}
   handPositionOffset: {x: 0.36, y: 0, z: 0}
   handRotationOffset: {x: -15, y: 290, z: 0}
   handScale: {x: 0.1, y: 0.1, z: 0.1}
   toolType: 0
+  isFood: 0
+  foodRestore: 0
+  waterRestore: 0

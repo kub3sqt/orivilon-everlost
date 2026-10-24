@@ -1,0 +1,28 @@
+{
+  "Walk": {
+    "stance_foot_motion_positive_y": 0.5366063117980957
+  },
+  "Run": {
+    "stance_foot_motion_positive_y": 0.8552042245864868
+  },
+  "run_arm_clearance": {
+    "wrist": 1.0299996137619019,
+    "elbow": 1.151872158050537,
+    "fist": 1.0663230419158936
+  },
+  "Mine": {
+    "sampled_poses": 109,
+    "head_faces_tested": 7624,
+    "head_or_hat_intersections": []
+  },
+  "Chop": {
+    "sampled_poses": 91,
+    "head_faces_tested": 7624,
+    "head_or_hat_intersections": []
+  },
+  "axe_arc": {
+    "horizontal_span": 2.351799249649048,
+    "max_height": 3.28108811378479,
+    "min_height": 2.820826530456543
+  }
+}

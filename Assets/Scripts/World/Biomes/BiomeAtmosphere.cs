@@ -35,12 +35,48 @@ namespace Orivilon.World.Biomes
         /// hranici biomu, jinak je vidět, jak se obraz překlopí.
         /// </summary>
         private const float BlendSpeed = 0.4f;
+        public static bool ValleyMistEnabled = true;
+        private static readonly int ValleyMistId = Shader.PropertyToID("_EverlostValleyMist");
+        private static readonly int ValleyMistColorId = Shader.PropertyToID("_EverlostValleyMistColor");
 
         /// <summary>Kolo 8: posun saturace a expozice uměleckého průchodu (jen za běhu).</summary>
-        public static float ArtSaturation = 12f, ArtExposure = -0.12f, ArtWhiteBalance = -10f;
-        public static Color ArtFogTint = new Color(0.76f, 0.87f, 1.0f, 1f);
+        /// <para>24.10.2026: obraz byl celý studený – runtime volume přepisoval autorské +8 vyvážení bílé
+        /// na −5 (u sněhu až −25) a mlha byla násobená sytou modří, takže obloha, voda i kameny
+        /// splývaly do jedné modré. Teplota je teď mírně teplá, biomové odchylky poloviční a opar
+        /// světle šedomodrý jako obzor oblohy.</para>
+        public static float ArtSaturation = 2f, ArtExposure = -0.05f, ArtWhiteBalance = 2f;
+        public static float ArtBiomeWbScale = 0.5f, ArtShadowTintAmount = 0.5f;
+        /// <summary>Noc: méně syté barvy (měsíční světlo), jinak tráva a listí v noci svítily tyrkysově.</summary>
+        public static float NightSaturation = -24f, NightWhiteBalance = 6f, NightExposure = 0f;
+        public static Color ArtFogTint = new Color(0.95f, 0.98f, 1.0f, 1f);
         /// <summary>Kolo 9: horská mlha – modřejší (vzdušná perspektiva), začátek později, o chlup nižší expozice na sněhu.</summary>
-        public static Color Art9FogTintMountain = new Color(0.56f, 0.74f, 1.0f, 1f);
+        public static Color Art9FogTintMountain = new Color(0.88f, 0.94f, 1.02f, 1f);
+
+        /// <summary>
+        /// Údolní mlha (24.10.2026): kapsy podle tvaru terénu (<see cref="ValleyMistField"/>) a nízká vrstva nad mořem.
+        /// Hustoty jsou extinkce na metr. Ráno, večer a v noci je mlhy víc než v poledne.
+        /// </summary>
+        public static float PocketDensity = 0.012f, PocketMaxOpacity = 0.72f, PocketLift = 8f, PocketMaxRay = 2200f;
+        public static float SeaMistScale = 0.7f, DayMistScale = 0.65f, MistBrightness = 1.1f, MistWhiten = 0.45f, MistSunScatter = 0.55f;
+        /// <summary>Stín trávy se zkracuje mezi těmito vzdálenostmi od kamery (m); konec 0 = bez omezení.</summary>
+        public static float GrassShadowStart = 22f, GrassShadowEnd = 34f;
+        /// <summary>HDR kamery: bez něj ACES dostává oříznuté hodnoty a bloom s prahem nad 1 nedělá nic.</summary>
+        public static bool ForceHdr = true;
+
+        private static readonly int ViewPosId = Shader.PropertyToID("_EverlostViewPos");
+        private static readonly int GrassShadowId = Shader.PropertyToID("_EverlostGrassShadow");
+        private static readonly int PocketId = Shader.PropertyToID("_EverlostValleyPocket");
+        private static readonly int Pocket2Id = Shader.PropertyToID("_EverlostValleyPocket2");
+        private static readonly int FloorId = Shader.PropertyToID("_EverlostValleyFloor");
+        private static readonly int MistSunId = Shader.PropertyToID("_EverlostMistSun");
+        private static readonly int MistSunColorId = Shader.PropertyToID("_EverlostMistSunColor");
+        private ValleyMistField mistField;
+
+        /// <summary>Stav mapy údolní mlhy pro diagnostiku (/atmo, visdiag).</summary>
+        public string MistInfo => mistField == null ? "mist field: none"
+            : string.Format(System.Globalization.CultureInfo.InvariantCulture,
+                "mist field: ready {0}, origin {1:0},{2:0}, builds {3}, last build {4:0.0} ms (spread over frames)",
+                mistField.Ready, mistField.Origin.x, mistField.Origin.y, mistField.Builds, mistField.LastBuildMs);
         public static float Art9FogNear = 1.0f, Art9FogNearMountain = 1.45f, Art9MountainExposure = -0.10f;
 
         /// <summary>Popis atmosféry jednoho biomu.</summary>
@@ -256,6 +292,11 @@ namespace Orivilon.World.Biomes
             SunRotation.FogOverride = false;
             SunRotation.LightDamp = 1f;
             SunRotation.VistaFactor = 0f;
+            Shader.SetGlobalVector(ValleyMistId, Vector4.zero);
+            Shader.SetGlobalVector(Pocket2Id, Vector4.zero);
+            Shader.SetGlobalVector(GrassShadowId, Vector4.zero);
+            mistField?.Release();
+            mistField = null;
             Instance = null;
         }
 
@@ -278,6 +319,12 @@ namespace Orivilon.World.Biomes
 
             shadows = profile.Add<ShadowsMidtonesHighlights>(true);
             shadows.shadows.overrideState = true;
+
+            // Soft highlights without washing out the low-poly color planes.
+            var bloom = profile.Add<Bloom>(false);
+            bloom.intensity.Override(0.25f);
+            bloom.threshold.Override(1.1f);
+            bloom.highQualityFiltering.Override(true);
 
             volume = gameObject.AddComponent<Volume>();
             volume.isGlobal = true;
@@ -307,6 +354,59 @@ namespace Orivilon.World.Biomes
             vista = Mathf.Lerp(vista, vistaTarget, 1f - Mathf.Exp(-VistaBlendSpeed * Time.deltaTime));
             SunRotation.VistaFactor = vista;
             Apply();
+        }
+
+        private void LateUpdate()
+        {
+            Camera cam = Camera.main;
+            if (cam != null)
+            {
+                if (ForceHdr && !cam.allowHDR) cam.allowHDR = true;
+                Shader.SetGlobalVector(ViewPosId, cam.transform.position);
+            }
+            Shader.SetGlobalVector(GrassShadowId, new Vector4(GrassShadowStart, GrassShadowEnd, 0f, 0f));
+
+            var terrain = VoxelTerrain.instance;
+            if (terrain == null || !RenderSettings.fog || !ValleyMistEnabled || cam == null)
+            {
+                Shader.SetGlobalVector(ValleyMistId, Vector4.zero);
+                Shader.SetGlobalVector(Pocket2Id, Vector4.zero);
+                return;
+            }
+
+            // World anchored: moving the camera never lifts the fog out of a valley.
+            // Existing distance fog and underwater fog retain their own ownership.
+            float night = Mathf.Clamp01(SunRotation.nightBlendStatic);
+            float twilight = 1f - Mathf.Abs(night * 2f - 1f);
+            float timeScale = Mathf.Lerp(DayMistScale, 1f, Mathf.Max(night, twilight)) * (1f - dive);
+            float density = Mathf.Lerp(0.0014f, 0.0021f, current.mountain) * SeaMistScale * timeScale;
+            Shader.SetGlobalVector(ValleyMistId, new Vector4(terrain.SeaLevel + 12f, 18f, density, 0.48f));
+
+            if (mistField == null) mistField = new ValleyMistField();
+            mistField.Tick(terrain, cam.transform.position);
+            Shader.SetGlobalTexture(FloorId, mistField.Texture);
+            Shader.SetGlobalVector(PocketId, new Vector4(PocketDensity * timeScale, PocketMaxOpacity, mistField.Origin.x, mistField.Origin.y));
+            Shader.SetGlobalVector(Pocket2Id, new Vector4(1f / mistField.Span, PocketLift, PocketMaxRay, mistField.Ready ? 1f : 0f));
+
+            bool linear = QualitySettings.activeColorSpace == ColorSpace.Linear;
+            // Mlha je bělejší a světlejší než dálkový opar (kapky rozptylují všechny barvy stejně).
+            Color fogC = RenderSettings.fogColor;
+            float lum = fogC.r * 0.2126f + fogC.g * 0.7152f + fogC.b * 0.0722f;
+            Color tint = Color.Lerp(fogC, new Color(lum, lum, lum), MistWhiten) * MistBrightness;
+            tint.a = 1f;
+            if (linear) tint = tint.linear;
+            Shader.SetGlobalColor(ValleyMistColorId, tint);
+
+            // Rozptyl vpřed: mlha proti nízkému slunci teple svítí. Jen když je slunce nad obzorem.
+            Vector3 toSun = -SunRotation.SkySunForward;
+            Light sun = RenderSettings.sun;
+            Color sunCol = sun != null ? sun.color * Mathf.Min(sun.intensity, 1.5f) : Color.white;
+            sunCol = Color.Lerp(RenderSettings.fogColor, sunCol, 0.75f);
+            sunCol.a = 1f;
+            if (linear) sunCol = sunCol.linear;
+            float sunUp = Mathf.Clamp01(toSun.y * 6f + 0.3f) * (1f - night);
+            Shader.SetGlobalVector(MistSunId, new Vector4(toSun.x, toSun.y, toSun.z, MistSunScatter * sunUp));
+            Shader.SetGlobalColor(MistSunColorId, sunCol);
         }
 
         /// <summary>
@@ -422,20 +522,23 @@ namespace Orivilon.World.Biomes
                 // Kolo 8: umělecký průchod – o kus sytější a o chlup tmavší obraz. Globální
                 // profil má ACES a teplé světlé tóny, které osluněnou trávu a písek slévaly
                 // do stejné bledě béžové; biomy se pak nedaly rozeznat.
-                color.saturation.value = current.saturation + (art ? ArtSaturation : 0f);
-                color.postExposure.value = current.exposure + (art ? ArtExposure : 0f)
+                float night = Mathf.Clamp01(SunRotation.nightBlendStatic);
+                color.saturation.value = current.saturation + (art ? ArtSaturation + NightSaturation * night : 0f);
+                color.postExposure.value = current.exposure + (art ? ArtExposure + NightExposure * night : 0f)
                     + (art9 ? Art9MountainExposure * current.mountain : 0f);
             }
 
-            if (white != null) white.temperature.value = current.whiteBalance
-                + (Orivilon.World.Generation.WorldGenSettings.ArtPassEnabled ? ArtWhiteBalance : 0f);
+            if (white != null) white.temperature.value = art
+                ? current.whiteBalance * ArtBiomeWbScale + ArtWhiteBalance + NightWhiteBalance * Mathf.Clamp01(SunRotation.nightBlendStatic)
+                : current.whiteBalance;
 
             if (shadows != null)
             {
                 // ShadowsMidtonesHighlights bere barvu jako Vector4 (rgb + expozice).
-                shadows.shadows.value = new Vector4(current.shadowTint.r * 2f,
-                                                    current.shadowTint.g * 2f,
-                                                    current.shadowTint.b * 2f, 0f);
+                float k = art ? ArtShadowTintAmount : 1f;
+                shadows.shadows.value = new Vector4(Mathf.Lerp(1f, current.shadowTint.r * 2f, k),
+                                                    Mathf.Lerp(1f, current.shadowTint.g * 2f, k),
+                                                    Mathf.Lerp(1f, current.shadowTint.b * 2f, k), 0f);
             }
         }
 

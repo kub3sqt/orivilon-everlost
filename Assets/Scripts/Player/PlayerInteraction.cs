@@ -39,6 +39,9 @@ namespace Orivilon.Player
         /// <summary>Reference na ToolAnimator pro zahájení animace těžení.</summary>
         [SerializeField] private ToolAnimator toolAnimator;
 
+        /// <summary>Pohled zepředu (F5, TravelerCameraView) – kříž by mířil opačně, proto se skrývá.</summary>
+        public static bool HideCrosshair;
+
         /// <summary>Aktuálně cílený pickup objekt (null = žádný).</summary>
         private PickupItem currentPickup;
 
@@ -58,17 +61,22 @@ namespace Orivilon.Player
         /// Každý snímek provede raycast a zkontroluje interakce:
         /// E = sebrat PickupItem, LMB dolů = zahájit animaci těžení, LMB nahoru = ukončit animaci.
         /// </summary>
+        /// <summary>Výzva podle klávesy z nastavení (KeyBindings.Interact), ne pevné „E“.</summary>
+        private static string InteractKeyLabel => Orivilon.UI.Settings.KeyBindings.Interact.ToString();
+
         private void Update()
         {
             CheckForInteraction();
 
-            if (currentPickup != null && Input.GetKeyDown(KeyCode.E))
+            if (currentPickup != null && Input.GetKeyDown(Orivilon.UI.Settings.KeyBindings.Interact))
             {
+                TravelerAvatar.Local?.PlayAction(TravelerAction.Pickup);
                 currentPickup.PickUp();
                 ClearUI();
             }
-            else if (currentInstanced.Valid && Input.GetKeyDown(KeyCode.E))
+            else if (currentInstanced.Valid && Input.GetKeyDown(Orivilon.UI.Settings.KeyBindings.Interact))
             {
+                TravelerAvatar.Local?.PlayAction(TravelerAction.Pickup);
                 Orivilon.World.Spawning.ObjectSpawner.PickUpInstanced(currentInstanced);
                 ClearUI();
             }
@@ -78,11 +86,16 @@ namespace Orivilon.Player
                 if (EventSystem.current != null && EventSystem.current.IsPointerOverGameObject())
                     return;
 
-                toolAnimator?.SetHolding(true);
+                // Postava v004: držené LMB = smyčka Chop/Mine s 1,0 s cyklem jako původní HitLoop (zásah v kontaktním snímku).
+                if (TravelerAvatar.Local != null)
+                    TravelerAvatar.Local.SetHarvesting(true);
+                else
+                    toolAnimator?.SetHolding(true);
             }
 
             if (Input.GetMouseButtonUp(0))
             {
+                TravelerAvatar.Local?.SetHarvesting(false);
                 toolAnimator?.SetHolding(false);
             }
         }
@@ -110,7 +123,7 @@ namespace Orivilon.Player
                     currentPickup = pickup;
                     currentHarvest = null;
                     currentInstanced = default;
-                    ShowUI($"Press E to pick up {pickup.itemData.itemName}");
+                    ShowUI($"Press {InteractKeyLabel} to pick up {pickup.itemData.itemName}");
                     return;
                 }
 
@@ -126,16 +139,44 @@ namespace Orivilon.Player
                 }
             }
 
+            // Vyhozený předmět u nohou: Q ho odhodí ~4–5 m před hráče, ale oči jsou 7,7 m nad zemí a pohled
+            // dolů je omezený (maxLookAngle 50°) – nejbližší zaměřitelné místo na zemi je ~6,5 m daleko, takže
+            // paprsek předmět míjel o ~1 m a E nešlo (QA: sekera 5,3 m od hráče, paprsek o 6,4° vedle).
+            // Když přímý paprsek nic sebratelného netrefil, zkusí se tenká koule podél téhož paprsku
+            // jen na vrstvě Pickup. Sebrání jde dál stejnou cestou (PickUp, síťová autorita beze změny).
+            if (TryPickupAssist(ray, grassReach + pickupAssistRadius, out var assisted))
+            {
+                currentPickup = assisted;
+                currentHarvest = null;
+                currentInstanced = default;
+                ShowUI($"Press {InteractKeyLabel} to pick up {assisted.itemData.itemName}");
+                return;
+            }
+
             if (Orivilon.World.Spawning.ObjectSpawner.FindInstancedPickup(ray, grassReach, out var grass))
             {
                 currentPickup = null;
                 currentHarvest = null;
                 currentInstanced = grass;
-                ShowUI($"Press E to pick up {grass.template.itemData.itemName}");
+                ShowUI($"Press {InteractKeyLabel} to pick up {grass.template.itemData.itemName}");
                 return;
             }
 
             ClearUI();
+        }
+
+        /// <summary>Poloměr pomocné koule pro sebrání (svět). Hráč je 8 m vysoký, 1,5 m ≈ dlaň.</summary>
+        public float pickupAssistRadius = 1.5f;
+
+        /// <param name="maxDistance">Jen do místa, kde přímý paprsek narazil (+ poloměr) – nesbírá se skrz terén.</param>
+        private bool TryPickupAssist(Ray ray, float maxDistance, out PickupItem pickup)
+        {
+            pickup = null;
+            int mask = pickupLayer.value != 0 ? pickupLayer.value : LayerMask.GetMask("Pickup");
+            if (mask == 0 || pickupAssistRadius <= 0f) return false;
+            if (!Physics.SphereCast(ray, pickupAssistRadius, out RaycastHit hit, Mathf.Min(interactionDistance, maxDistance), mask, QueryTriggerInteraction.Collide))
+                return false;
+            return hit.collider.TryGetComponent(out pickup) && pickup.itemData != null;
         }
 
         /// <summary>
@@ -147,7 +188,7 @@ namespace Orivilon.Player
             pickupText.SetActive(true);
             pickupTextLabel.text = text;
             crosshairDefault.SetActive(false);
-            crosshairPickup.SetActive(true);
+            crosshairPickup.SetActive(!HideCrosshair);
         }
 
         /// <summary>
@@ -160,7 +201,7 @@ namespace Orivilon.Player
             currentInstanced = default;
 
             pickupText.SetActive(false);
-            crosshairDefault.SetActive(true);
+            crosshairDefault.SetActive(!HideCrosshair);
             crosshairPickup.SetActive(false);
         }
 

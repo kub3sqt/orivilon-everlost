@@ -206,6 +206,12 @@ namespace Orivilon.Multiplayer
                 var dict = typeof(Netcode.Transports.Facepunch.FacepunchTransport).GetField("connectedClients", F)?.GetValue(t) as System.Collections.IDictionary;
                 if (dict == null || !dict.Contains(transportId)) return false;
                 var client = dict[transportId];
+                // 23.10.2026: Facepunch transport si ukládá info.Identity.SteamId – v této verzi Facepunch.Steamworks
+                // vlastnost ConnectionInfo.Identity vrací identitu z IP adresy (SteamId 0), ne SteamID protistrany.
+                // Host proto dřív odmítal KAŽDÉHO klienta přes Steam („identita spojení nesedí“). Identitu bereme přímo
+                // ze Steamu podle spojení (GetConnectionInfo, pole identity); uložené ID transportu jen jako záloha.
+                object conn = client.GetType().GetField("connection", F)?.GetValue(client);
+                if (conn is Steamworks.Data.Connection c && TrySteamIdFromConnection(c.Id, out steamId)) return true;
                 var sid = client.GetType().GetField("steamId", F)?.GetValue(client);
                 if (sid is Steamworks.SteamId s) { steamId = s.Value; return steamId != 0; }
             }
@@ -213,6 +219,55 @@ namespace Orivilon.Multiplayer
 #endif
             return false;
         }
+
+#if FACEPUNCH_STEAMWORKS
+        /// <summary>
+        /// SteamID protistrany Steam spojení přímo ze Steamu (ISteamNetworkingSockets::GetConnectionInfo). Čte se pole
+        /// <c>identity</c> (SteamNetworkingIdentity na začátku struktury, stejné na všech platformách), ne vlastnost
+        /// <c>Identity</c>. Facepunch tuto funkci nemá veřejně – volá se jeho interní obal reflexí, bez úpravy vendor kódu.
+        /// </summary>
+        internal static bool TrySteamIdFromConnection(uint connectionId, out ulong steamId)
+        {
+            steamId = 0;
+            if (connectionId == 0 || !Steamworks.SteamClient.IsValid) return false;
+            const System.Reflection.BindingFlags S = System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+            const System.Reflection.BindingFlags I = System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public;
+            try
+            {
+                object sockets = typeof(Steamworks.SteamNetworkingSockets).GetProperty("Internal", S)?.GetValue(null);
+                if (sockets == null) return false;
+                System.Reflection.MethodInfo get = null;
+                foreach (var m in sockets.GetType().GetMethods(I))
+                {
+                    if (!m.Name.EndsWith("GetConnectionInfo", System.StringComparison.Ordinal)) continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length == 2 && ps[0].ParameterType == typeof(Steamworks.Data.Connection) && ps[1].ParameterType.IsByRef) { get = m; break; }
+                }
+                if (get == null) return false;
+                object conn = new Steamworks.Data.Connection();
+                var idField = typeof(Steamworks.Data.Connection).GetField("<Id>k__BackingField", I) ?? typeof(Steamworks.Data.Connection).GetField("Id", I);
+                if (idField == null) return false;
+                idField.SetValue(conn, connectionId);
+                var args = new object[] { conn, new Steamworks.Data.ConnectionInfo() };
+                if (!(get.Invoke(sockets, args) is bool ok) || !ok) return false;
+                var identity = typeof(Steamworks.Data.ConnectionInfo).GetField("identity", I);
+                if (identity == null) return false;
+                steamId = ((Steamworks.Data.NetIdentity)identity.GetValue(args[1])).SteamId.Value;
+                return steamId != 0;
+            }
+            catch (System.Exception e)
+            {
+                Debug.LogWarning("[MultiplayerManager] GetConnectionInfo nelze zavolat: " + e.GetType().Name);
+                return false;
+            }
+        }
+#endif
+
+#if (UNITY_EDITOR || DEVELOPMENT_BUILD) && FACEPUNCH_STEAMWORKS
+        /// <summary>QA: SteamID protistrany podle Steam spojení (stejná cesta jako schválení na hostovi).</summary>
+        public static string QaSteamIdOf(uint connectionId)
+            => TrySteamIdFromConnection(connectionId, out ulong id) ? id.ToString(System.Globalization.CultureInfo.InvariantCulture) : "nelze";
+#endif
 
         /// <summary>
         /// Host: schválení připojení. Heslo se ověří tady – NGO do schválení nedoručí žádnou zprávu
@@ -229,46 +284,81 @@ namespace Orivilon.Multiplayer
             // Host sám sebe schvaluje vždy.
             if (req.ClientNetworkId == NetworkManager.ServerClientId) { res.Approved = true; return; }
 
-            if (!JoinGate.TryParse(req.Payload, out ulong claimed, out byte[] hash)) { res.Reason = JoinGate.ReasonVersion; return; }
-
             bool steamRoute = hostKey != null && !hostKey.StartsWith("lan:");
+            if (!JoinGate.TryParse(req.Payload, out ulong claimed, out byte[] hash)) { Reject(res, JoinGate.ReasonVersion, 0, steamRoute, "neznámý formát žádosti"); return; }
+
             ulong identity = claimed;
             string keyPrefix = "lan:";
             if (steamRoute)
             {
-                if (!TryTransportSteamId(req.ClientNetworkId, out ulong verified) || verified != claimed)
+                bool known = TryTransportSteamId(req.ClientNetworkId, out ulong verified);
+                if (!known || verified != claimed)
                 {
-                    res.Reason = JoinGate.ReasonIdentity;
-                    Debug.LogWarning("[MultiplayerManager] Připojení odmítnuto: identita spojení nesedí.");
+                    // ID nejsou tajná (veřejná Steam ID) – do logu patří, jinak se odmítnutí nedá dohledat.
+                    Reject(res, JoinGate.ReasonIdentity, claimed, true, known ? "identita spojení " + verified + " ≠ deklarovaná " + claimed : "identitu spojení nelze zjistit (deklarovaná " + claimed + ")");
                     return;
                 }
                 identity = verified; keyPrefix = "steam:";
             }
 
             int limit = SteamLobbyManager.Instance != null ? Mathf.Max(2, SteamLobbyManager.Instance.maxPlayers) : 8;
-            if (netManager.ConnectedClientsIds.Count >= limit) { res.Reason = JoinGate.ReasonFull; return; }
+            if (netManager.ConnectedClientsIds.Count >= limit) { Reject(res, JoinGate.ReasonFull, identity, steamRoute, "plno"); return; }
 
             if (HostHasPassword)
             {
                 float now = Time.unscaledTime;
                 if (joinLimiter.IsLocked(identity, now, out float wait))
                 {
-                    res.Reason = JoinGate.ReasonLockout + ":" + Mathf.CeilToInt(Mathf.Max(1f, wait));
-                    Debug.LogWarning("[MultiplayerManager] Připojení odmítnuto: příliš mnoho špatných hesel.");
+                    Reject(res, JoinGate.ReasonLockout + ":" + Mathf.CeilToInt(Mathf.Max(1f, wait)), identity, steamRoute, "příliš mnoho špatných hesel");
                     return;
                 }
-                if (hash == null) { res.Reason = JoinGate.ReasonPasswordRequired; return; }   // první pokus bez hesla se nepočítá
+                if (hash == null) { Reject(res, JoinGate.ReasonPasswordRequired, identity, steamRoute, "bez hesla"); return; }   // první pokus bez hesla se nepočítá
                 if (!JoinGate.Equal(hash, JoinGate.Proof(hostKey, identity, SessionNonce, hostPassword)))
                 {
                     joinLimiter.Fail(identity, now);
-                    res.Reason = JoinGate.ReasonPasswordWrong;
-                    Debug.LogWarning("[MultiplayerManager] Připojení odmítnuto: špatné heslo.");
+                    Reject(res, JoinGate.ReasonPasswordWrong, identity, steamRoute, "špatné heslo");
                     return;
                 }
                 joinLimiter.Success(identity);
             }
             playerKeys[req.ClientNetworkId] = keyPrefix + identity.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            if (steamRoute) SteamLobbyManager.Instance?.ClearJoinRejection(identity);
             res.Approved = true;
+            Debug.Log($"[MultiplayerManager] Připojení schváleno: {keyPrefix}{identity}.");
+        }
+
+        // ── Odmítnutí s důvodem (23.10.2026) ────────────────────────────────
+        // Přes Steam (Facepunch) NGO pošle zprávu s důvodem a v tomtéž snímku zavře spojení bez „lingeru“ – Steam
+        // neodeslaná data zahodí, takže klient důvod nikdy nedostal (viděl jen „Lost the connection“, a heslo se
+        // tak přes Steam nedalo zadat vůbec). Host proto důvod nejdřív zveřejní v lobby (rej_<SteamID>, čte ho jen
+        // žadatel) a odmítnutí dokončí s krátkým odkladem (Pending), aby data lobby stihla dorazit.
+        private const float RejectNoticeDelay = 1.5f;
+        private readonly List<(NetworkManager.ConnectionApprovalResponse res, float at)> delayedRejects = new List<(NetworkManager.ConnectionApprovalResponse, float)>();
+
+        private void Reject(NetworkManager.ConnectionApprovalResponse res, string reason, ulong notifyId, bool steamRoute, string why)
+        {
+            res.Approved = false;
+            res.Reason = reason;
+            Debug.LogWarning($"[MultiplayerManager] Připojení odmítnuto ({reason}): {why}.");
+            if (!steamRoute || notifyId == 0 || SteamLobbyManager.Instance == null || !SteamLobbyManager.Instance.PublishJoinRejection(notifyId, reason))
+            {
+                res.Pending = false;
+                return;
+            }
+            res.Pending = true;
+            delayedRejects.Add((res, Time.unscaledTime + RejectNoticeDelay));
+        }
+
+        private void Update()
+        {
+            if (delayedRejects.Count == 0) return;
+            float now = Time.unscaledTime;
+            for (int i = delayedRejects.Count - 1; i >= 0; i--)
+            {
+                if (now < delayedRejects[i].at) continue;
+                delayedRejects[i].res.Pending = false;   // NGO teď pošle důvod a zavře spojení
+                delayedRejects.RemoveAt(i);
+            }
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -327,8 +417,12 @@ namespace Orivilon.Multiplayer
         /// <summary>
         /// Společná část startu klienta. Transport musí být nakonfigurován PŘED voláním.
         /// </summary>
+        /// <summary>QA/diagnostika (23.10.2026): kolikrát se spustil NGO klient – důkaz, že před heslem nic neběží.</summary>
+        public static int StartClientCalls { get; private set; }
+
         private void StartClientCommon()
         {
+            StartClientCalls++;
             netManager.OnClientConnectedCallback    -= OnClientConnected;
             netManager.OnClientDisconnectCallback   -= OnClientDisconnected;
             netManager.OnClientConnectedCallback    += OnClientConnected;
@@ -347,12 +441,16 @@ namespace Orivilon.Multiplayer
         /// </summary>
         public void Shutdown()
         {
+            delayedRejects.Clear();
             if (netManager != null)
             {
                 netManager.OnClientConnectedCallback  -= OnClientConnected;
                 netManager.OnClientDisconnectCallback -= OnClientDisconnected;
                 netManager.OnClientStopped            -= OnLocalClientStopped;
             }
+
+            // 22.10.2026: klient před odchodem nahlásí hostovi aktuální potřeby (Shutdown odešle frontu zpráv).
+            if (IsClient && worldSync != null) worldSync.SendNeedsNow();
 
             if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening)
                 NetworkManager.Singleton.Shutdown();
@@ -509,6 +607,15 @@ namespace Orivilon.Multiplayer
         private void OnLocalClientStopped(bool _)
         {
             if (netManager != null) netManager.OnClientStopped -= OnLocalClientStopped;
+            // 23.10.2026: host zmizel během načítání jeho světa (po kroku sítě) – zpět do menu s důvodem,
+            // ne tiché pokračování do offline kopie světa. Během kroku sítě to řeší ClientJoinStep sám.
+            if (SceneLoader.IsLoading && !SceneLoader.NetworkStepActive && SceneLoader.Instance != null)
+            {
+                string why = JoinGate.Describe(netManager != null ? netManager.DisconnectReason : null)
+                             ?? "The host left or the connection dropped while you were joining. Try joining again.";
+                SteamLobbyManager.Instance?.LeaveLobby();
+                SceneLoader.Instance.AbortLoadingToMenu(why);
+            }
             ClearRemotePlayers();
             playerNames.Clear();
             worldSync?.OnSessionEnded();

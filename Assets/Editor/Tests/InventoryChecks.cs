@@ -54,6 +54,7 @@ namespace Orivilon.EditorTools
                 Check("Číselné klávesy prohodí s hotbarem", NumberKeys);
                 Check("Kolečko: push/pull, kapacita, pořadí hledání, směr", Wheel);
                 Check("Crafting: shapeless spotřeba (regrese), výstup není sklad, Craft All do kapacity", Crafting);
+                Check("Shift+klik na výstup s itemem na kurzoru: Craft All, kurzor beze změny, kapacita, bez surovin", CraftShiftWithCursor);
                 Check("Vrácení gridu/kurzoru do plného inventáře nic neztratí", ReturnFull);
                 Check("Snímek savu obsahuje kurzor+grid, živá data beze změny", SaveSnapshot);
                 Check("Fuzz 4000 náhodných gest zachová počty a limity", Fuzz);
@@ -414,6 +415,61 @@ namespace Orivilon.EditorTools
             A.Cursor.Set(stick, 60);
             Click(SlotRef.Output, 0); Eq(64, A.Cursor.amount, "vejde se → craft"); True(G(0).IsEmpty && G(3).IsEmpty, "spotřeba 1/buňku");
             Invariants();
+        }
+
+        private static int InInventory(InventoryItemData it)
+        {
+            int n = 0;
+            foreach (var x in inv.Slots) if (!x.IsEmpty && x.item == it) n += x.amount;
+            return n;
+        }
+
+        /// <summary>23.10.2026: Shift+LMB na výstup s obsazeným kurzorem = stávající Craft All do inventáře.</summary>
+        private static void CraftShiftWithCursor()
+        {
+            Reset(true);
+            var sh = ScriptableObject.CreateInstance<ShapedRecipe>(); temp.Add(sh);
+            sh.width = 1; sh.height = 2; sh.pattern = new[] { log, log }; sh.result = stick; sh.resultAmount = 4;
+            ctrl.shapedRecipes.Add(sh);
+
+            // jiný item na kurzoru
+            G(0).Set(log, 3); G(3).Set(log, 3);
+            A.Cursor.Set(stone, 10);
+            Click(SlotRef.Output, 0, true);
+            True(A.Cursor.item == stone && A.Cursor.amount == 10, "kurzor (jiný item) beze změny");
+            Eq(12, InInventory(stick), "3 crafty do inventáře");
+            True(G(0).IsEmpty && G(3).IsEmpty, "suroviny spotřebovány přesně na 3 crafty");
+
+            // stejný item jako výsledek na kurzoru
+            G(0).Set(log, 2); G(3).Set(log, 2);
+            A.Cursor.Set(stick, 5);
+            Click(SlotRef.Output, 0, true);
+            True(A.Cursor.item == stick && A.Cursor.amount == 5, "kurzor (stejný item) beze změny");
+            Eq(20, InInventory(stick), "2 další crafty do inventáře, ne na kurzor");
+
+            // částečná kapacita: místo jen na 1 craft; na kurzoru surovina receptu
+            for (int i = 0; i < 63; i++) P(i).Set(stone, 64);
+            P(40).Set(stick, 60);
+            G(0).Set(log, 3); G(3).Set(log, 3);
+            A.Cursor.Set(log, 7);
+            Click(SlotRef.Output, 0, true);
+            Eq(64, P(40).amount, "jen 1 craft (kapacita)");
+            Eq(2, G(0).amount, "zbylo na 2 crafty");
+            True(A.Cursor.item == log && A.Cursor.amount == 7, "kurzor se surovinou beze změny");
+
+            // plný inventář: nic
+            Click(SlotRef.Output, 0, true);
+            Eq(2, G(0).amount, "plný inventář: žádný craft");
+
+            // bez surovin (recept nesedí): nic, kurzor se do výstupu nepoloží
+            foreach (var x in inv.Slots) x.Clear();
+            G(0).Set(log, 1); G(3).Clear();
+            A.Cursor.Set(stone, 3);
+            Click(SlotRef.Output, 0, true);
+            True(A.Cursor.item == stone && A.Cursor.amount == 3, "bez receptu kurzor beze změny");
+            Eq(1, G(0).amount, "surovina nespotřebována"); Eq(0, InInventory(stick), "nic nevzniklo");
+            Invariants();
+            A.Cursor.Clear();
         }
 
         private static void ReturnFull()

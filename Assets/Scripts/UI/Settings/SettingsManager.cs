@@ -28,7 +28,7 @@ namespace Orivilon.UI.Settings
     /// </summary>
     public class SettingsManager : MonoBehaviour
     {
-        public const int CurrentVersion = 2;
+        public const int CurrentVersion = 3;   // v3: klávesy se poprvé aplikují (dřív jen uložené výchozí hodnoty)
 
         public static SettingsManager Instance { get; private set; }
 
@@ -164,7 +164,7 @@ namespace Orivilon.UI.Settings
                     var raw = new SettingsData { version = 0 };
                     JsonUtility.FromJsonOverwrite(json, raw);
                     if (!json.Contains("\"version\"")) raw.version = 0;
-                    if (raw.version < CurrentVersion)
+                    if (raw.version < 2)
                     {
                         // v0/v1: only what the old manager really applied is kept (display, sync, quality,
                         // master volume). Player/terrain values were never applied in game – the scene
@@ -174,6 +174,15 @@ namespace Orivilon.UI.Settings
                         LoadInfo = "migrated v" + raw.version;
                     }
                     else { d = raw; LoadInfo = "loaded"; }
+                    if (raw.version == 2)
+                    {
+                        // v2 → v3: klávesy hra do v3 nečetla a menu je nešlo měnit, v souboru jsou jen výchozí hodnoty
+                        // (sprint „LeftShift“, který nikdy neplatil). Nahradí se výchozími hodnotami odpovídajícími hře.
+                        var def = new SettingsData();
+                        d.sprintKey = def.sprintKey; d.jumpKey = def.jumpKey; d.crouchKey = def.crouchKey; d.interactKey = def.interactKey;
+                        d.inventoryKey = def.inventoryKey; d.zoomKey = def.zoomKey; d.flightKey = def.flightKey; d.quickSaveKey = def.quickSaveKey;
+                        LoadInfo = "migrated v2 (klávesy)";
+                    }
                 }
                 catch (System.Exception ex)
                 {
@@ -196,6 +205,9 @@ namespace Orivilon.UI.Settings
         {
             var def = new SettingsData();
             d.version = CurrentVersion;
+            // F5 přepíná pohled kamery (TravelerCameraView); starší settings.json mají rychlé uložení ještě na F5.
+            if (string.IsNullOrEmpty(d.quickSaveKey) || d.quickSaveKey == "F5") d.quickSaveKey = def.quickSaveKey;
+            ValidateKeys(d, def);
             int levels = Mathf.Max(1, QualitySettings.names.Length);
             if (d.qualityLevel < 0 || d.qualityLevel >= levels) d.qualityLevel = Mathf.Clamp(def.qualityLevel, 0, levels - 1);
             d.vSync = d.vSync > 0 ? 1 : 0;
@@ -278,8 +290,41 @@ namespace Orivilon.UI.Settings
                 if (fpc.playerCamera != null) fpc.playerCamera.fieldOfView = d.fieldOfView;
             }
 
+            ApplyKeys(d, fpc);
+
             var terrain = VoxelTerrain.instance;
             if (terrain != null && terrain.renderDistance != d.renderDistance) terrain.UpdateRenderDistance(d.renderDistance);
+        }
+
+        /// <summary>
+        /// Klávesy: neznámý název nebo klávesa obsazená jinou funkcí hry (KeyBindings.IsReserved: F5 kamera, Esc,
+        /// 1–8 hotbar…) → výchozí. Dvě akce na stejné klávese: pozdější se vrátí na výchozí (sprint a dřep sdílejí
+        /// LeftControl i ve výchozím stavu – dřep je ve scéně vypnutý a ve vodě potápí, to je záměr hry).
+        /// </summary>
+        private static void ValidateKeys(SettingsData d, SettingsData def)
+        {
+            string Fix(string v, string dv) => KeyBindings.TryParse(v, out var k) && !KeyBindings.IsReserved(k) ? k.ToString() : dv;
+            d.sprintKey = Fix(d.sprintKey, def.sprintKey); d.jumpKey = Fix(d.jumpKey, def.jumpKey);
+            d.crouchKey = Fix(d.crouchKey, def.crouchKey); d.interactKey = Fix(d.interactKey, def.interactKey);
+            d.inventoryKey = Fix(d.inventoryKey, def.inventoryKey); d.zoomKey = Fix(d.zoomKey, def.zoomKey);
+            d.flightKey = Fix(d.flightKey, def.flightKey); d.quickSaveKey = Fix(d.quickSaveKey, def.quickSaveKey);
+            var used = new HashSet<string>();
+            string Uniq(string v, string dv, bool shareable = false) { if (!shareable && !used.Add(v)) return used.Add(dv) ? dv : v; return v; }
+            d.sprintKey = Uniq(d.sprintKey, def.sprintKey); d.jumpKey = Uniq(d.jumpKey, def.jumpKey);
+            d.interactKey = Uniq(d.interactKey, def.interactKey); d.inventoryKey = Uniq(d.inventoryKey, def.inventoryKey);
+            d.zoomKey = Uniq(d.zoomKey, def.zoomKey); d.flightKey = Uniq(d.flightKey, def.flightKey); d.quickSaveKey = Uniq(d.quickSaveKey, def.quickSaveKey);
+        }
+
+        /// <summary>Klávesy do existujících konzumentů: pole FirstPersonController a KeyBindings (E, Tab, F6).</summary>
+        private static void ApplyKeys(SettingsData d, FirstPersonController fpc)
+        {
+            KeyBindings.Apply(d);
+            if (fpc == null) return;
+            fpc.sprintKey = KeyBindings.Parse(d.sprintKey, fpc.sprintKey);
+            fpc.jumpKey = KeyBindings.Parse(d.jumpKey, fpc.jumpKey);
+            fpc.crouchKey = KeyBindings.Parse(d.crouchKey, fpc.crouchKey);
+            fpc.zoomKey = KeyBindings.Parse(d.zoomKey, fpc.zoomKey);
+            fpc.flightKey = KeyBindings.Parse(d.flightKey, fpc.flightKey);
         }
 
         private static void SetShadows(Camera cam, bool on)

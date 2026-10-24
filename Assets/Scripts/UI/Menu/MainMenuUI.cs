@@ -71,6 +71,9 @@ namespace Orivilon.UI.Menu
         [Tooltip("Panel se seznamem hrajících kamarádů (MP tlačítko bez označeného světa)")]
         [SerializeField] private FriendsListUI friendsList;
 
+        [Tooltip("Formulář Create New World (ikony Singleplayer/Multiplayer v něm volí režim nového světa).")]
+        [SerializeField] private CreateWorldMenu creator;
+
         [Header("Play mode (per world)")]
         [Tooltip("Shown on the Singleplayer selector while that mode is selected (independent of hover).")]
         [SerializeField] private GameObject singleplayerSelected;
@@ -97,6 +100,7 @@ namespace Orivilon.UI.Menu
         /// </summary>
         private void Awake()
         {
+            if (creator == null) creator = FindFirstObjectByType<CreateWorldMenu>(FindObjectsInactive.Include);
             // Singleplayer / Multiplayer jsou přepínače režimu vybraného světa – svět spouští až PLAY.
             if (singleplayerButton != null)
                 singleplayerButton.onClick.AddListener(SelectSingleplayerMode);
@@ -199,20 +203,29 @@ namespace Orivilon.UI.Menu
 
         private void OnDisable() => ExitFriendsMode();
 
-        /// <summary>Selects Singleplayer for the selected world (persisted per world). Does not launch.</summary>
-        public void SelectSingleplayerMode() => SetPlayMode("single");
+        /// <summary>Otevřené Create New World (ne režim Multiplayer) – ikony pak volí režim nového světa.</summary>
+        private bool CreateOpen => !FriendsMode && createMenu != null && createMenu.activeSelf;
 
-        /// <summary>Selects Multiplayer for the selected world (persisted per world). Without a selected
-        /// world it opens the friends list as before (joining a friend).</summary>
+        /// <summary>Selects Singleplayer for the selected world (persisted per world), or for the world being
+        /// created on the Create screen. Does not launch.</summary>
+        public void SelectSingleplayerMode()
+        {
+            if (CreateOpen) { if (creator != null) creator.SetMode(false); return; }
+            SetPlayMode("single");
+        }
+
+        /// <summary>Selects Multiplayer (= host this world) for the selected world, or for the world being
+        /// created. Never opens the friends list – that has its own Multiplayer entry on the main page
+        /// (menu polish 23.10.2026); without a selected world the icons are hidden anyway.</summary>
         public void SelectMultiplayerMode()
         {
-            if (selectedWorldData == null)
-            {
-                OpenMultiplayerMenu();
-                return;
-            }
+            if (CreateOpen) { if (creator != null) creator.SetMode(true); return; }
+            if (selectedWorldData == null) return;
             SetPlayMode("multi");
         }
+
+        /// <summary>Obnoví kroužky vybraného režimu (volá Create formulář při změně režimu).</summary>
+        public void RefreshModeMarkers() => UpdatePlayModeVisuals();
 
         private void SetPlayMode(string mode)
         {
@@ -237,8 +250,10 @@ namespace Orivilon.UI.Menu
         {
             bool has = selectedWorldData != null;
             bool multi = has && selectedWorldData.PrefersMultiplayer;
-            if (singleplayerSelected != null) singleplayerSelected.SetActive(has && !multi);
-            if (multiplayerSelected != null) multiplayerSelected.SetActive(has && multi);
+            // Create New World: kroužek ukazuje režim, ve kterém se nový svět vytvoří a spustí
+            bool creating = CreateOpen && creator != null;
+            if (singleplayerSelected != null) singleplayerSelected.SetActive(creating ? !creator.Multiplayer : has && !multi);
+            if (multiplayerSelected != null) multiplayerSelected.SetActive(creating ? creator.Multiplayer : has && multi);
             if (playModeSubtitle != null) playModeSubtitle.text = !has ? "" : multi ? "Multiplayer" : "Singleplayer";
             if (playModeText == null) return;
             // the line above PLAY is only used for errors now; the mode itself is the subtitle inside PLAY
@@ -388,12 +403,14 @@ namespace Orivilon.UI.Menu
         {
             if (createMenu != null)
                 createMenu.SetActive(true);
+            if (creator != null) creator.ResetForm();
 
             if (worldScrollView != null)
                 worldScrollView.SetActive(false);
 
             if (menuHeaderText != null)
                 menuHeaderText.text = "Create New World";
+            UpdatePlayModeVisuals();
 
             if (headerAnimator != null)
                 headerAnimator.SetInteger("MenuState", 2);
@@ -486,12 +503,14 @@ namespace Orivilon.UI.Menu
             }
             if (createMenu != null)
                 createMenu.SetActive(true);
+            if (creator != null) creator.ResetForm();
 
             if (worldScrollView != null)
                 worldScrollView.SetActive(false);
 
             if (menuHeaderText != null)
                 menuHeaderText.text = "Create New World";
+            UpdatePlayModeVisuals();
 
             if (headerAnimator != null)
                 headerAnimator.SetInteger("MenuState", 2);
@@ -735,6 +754,27 @@ namespace Orivilon.UI.Menu
             LaunchWorldNow(worldData, multiplayer);
         }
 
+        /// <summary>
+        /// Spustí právě vytvořený svět (Create New World): offline, nebo rovnou hostování stávající cestou
+        /// včetně hesla z dialogu (null/prázdné = bez hesla). Bez nutnosti odejít a hostovat znovu.
+        /// </summary>
+        public void LaunchCreatedWorld(WorldData worldData, bool multiplayer, string password)
+        {
+            if (worldData == null) return;
+            if (multiplayer) HostWorld(worldData, password ?? "");
+            else LaunchWorldNow(worldData, false);
+        }
+
+        /// <summary>Proč teď nejde hostovat (Steam neběží, chybí síťový manažer…), nebo null.</summary>
+        public string MultiplayerUnavailableReason()
+        {
+            var steam = SteamLobbyManager.Instance;
+            if (steam == null) return "Couldn't start multiplayer: Steam support is missing from this scene.";
+            if (!steam.SteamReady) return "Steam isn't running or isn't signed in. Start Steam to host this world, or switch to Singleplayer.";
+            if (MultiplayerManager.Instance == null) return "Couldn't start multiplayer: the network manager is missing.";
+            return null;
+        }
+
         /// <summary>Hostování s heslem (prázdné = bez hesla). Heslo zůstává jen v paměti této session.</summary>
         public void HostWorld(WorldData worldData, string password)
         {
@@ -751,10 +791,7 @@ namespace Orivilon.UI.Menu
                 // Multiplayer = hostování světa přes existující Steam lobby (friends-only) + NGO host.
                 // Žádný tichý návrat do singleplayeru: chyba se ukáže v detailu světa a svět se nespustí.
                 var steam = SteamLobbyManager.Instance;
-                string error = null;
-                if (steam == null) error = "Couldn't start multiplayer: Steam support is missing from this scene.";
-                else if (!steam.SteamReady) error = "Steam isn't running or isn't signed in. Start Steam to host this world, or switch to Singleplayer.";
-                else if (MultiplayerManager.Instance == null) error = "Couldn't start multiplayer: the network manager is missing.";
+                string error = MultiplayerUnavailableReason();
                 if (error != null)
                 {
                     Debug.LogWarning("[MainMenuUI] " + error);

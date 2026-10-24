@@ -1,0 +1,22 @@
+{
+  "Walk": {
+    "channels": 78,
+    "max_loop_seam_error": 6.981561743214426e-18
+  },
+  "Run": {
+    "channels": 78,
+    "max_loop_seam_error": 6.981564364175856e-18
+  },
+  "Chop": {
+    "channels": 78,
+    "max_loop_seam_error": 0
+  },
+  "Mine": {
+    "channels": 78,
+    "max_loop_seam_error": 0
+  },
+  "Swim": {
+    "channels": 78,
+    "max_loop_seam_error": 6.981561954198511e-18
+  }
+}

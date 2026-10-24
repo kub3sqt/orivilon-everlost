@@ -41,7 +41,7 @@ namespace Orivilon.UI.Arcanum
             if (inv == null || string.IsNullOrEmpty(itemId)) return 0;
             int count = 0;
             foreach (var slot in inv.Slots)
-                if (slot != null && !slot.IsEmpty && slot.item.id == itemId) count += slot.amount;
+                if (slot != null && !slot.IsEmpty && InventoryItemData.Satisfies(slot.item, itemId)) count += slot.amount;   // i druhy dřeva za Log
             return count;
         }
 
@@ -75,14 +75,15 @@ namespace Orivilon.UI.Arcanum
                 for (int i = slots.Length - 1; i >= 0 && left > 0; i--)
                 {
                     var slot = slots[i];
-                    if (slot == null || slot.IsEmpty || slot.item.id != id) continue;
+                    if (slot == null || slot.IsEmpty || !InventoryItemData.Satisfies(slot.item, id)) continue;
                     int take = Mathf.Min(slot.amount, left);
+                    string takenId = slot.item.id;
                     slot.amount -= take;
                     left -= take;
                     if (slot.amount <= 0) slot.Clear();
+                    Orivilon.Multiplayer.MpLedger.ReportConsume(takenId, take);   // MP klient: spotřeba i u hosta, po skutečných itemech
                 }
                 InventoryData.Instance.NotifyInventoryChanged();
-                Orivilon.Multiplayer.MpLedger.ReportConsume(id, n.materialCost - left);   // MP klient: spotřeba i u hosta
             }
 
             ArcanumProgress.MarkUnlocked(n.id);

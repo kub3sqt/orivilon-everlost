@@ -244,6 +244,7 @@ namespace Orivilon.Multiplayer
             finally { w.Dispose(); }
             SendTime(clientId, false);
             SendInventoryState(clientId);   // účet hráče z hostova světa (nový hráč = prázdný)
+            SendNeedsStateTo(clientId);     // 22.10.2026: zdraví/hlad/žízeň hráče z hostova světa
         }
 
         /// <summary>Dosednutí (DroppedItem.Settle): simulující strana pošle autoritativní pozici.</summary>

@@ -23,7 +23,7 @@ namespace Orivilon.Player
         public void SetHolding(bool holding)
         {
             isHolding = holding;
-            animator.SetBool("Holding", holding);
+            if (animator != null) animator.SetBool("Holding", holding);
         }
 
         /// <summary>

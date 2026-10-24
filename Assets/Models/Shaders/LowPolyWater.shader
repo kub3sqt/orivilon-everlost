@@ -66,6 +66,7 @@ Shader "Everlost/LowPolyWater"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
+            #include "ValleyMist.hlsl"
 
             // SRP Batcher kompatibilni buffer.
             CBUFFER_START(UnityPerMaterial)
@@ -91,6 +92,10 @@ Shader "Everlost/LowPolyWater"
                 float _LakeWave;
             CBUFFER_END
 
+            // Barvy runtime oblohy, sdilene bez dalsiho renderovani odrazu.
+            float4 _EverlostWaterSky;
+            float4 _EverlostWaterHorizon;
+
             struct Attributes
             {
                 float4 positionOS : POSITION;
@@ -112,7 +117,7 @@ Shader "Everlost/LowPolyWater"
             float WaveHeight(float2 p)
             {
                 float t = _Time.y * _WaveSpeed;
-                float w = sin(p.x * _WaveFrequency + t) * 0.5;
+                float w = sin(dot(p, float2(0.92, 0.39)) * _WaveFrequency + t) * 0.5;
                 w += sin((p.x * 0.7 + p.y * 1.3) * _WaveFrequency * 0.8 + t * 1.3) * 0.3;
                 w += cos(p.y * _WaveFrequency * 1.1 - t * 0.9) * 0.2;
                 return w * _WaveHeight;
@@ -200,6 +205,8 @@ Shader "Everlost/LowPolyWater"
                 // Dvoutonova barva podle hloubky.
                 float depth01 = saturate(waterDepth / _DepthMax);
                 half4 col = lerp(_ShallowColor, _DeepColor, depth01);
+                half waterLuminance = dot(col.rgb, half3(0.2126, 0.7152, 0.0722));
+                col.rgb = lerp(waterLuminance.xxx, col.rgb, 0.8);
 
                 // Osvetleni - reaguje na slunce (barva/intenzita) i ambient (den/noc). Half-lambert = mekke.
                 Light mainLight = GetMainLight();
@@ -214,23 +221,33 @@ Shader "Everlost/LowPolyWater"
 
                 // Fresnel - projasneni u okraje/horizontu.
                 float fresnel = pow(1.0 - saturate(dot(N, viewDir)), _FresnelPower);
-                col.rgb += _FresnelColor.rgb * fresnel * _FresnelColor.a;
+                // Odraz barvy aktualniho nebe: zadna dalsi kamera ani render textura.
+                // Na rozdil od konstantniho bileho okraje reaguje i na noc a zapad slunce.
+                float3 reflectionDir = reflect(-viewDir, N);
+                half3 sky = max(SampleSH(reflectionDir), half3(0, 0, 0));
+                if (_EverlostWaterSky.w > 0.5)
+                    sky = lerp(_EverlostWaterHorizon.rgb, _EverlostWaterSky.rgb, saturate(reflectionDir.y));
+                half3 reflection = sky * _FresnelColor.rgb;
+                col.rgb = lerp(col.rgb, reflection, saturate(fresnel * sqrt(saturate(_FresnelColor.a))));
 
                 // Pena u brehu - plna tesne u brehu + animovane pruhy o kus dal.
-                float foamEdge = 1.0 - saturate(waterDepth / _FoamDistance);
+                float foamEdge = 1.0 - saturate(waterDepth / max(_FoamDistance, 0.001));
                 float foamWave = 0.6 + 0.4 * sin(waterDepth * _FoamTiling - _Time.y * _FoamSpeed);
                 float foamBand = smoothstep(0.55, 0.9, foamEdge * foamWave);
                 float foamShore = smoothstep(0.85, 1.0, foamEdge);
                 float foam = saturate(foamBand + foamShore);
                 // Kolo 10: pena jen na perejich a vodopadech - podle rychlosti toku, ve vzoru proudu.
                 foam = saturate(foam + i.flowData.x * _RapidFoam * smoothstep(0.55, 0.8, i.flowData.y));
-                col.rgb = lerp(col.rgb, _FoamColor.rgb, foam);
+                col.rgb = lerp(col.rgb, _FoamColor.rgb * (ambient + mainLight.color * ndl), foam);
 
                 // Alfa: hlubsi = neprusvitnejsi, pena neprusvitna.
                 col.a = lerp(_ShallowColor.a, _DeepColor.a, depth01);
                 col.a = saturate(col.a + foam);
 
                 col.rgb = MixFog(col.rgb, i.fogFactor);
+                half mistOpacity; half3 mistColor;
+                ValleyMistTerms(i.positionWS, mistOpacity, mistColor);
+                col.rgb = lerp(col.rgb, mistColor, mistOpacity);
                 return col;
             }
             ENDHLSL

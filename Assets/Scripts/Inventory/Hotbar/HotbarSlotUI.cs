@@ -23,6 +23,8 @@ namespace Orivilon.Inventory.Hotbar
         /// </summary>
         public void OnPointerClick(PointerEventData eventData)
         {
+            // 23.10.2026: v otevřeném inventáři klik patří přesouvání itemů, vybavení (equip index) se nemění.
+            if (HotbarController.InventoryOpen) return;
             int index = transform.GetSiblingIndex();
             HotbarController.Instance.SetActiveSlot(index);
         }

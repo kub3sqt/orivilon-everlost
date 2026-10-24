@@ -35,7 +35,7 @@ namespace Orivilon.World.Objects
     /// Vyhazování předmětů do světa (Q / Ctrl+Q, klik mimo inventář, přebytek z těžby).
     /// Vyhozený předmět je obyčejný <see cref="PickupItem"/> (sbírá se E jako kamínky) s komponentou
     /// <see cref="DroppedItem"/>: ochrana proti okamžitému sebrání, dosednutí fyziky a persistence.
-    /// Model: prefab sebratelného předmětu ze světa (ObjectSpawner) → handPrefab → ikona → kostka,
+    /// Model: vlastní model předmětu (HeldItemGrip) → prefab sebratelného předmětu ze světa (ObjectSpawner) → handPrefab → ikona → kostka,
     /// vždy normalizovaný na <see cref="ItemSize"/>, takže žádný item nepotřebuje vlastní prefab.
     /// Volající odebere kusy ze zdroje AŽ po úspěšném spawnu – při selhání se nic nemění.
     /// Multiplayer (kolo MP 17.10.2026): o existenci a počtu rozhoduje host (NetworkWorldSync.Drops). Klient
@@ -222,7 +222,33 @@ namespace Orivilon.World.Objects
             d.NetId = ++nextNetId;   // replika na klientovi ho přepíše ID od hosta
             d.Init(pickup, rb, billboard, pickupDelay, settled);
             root.SetActive(true);
+            if (!settled) Depenetrate(root.transform, box, rb);
             return d;
+        }
+
+        /// <summary>
+        /// Kolo MP 3: TryFindPose ověřuje místo koulí, ale collider předmětu je kvádr až ItemSize s náhodným
+        /// natočením – rohem mohl zajet do balvanu/stěny a PhysX ho pak držel zaklíněný ve vzduchu (Drop QA:
+        /// dosedl „still“ 1,7 m nad zemí s průnikem do SM_Balvan). Nově se po vzniku vysune ze světa podle
+        /// skutečného tvaru (ComputePenetration), nanejvýš 4 iterace; s dropy a hráčem se neřeší.
+        /// </summary>
+        private static void Depenetrate(Transform t, BoxCollider box, Rigidbody rb)
+        {
+            int mask = Physics.DefaultRaycastLayers & ~LayerBits("Pickup", "Player", "UI", "Water");
+            for (int it = 0; it < 4; it++)
+            {
+                bool moved = false;
+                var b = box.bounds;
+                foreach (var o in Physics.OverlapBox(b.center, b.extents, Quaternion.identity, mask, QueryTriggerInteraction.Ignore))
+                {
+                    if (o == box || o.attachedRigidbody == rb) continue;
+                    if (Physics.ComputePenetration(box, t.position, t.rotation, o, o.transform.position, o.transform.rotation, out Vector3 dir, out float dist) && dist > 0.001f)
+                    { t.position += dir * (dist + 0.01f); moved = true; }
+                }
+                if (!moved) break;
+                Physics.SyncTransforms();
+            }
+            if (rb != null) rb.position = t.position;
         }
 
         private static void SetLayer(Transform t, int layer)
@@ -290,11 +316,14 @@ namespace Orivilon.World.Objects
             return new Bounds(Vector3.zero, Vector3.one * (ItemSize * 0.5f));
         }
 
-        /// <summary>Prefab sebratelného předmětu ze světa se stejným itemem, jinak handPrefab.</summary>
+        /// <summary>Vlastní model předmětu (HeldItemGrip), jinak prefab sebratelného předmětu ze světa se stejným itemem, jinak handPrefab.</summary>
         private static GameObject ModelSource(InventoryItemData item)
         {
             if (modelCache.TryGetValue(item, out var cached)) return cached;
             GameObject found = null;
+            // Vlastní model předmětu (HeldItemGrip, sada předmětů do ruky) má přednost – jinak by se bobule
+            // vyhodily jako celý keř, ze kterého se sbírají.
+            if (item.handPrefab != null && item.handPrefab.GetComponent<Orivilon.Player.HeldItemGrip>() != null) { modelCache[item] = item.handPrefab; return item.handPrefab; }
             var spawner = Orivilon.World.Spawning.ObjectSpawner.Instance;
             if (spawner != null && spawner.spawnables != null)
             {

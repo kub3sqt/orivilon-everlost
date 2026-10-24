@@ -1,0 +1,146 @@
+{
+ "Walk": {
+  "Outfit_Pants": [
+   1,
+   0.0,
+   [
+    [
+     "thigh.L",
+     1
+    ]
+   ]
+  ],
+  "Outfit_Tunic": [
+   3,
+   5.5,
+   [
+    [
+     "upper_arm.L",
+     2
+    ],
+    [
+     "upper_arm.R",
+     1
+    ]
+   ]
+  ],
+  "Outfit_Boots": [
+   15,
+   6.0,
+   [
+    [
+     "foot.L",
+     14
+    ],
+    [
+     "shin.L",
+     1
+    ]
+   ]
+  ],
+  "Body": [
+   1,
+   6.0,
+   [
+    [
+     "foot.L",
+     1
+    ]
+   ]
+  ]
+ },
+ "Run": {
+  "Body": [
+   41,
+   2.5,
+   [
+    [
+     "shin.L",
+     11
+    ],
+    [
+     "forearm.L",
+     10
+    ],
+    [
+     "foot.L",
+     10
+    ]
+   ]
+  ],
+  "Outfit_Boots": [
+   33,
+   3.5,
+   [
+    [
+     "foot.L",
+     20
+    ],
+    [
+     "shin.L",
+     8
+    ],
+    [
+     "foot.R",
+     5
+    ]
+   ]
+  ],
+  "Outfit_Pants": [
+   32,
+   11.5,
+   [
+    [
+     "shin.R",
+     23
+    ],
+    [
+     "thigh.R",
+     7
+    ],
+    [
+     "shin.L",
+     2
+    ]
+   ]
+  ],
+  "Outfit_Tunic": [
+   5,
+   4.0,
+   [
+    [
+     "spine",
+     2
+    ],
+    [
+     "upper_arm.L",
+     2
+    ],
+    [
+     "upper_arm.R",
+     1
+    ]
+   ]
+  ]
+ },
+ "Idle": {
+  "Outfit_Tunic": [
+   8,
+   0.0,
+   [
+    [
+     "spine",
+     4
+    ],
+    [
+     "upper_arm.L",
+     2
+    ],
+    [
+     "upper_arm.R",
+     2
+    ]
+   ]
+  ]
+ }
+}

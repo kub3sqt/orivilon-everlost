@@ -1,0 +1,40 @@
+{
+  "clips": [
+    {
+      "name": "Walk",
+      "file": "Walk.bin",
+      "vertices": 105489,
+      "frames": 16,
+      "duration": 1.2
+    },
+    {
+      "name": "Run",
+      "file": "Run.bin",
+      "vertices": 105489,
+      "frames": 16,
+      "duration": 0.8
+    },
+    {
+      "name": "Chop",
+      "file": "Chop.bin",
+      "vertices": 105489,
+      "frames": 16,
+      "duration": 1.5
+    },
+    {
+      "name": "Mine",
+      "file": "Mine.bin",
+      "vertices": 105489,
+      "frames": 16,
+      "duration": 1.8
+    },
+    {
+      "name": "Swim",
+      "file": "Swim.bin",
+      "vertices": 105489,
+      "frames": 16,
+      "duration": 1.6
+    }
+  ],
+  "new_animations": true
+}

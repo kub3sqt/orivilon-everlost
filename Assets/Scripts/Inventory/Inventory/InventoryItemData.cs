@@ -68,5 +68,17 @@ namespace Orivilon.Inventory.Inventory
 
         /// <summary>Množství žízně doplněné po konzumaci (0 = žádné).</summary>
         public float waterRestore;
+
+        /// <summary>
+        /// Obecnější item, za který tento item platí v cenách staveb a výzkumu (např. dubové poleno → Log).
+        /// Prázdné = item platí jen sám za sebe. Savy ukládají jen ID itemu, takže se tím nic nemigruje.
+        /// </summary>
+        [Header("Varianta")]
+        [Tooltip("Obecný item, za který tento item platí v cenách (např. druh dřeva → Log)")]
+        public InventoryItemData countsAs;
+
+        /// <summary>Splňuje <paramref name="have"/> požadavek na item s ID <paramref name="needId"/> (sám, nebo přes countsAs)?</summary>
+        public static bool Satisfies(InventoryItemData have, string needId)
+            => have != null && !string.IsNullOrEmpty(needId) && (have.id == needId || (have.countsAs != null && have.countsAs.id == needId));
     }
 }

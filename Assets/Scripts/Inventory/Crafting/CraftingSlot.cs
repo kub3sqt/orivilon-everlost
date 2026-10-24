@@ -123,6 +123,7 @@ namespace Orivilon.Inventory.Crafting
         public void OnPointerEnter(PointerEventData eventData)
         {
             InventoryDragDistributor.PointerEnter(Ref);
+            ItemTooltip.Ensure(this, null);
             if (!InventoryActions.Cursor.IsEmpty) return;
 
             var slot = CraftingData.Instance != null ? CraftingData.Instance.gridSlots[index] : null;

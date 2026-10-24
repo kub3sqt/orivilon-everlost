@@ -31,6 +31,15 @@ namespace Orivilon.Multiplayer
         private bool hostPaused;
         private Orivilon.SunRotation sun;
 
+        // ── potřeby klienta (22.10.2026) ─────────────────────────────────
+        private const float NeedsSendInterval = 2f;
+        private bool needsSynced;          // klient: převzal stav od hosta (do té doby nic nehlásí – nepřepsal by uložené hodnoty výchozími)
+        private bool needsStatePending;    // klient: stav od hosta čeká, až bude hráč ve scéně
+        private bool needsHas;
+        private float needsH, needsF, needsW;
+        private float nextNeedsSend;
+        private float lastNeedsH = -1f, lastNeedsF = -1f, lastNeedsW = -1f;
+
         // ── teleport ─────────────────────────────────────────────────────
         private readonly RateLimiter tpLimiter = new RateLimiter(2f, 4f);
         private uint nextTpReq = 1;
@@ -44,6 +53,8 @@ namespace Orivilon.Multiplayer
             msg.RegisterNamedMessageHandler(NetworkMessages.TeleportRequest, OnTeleportRequest);
             msg.RegisterNamedMessageHandler(NetworkMessages.TeleportCommand, OnTeleportCommand);
             msg.RegisterNamedMessageHandler(NetworkMessages.TeleportResult, OnTeleportResult);
+            msg.RegisterNamedMessageHandler(NetworkMessages.PlayerNeedsState, OnNeedsState);
+            msg.RegisterNamedMessageHandler(NetworkMessages.PlayerNeedsReport, OnNeedsReport);
         }
 
         private void UnregisterSessionHandlers(CustomMessagingManager msg)
@@ -52,13 +63,19 @@ namespace Orivilon.Multiplayer
             msg.UnregisterNamedMessageHandler(NetworkMessages.TeleportRequest);
             msg.UnregisterNamedMessageHandler(NetworkMessages.TeleportCommand);
             msg.UnregisterNamedMessageHandler(NetworkMessages.TeleportResult);
+            msg.UnregisterNamedMessageHandler(NetworkMessages.PlayerNeedsState);
+            msg.UnregisterNamedMessageHandler(NetworkMessages.PlayerNeedsReport);
         }
 
         private void ClearSessionState()
         {
             hasHostTime = false;
+            timeSyncSinceWorldState = false;
             lastSentTime = -1f;
             Orivilon.SunRotation.NetworkDriven = false;
+            needsSynced = false;
+            needsStatePending = false;
+            lastNeedsH = lastNeedsF = lastNeedsW = -1f;
         }
 
         /// <summary>Server: zapomene limity odpojeného klienta.</summary>
@@ -91,6 +108,7 @@ namespace Orivilon.Multiplayer
                 Orivilon.SunRotation.NetworkDriven = true;
                 // Herní scéna (a SunRotation) vznikla až po poslední synchronizaci – dorovnat hned.
                 if (hasHostTime && Sun != null && Sun.NetworkAppliedVersion != appliedVersion) ApplyToSun();
+                UpdateNeedsClient();
                 return;
             }
 
@@ -146,10 +164,19 @@ namespace Orivilon.Multiplayer
             reader.ReadValueSafe(out float t);
             reader.ReadValueSafe(out bool paused);
             if (float.IsNaN(t) || float.IsInfinity(t)) return;
+            if (!hasHostTime || !timeSyncSinceWorldState)   // jednou za session – dohledatelné v Player.log při hraní přes Steam
+                Debug.Log($"[NetworkWorldSync] Čas hosta převzat: {t:0.00} h{(paused ? " (pauza)" : "")}, SunRotation {(Sun != null ? "ve scéně" : "zatím chybí – dorovná se po načtení")}.");
             ApplyHostTime(t, paused);
+            timeSyncSinceWorldState = true;
         }
 
         private int appliedVersion;
+        private bool timeSyncSinceWorldState;
+
+        private void ApplyToSunIfReady()
+        {
+            if (hasHostTime && Sun != null) ApplyToSun();
+        }
 
         /// <summary>Klient: převezme čas hosta (null = pauzu neměnit). Bez SunRotation se uloží a dorovná později.</summary>
         private void ApplyHostTime(float t, bool? paused)
@@ -166,6 +193,114 @@ namespace Orivilon.Multiplayer
         {
             var s = Sun;
             s.ApplyNetworkTime(hostTime, hostPaused, appliedVersion);
+        }
+
+        // ══════════════════════════════════════════════════════════════════
+        // Potřeby hráče (zdraví/hlad/žízeň) – 22.10.2026
+        //
+        // Simulace potřeb běží u každého hráče lokálně (beze změny mechaniky). Trvalou kopii stavu klienta drží
+        // hostův svět v jeho účtu (MpPlayerLedger podle stabilního klíče hráče), ukládá se ve stejné transakci
+        // jako inventář a dropy. Host ji pošle při joinu; klient ji převezme a teprve potom začne každé 2 s
+        // (a při odchodu) hlásit aktuální hodnoty. Hostovy vlastní potřeby jsou v jeho player.json.
+        // ══════════════════════════════════════════════════════════════════
+
+        /// <summary>Server: pošle klientovi jeho uložené potřeby z hostova světa (nový hráč = žádné).</summary>
+        public void SendNeedsStateTo(ulong clientId)
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm == null || !nm.IsServer || clientId == nm.LocalClientId || nm.CustomMessagingManager == null) return;
+            var mm = MultiplayerManager.Instance;
+            string key = mm != null ? mm.GetPlayerKey(clientId) : null;
+            MpPlayerLedger rec = null;
+            if (!string.IsNullOrEmpty(key)) MpLedgerStore.Records.TryGetValue(key, out rec);
+            bool has = rec != null && rec.hasNeeds;
+            using var w = new FastBufferWriter(16, Allocator.Temp);
+            w.WriteValueSafe(has);
+            w.WriteValueSafe(has ? rec.health : 0f);
+            w.WriteValueSafe(has ? rec.food : 0f);
+            w.WriteValueSafe(has ? rec.water : 0f);
+            nm.CustomMessagingManager.SendNamedMessage(NetworkMessages.PlayerNeedsState, clientId, w);
+        }
+
+        /// <summary>Server: klient hlásí aktuální potřeby – uloží se do jeho účtu v hostově světě.</summary>
+        private void OnNeedsReport(ulong senderId, FastBufferReader reader)
+        {
+            if (!IsConnectedSender(senderId)) return;
+            reader.ReadValueSafe(out float h);
+            reader.ReadValueSafe(out float f);
+            reader.ReadValueSafe(out float wt);
+            if (!ValidNeed(h) || !ValidNeed(f) || !ValidNeed(wt)) return;
+            var rec = LedgerOf(senderId);
+            if (rec == null) return;
+            rec.hasNeeds = true;
+            rec.health = h; rec.food = f; rec.water = wt;
+        }
+
+        private static bool ValidNeed(float v) => !float.IsNaN(v) && !float.IsInfinity(v) && v >= 0f && v <= 100000f;
+
+        /// <summary>Klient: host poslal uložené potřeby (nebo že žádné nemá).</summary>
+        private void OnNeedsState(ulong senderId, FastBufferReader reader)
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm == null || nm.IsServer || senderId != NetworkManager.ServerClientId) return;
+            reader.ReadValueSafe(out bool has);
+            reader.ReadValueSafe(out float h);
+            reader.ReadValueSafe(out float f);
+            reader.ReadValueSafe(out float wt);
+            needsHas = has && ValidNeed(h) && ValidNeed(f) && ValidNeed(wt);
+            needsH = h; needsF = f; needsW = wt;
+            needsStatePending = true;
+            needsSynced = false;
+            TryApplyNeedsState();
+        }
+
+        private void TryApplyNeedsState()
+        {
+            // Až v herní scéně po aplikaci stavu světa (hráč existuje, načítání už nic nepřepíše).
+            if (pendingState != null && !pendingStateApplied) return;
+            if (UnityEngine.SceneManagement.SceneManager.GetActiveScene().name != "Game") return;
+            var playerGo = GameObject.FindWithTag("Player");
+            if (playerGo == null) return;
+            var needs = Orivilon.Player.PlayerNeeds.Find(playerGo);
+            if (needs == null) return;
+            if (needsHas)
+            {
+                needs.ApplySavedState(needsH, needsF, needsW);
+                Debug.Log($"[NetworkWorldSync] Potřeby z hostova světa: zdraví {needsH:0.##}, hlad {needsF:0.##}, žízeň {needsW:0.##}.");
+            }
+            else Debug.Log("[NetworkWorldSync] Host o hráči nemá uložené potřeby (nový hráč v tomto světě) – výchozí hodnoty.");
+            needsStatePending = false;
+            needsSynced = true;
+            nextNeedsSend = Time.unscaledTime + NeedsSendInterval;
+        }
+
+        private void UpdateNeedsClient()
+        {
+            if (needsStatePending) TryApplyNeedsState();
+            if (!needsSynced || Time.unscaledTime < nextNeedsSend) return;
+            nextNeedsSend = Time.unscaledTime + NeedsSendInterval;
+            SendNeedsReport(false);
+        }
+
+        /// <summary>Klient: pošle hostovi potřeby hned (odchod do menu / ukončení session).</summary>
+        public void SendNeedsNow()
+        {
+            if (MultiplayerManager.IsClient && needsSynced) SendNeedsReport(true);
+        }
+
+        private void SendNeedsReport(bool force)
+        {
+            var nm = NetworkManager.Singleton;
+            if (nm == null || nm.IsServer || !nm.IsConnectedClient || nm.CustomMessagingManager == null) return;
+            var needs = Orivilon.Player.PlayerNeeds.Find(GameObject.FindWithTag("Player"));
+            if (needs == null || !needs.TryGetState(out float h, out float f, out float wt)) return;
+            if (!force && Mathf.Abs(h - lastNeedsH) < 0.01f && Mathf.Abs(f - lastNeedsF) < 0.01f && Mathf.Abs(wt - lastNeedsW) < 0.01f) return;
+            using var w = new FastBufferWriter(16, Allocator.Temp);
+            w.WriteValueSafe(h);
+            w.WriteValueSafe(f);
+            w.WriteValueSafe(wt);
+            nm.CustomMessagingManager.SendNamedMessage(NetworkMessages.PlayerNeedsReport, NetworkManager.ServerClientId, w);
+            lastNeedsH = h; lastNeedsF = f; lastNeedsW = wt;
         }
 
         // ══════════════════════════════════════════════════════════════════

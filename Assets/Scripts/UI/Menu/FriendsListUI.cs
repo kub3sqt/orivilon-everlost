@@ -44,12 +44,17 @@ namespace Orivilon.UI.Menu
         private Coroutine refreshRoutine;
         private WorldListElement selectedRow;
         private string pendingError;
+        // 23.10.2026: chyba posledního joinu zůstává vidět, dokud hráč nezačne další akci. Dřív ji hned přepsalo
+        // doběhnutí obnovy seznamu („No friends…“, prázdný text) nebo „Steam isn't running“ – Facepunch po
+        // neúspěšném joinu na chvíli vypne Steam – a hráč po zavření loadingu neviděl žádné vysvětlení.
+        private string stickyError;
         private static bool joinStartedHere;
 
         private void Awake()
         {
             Current = this;
             SteamLobbyManager.PasswordRequired += OnPasswordRequired;
+            SteamLobbyManager.JoinMessage += OnJoinMessage;
             if (statusText != null) statusText.gameObject.SetActive(false);
 
             // Návrat z neúspěšného joinu: chyba patří do seznamu kamarádů (jinak by se otevřel výběr světů).
@@ -69,13 +74,14 @@ namespace Orivilon.UI.Menu
                 string err = SteamLobbyManager.RetryError, host = SteamLobbyManager.RetryHost;
                 SteamLobbyManager.ConsumeRetry();
                 Open();
-                if (retry != ulong.MaxValue) AskPassword(retry, host, err); else SetStatus(err);
+                if (retry != ulong.MaxValue) AskPassword(retry, host, err); else { stickyError = err; SetStatus(err); }
                 pendingError = null;
                 return;
             }
             if (pendingError != null)
             {
                 Open();
+                stickyError = pendingError;
                 SetStatus(pendingError);
                 pendingError = null;
             }
@@ -84,6 +90,7 @@ namespace Orivilon.UI.Menu
         private void OnDestroy()
         {
             SteamLobbyManager.PasswordRequired -= OnPasswordRequired;
+            SteamLobbyManager.JoinMessage -= OnJoinMessage;
             if (Current == this) Current = null;
         }
 
@@ -115,6 +122,7 @@ namespace Orivilon.UI.Menu
         /// <summary>Volá MainMenuUI při odchodu z režimu (zpět, ESC, světy).</summary>
         public void EndMenu()
         {
+            stickyError = null;
             active = false;
             showLiveStatus = false;
             if (refreshRoutine != null) { StopCoroutine(refreshRoutine); refreshRoutine = null; }
@@ -187,13 +195,27 @@ namespace Orivilon.UI.Menu
             if (!Selected.HasValue || SteamLobbyManager.Instance == null) return;
             var info = Selected.Value;
             if (!info.joinable) { SetStatus(info.blockedReason); return; }
-            if (info.locked && dialog != null) { AskPassword(info.lobbyId, Host(info), null); return; }
-            StartJoin(info.lobbyId, "", Host(info));
+            // 23.10.2026: nejdřív čerstvá data lobby (zamčení se mohlo od obnovení seznamu změnit) – bez loadingu;
+            // zamčený svět → dialog hesla, jinak rovnou skutečný join (SteamLobbyManager.BeginJoin).
+            stickyError = null;
+            joinStartedHere = true;
+            showLiveStatus = true;
+            SteamLobbyManager.Instance.BeginJoin(info.lobbyId, Host(info));
+        }
+
+        private void OnJoinMessage(string text)
+        {
+            if (!active) Open();
+            showLiveStatus = false;
+            joinStartedHere = false;
+            stickyError = text;
+            SetStatus(text);
         }
 
         private void OnPasswordRequired(ulong lobbyId, string host, string error)
         {
             if (!active) Open();
+            showLiveStatus = false;
             AskPassword(lobbyId, host, error);
         }
 
@@ -209,6 +231,7 @@ namespace Orivilon.UI.Menu
 
         private void StartJoin(ulong lobbyId, string password, string host)
         {
+            stickyError = null;
             showLiveStatus = true;
             joinStartedHere = true;
             SteamLobbyManager.Instance.JoinLobby(lobbyId, password, host);
@@ -216,6 +239,9 @@ namespace Orivilon.UI.Menu
 
         private void SetStatus(string text)
         {
+            // Probíhající hledání / prázdný výsledek nepřepíše chybu posledního joinu.
+            if (stickyError != null && text != stickyError)
+                text = string.IsNullOrEmpty(text) ? stickyError : stickyError + "\n" + text;
             if (statusText == null) return;
             statusText.text = text ?? "";
             statusText.gameObject.SetActive(active && !string.IsNullOrEmpty(text));

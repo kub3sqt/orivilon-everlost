@@ -13,8 +13,17 @@ MonoBehaviour:
   m_Name: Stone
   m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
   id: everlost:stone
-  icon: {fileID: 21300000, guid: 495d88b2e3209584b9ec3ce5295cdb25, type: 3}
+  icon: {fileID: 21300000, guid: 475221bb7df824d7f975f97b76b12a76, type: 3}
   itemName: Stone
   description: Small piece of rock, used for crafting tools
   stackable: 1
   maxStack: 64
+  handPrefab: {fileID: 8039858007114306353, guid: 22e5513700cb941d480cd063b6003c51,
+    type: 3}
+  handPositionOffset: {x: 0, y: 0, z: 0}
+  handRotationOffset: {x: 0, y: 0, z: 0}
+  handScale: {x: 1, y: 1, z: 1}
+  toolType: 0
+  isFood: 0
+  foodRestore: 0
+  waterRestore: 0

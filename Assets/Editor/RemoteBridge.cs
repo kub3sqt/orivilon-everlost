@@ -363,6 +363,7 @@ namespace Orivilon.EditorTools
                     ScreenCapture.CaptureScreenshot(path);
                     Out("shot " + path);
                 }
+                else if (VisualQaBridge.TryRun(line, Out)) { }   // vizuální QA (clean, visdiag, sf/gf, relief)
                 else if (UiQaBridge.TryRun(line, Out)) { }   // UI refresh QA (uidump, loadwatch)
                 else if (line.StartsWith("/"))
                 {

@@ -102,6 +102,19 @@ namespace Orivilon.Core
             networkFailure = string.IsNullOrEmpty(message) ? "Couldn't start the multiplayer session." : message;
         }
 
+        /// <summary>
+        /// 23.10.2026: multiplayer client lost the host AFTER the network step (while loading the host's world).
+        /// Before, loading just continued into an offline copy of the world without a word; now it returns to the
+        /// menu with the reason, cursor and input restored, so the player can try again.
+        /// </summary>
+        public void AbortLoadingToMenu(string message)
+        {
+            if (!IsLoading || NetworkStepActive) return;
+            if (currentLoadRoutine != null) { StopCoroutine(currentLoadRoutine); currentLoadRoutine = null; }
+            if (LoadingScreenManager.instance != null) LoadingScreenManager.SetVisible(false);
+            AbortToMenu(message);
+        }
+
         /// <summary>Leaves a failed multiplayer start: no loading overlay, input unlocked, back to the main menu.</summary>
         private void AbortToMenu(string message)
         {

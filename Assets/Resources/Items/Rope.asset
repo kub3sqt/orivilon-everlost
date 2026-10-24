@@ -13,9 +13,18 @@ MonoBehaviour:
   m_Name: Rope
   m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
   id: everlost:rope
-  icon: {fileID: 21300000, guid: 49c5fdc3bdbb36247b436231a7d121cb, type: 3}
+  icon: {fileID: 21300000, guid: 75c6d282b63864baeb49321a0052b9b7, type: 3}
   itemName: Rope
   description: Used to tie things together
   stackable: 1
   maxStack: 64
-  handPrefab: {fileID: 0}
+  handPrefab: {fileID: 3997884797864329827, guid: b512e8ec004cd48919c860e53f0c6463,
+    type: 3}
+  handPositionOffset: {x: 0, y: 0, z: 0}
+  handRotationOffset: {x: 0, y: 0, z: 0}
+  handScale: {x: 1, y: 1, z: 1}
+  toolType: 0
+  isFood: 0
+  foodRestore: 0
+  waterRestore: 0
+  countsAs: {fileID: 0}

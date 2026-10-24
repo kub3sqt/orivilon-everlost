@@ -244,7 +244,9 @@ namespace Orivilon.Core
             if (Input.GetKeyDown(KeyCode.C) && !IsTextInputActive())
                 ToggleArcanum();
 
-            if (Input.GetKeyDown(KeyCode.Tab) && !isArcanumOpen)
+            // Klávesy z nastavení (KeyBindings, výchozí Tab/F6). Při psaní do textového pole (konzole) se nereaguje –
+            // jinak by přemapování na písmeno otevíralo inventář nebo ukládalo uprostřed psaní.
+            if (Input.GetKeyDown(Orivilon.UI.Settings.KeyBindings.Inventory) && !isArcanumOpen && !IsTextInputActive())
             {
                 if (isBuildingOpen)
                     CloseBuildingMenu();
@@ -252,7 +254,8 @@ namespace Orivilon.Core
                     ToggleInventory();
             }
 
-            if (Input.GetKeyDown(KeyCode.F5))
+            // F5 přepíná pohled kamery (TravelerCameraView, jako v Minecraftu); rychlé uložení je proto na F6.
+            if (Input.GetKeyDown(Orivilon.UI.Settings.KeyBindings.QuickSave) && !IsTextInputActive())
             {
                 SaveSystem.SaveSystem.SaveEverything();
             }
@@ -920,12 +923,13 @@ namespace Orivilon.Core
             // Máme uloženou pozici? Pak se hráč vrací tam, kde skončil – i do jeskyně
             // nebo na základnu. Hledání země platí jen pro nový svět.
             bool hasSavedPosition = false;
+            PlayerData playerData = null;
 
             if (selectedWorld != null)
             {
                 Debug.Log($"Selected world: {selectedWorld.worldName}, Folder: {selectedWorld.folderPath}");
 
-                PlayerData playerData = SaveSystem.SaveSystem.LoadPlayerData();
+                playerData = SaveSystem.SaveSystem.LoadPlayerData();
                 // Vyhozené předměty (world/dropped_items.json); kinematické, na terén nečekají.
                 Orivilon.World.Objects.ItemDropService.LoadSaved();
                 if (playerData != null)
@@ -993,6 +997,11 @@ namespace Orivilon.Core
                 SceneLoader.CompleteGameLoading();
                 yield break;
             }
+
+            // 22.10.2026: čas dne a potřeby hráče ze savu – hned, ještě během načítání (čas i potřeby
+            // v něm stojí). Klient je nebere ze své guest kopie: čas a jeho potřeby drží host.
+            if (selectedWorld != null)
+                ApplySavedWorldAndNeeds(playerData);
 
             playerController = player.GetComponent<CharacterController>();
             playerRigidbody = player.GetComponent<Rigidbody>();
@@ -1264,6 +1273,32 @@ namespace Orivilon.Core
 
             Debug.LogWarning("Could not find ground, using fallback height");
             return new Vector3(rayStart.x, 100f, rayStart.z);
+        }
+
+        /// <summary>
+        /// Obnoví uložený čas dne (world_data.json) a zdraví/hlad/žízeň (player.json). Starší savy bez těchto
+        /// polí nechají výchozí hodnoty. Multiplayer klient přeskočí obojí – rozhoduje hostův svět.
+        /// </summary>
+        private void ApplySavedWorldAndNeeds(PlayerData playerData)
+        {
+            if (Orivilon.Multiplayer.MultiplayerManager.IsClient) return;
+
+            WorldSaveData worldData = null;
+            try { worldData = SaveSystem.SaveSystem.LoadWorldData(); }
+            catch (System.Exception e) { Debug.LogWarning("GameManager: world_data.json nejde přečíst, čas zůstane výchozí: " + e.Message); }
+            var sun = FindFirstObjectByType<SunRotation>();
+            if (worldData != null && worldData.hasTime && sun != null)
+                sun.LoadSavedState(worldData.timeOfDay, worldData.timePaused);
+
+            if (playerData != null && playerData.hasNeeds)
+            {
+                var needs = Orivilon.Player.PlayerNeeds.Find(player);
+                if (needs != null)
+                {
+                    needs.ApplySavedState(playerData.health, playerData.food, playerData.water);
+                    Debug.Log($"GameManager: obnoveny potřeby hráče – zdraví {playerData.health:0.##}, hlad {playerData.food:0.##}, žízeň {playerData.water:0.##}");
+                }
+            }
         }
 
         /// <summary>
