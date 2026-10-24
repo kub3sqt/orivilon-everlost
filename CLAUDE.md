@@ -5,6 +5,7 @@
 - Běžné vratné kroky v rozsahu zadání prováděj samostatně. Nežádej znovu o již udělený souhlas. Ptej se při chybějícím rozhodnutí o gameplay nebo skutečném riziku ztráty dat; mezitím dokonči nezávislou práci.
 - Před úpravami jednou zkontroluj git stav, přečti dotčený kód a najdi existující vzor. Cizí rozpracované změny zachovej, i ve stejném souboru.
 - Oprav příčinu, zachovej okolní chování. Bez zadání nepřidávej další funkce, rozsáhlé refaktory, frameworky ani paralelní systémy.
+- Před předáním každou změnu otestuj sám (editor/PlayMode kontroly v Assets/Editor/Tests/, batchmode nebo VisualQaBridge, screenshoty do production/qa/evidence/). Uživateli předávej jen to, co automaticky ověřit nejde.
 
 ## Efektivita a spotřeba
 - Začni mapou níže a konkrétním příznakem. Hledej přes `rg` v příslušném systému; nejdřív názvy souborů/symbolů, potom jen relevantní části a jejich závislosti. Rozšiř hledání podle důkazů.

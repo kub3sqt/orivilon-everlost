@@ -1,12 +1,12 @@
 # Story 001: Datový model v3 a save podle kódů uzlů
 
 > **Epic**: arcanum
-> **Status**: Ready
+> **Status**: In Progress
 > **Layer**: Feature
 > **Type**: Logic
 > **Estimate**: L
 > **Manifest Version**: N/A (minimal — no control manifest)
-> **Last Updated**: —
+> **Last Updated**: 2026-10-24
 
 ## Context
 
@@ -54,11 +54,17 @@ N/A (minimal — no control manifest)
 
 ## Files
 
-- `Assets/Scripts/UI/Arcanum/ArcanumData.cs`, `ArcanumProgress.cs`, `ArcanumResearch.cs`, `ArcanumTreeAsset.cs`
-- `Assets/Resources/Arcanum/ArcanumTree.asset` (přes Editor)
-- `Assets/Editor/Tests/ArcanumChecks.cs` (nový)
-
----
+- `Assets/Scripts/UI/Arcanum/ArcanumTreeAsset.cs` — schéma v3
+- `Assets/Scripts/UI/Arcanum/ArcanumData.cs` — načítání stromu podle kódů, IsFallback
+- `Assets/Scripts/UI/Arcanum/ArcanumProgress.cs` — dostupnost, pečetě, save v2 podle kódů, migrace v1 + záloha
+- `Assets/Scripts/UI/Arcanum/ArcanumResearch.cs` — cena z více předmětů, MissingMessage/FirstMissing
+- `Assets/Scripts/UI/Arcanum/ArcanumUI.cs` — hláška nedostatku a tooltip se všemi položkami ceny
+- `Assets/Scripts/Core/GameConsole.Arcanum.cs` — editor-only `/arcanum testkit N [id...]`
+- `Assets/Editor/UiRefresh/ArcanumAuthoring.cs` — jen úpravy kvůli kompilaci
+- `Assets/Editor/ArcanumTreeImporter.cs` (nový) — generování assetu z data.js
+- `Assets/Editor/Tests/ArcanumChecks.cs` (nový) — editor kontrola stromu v3
+- `Assets/Editor/Tests/ArcanumResearchQA.cs` (nový) — výzkum, save/load, migrace (29 kontrol)
+- `Assets/Resources/Arcanum/ArcanumTree.asset` — vygenerováno importerem (259 uzlů)
 
 ## QA Test Cases
 

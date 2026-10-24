@@ -3,217 +3,190 @@ using UnityEngine;
 
 namespace Orivilon.UI.Arcanum
 {
-    /// <summary>Jeden obor (kategorie) výzkumu Arcanum. Placeholder obsah – snadno nahraditelný.</summary>
+    /// <summary>Jeden obor (kategorie) výzkumu Arcanum; pořadí a názvy podle DISC v design/arcanum/data.js.</summary>
     public sealed class ArcanumCategory
     {
+        public string key;
         public string name;
         public Color color;
-        /// <summary>ID existujícího InventoryItemData, který se spotřebuje při výzkumu (např. "everlost:stone").</summary>
-        public string materialItemId;
         /// <summary>ID itemu, jehož ikona reprezentuje obor (jen vizuál).</summary>
         public string iconItemId;
-        public string[] tierNames;
-        public string[] tierRecipes;
-    }
-
-    /// <summary>Jeden uzel stromu. ID jsou stabilní (pořadí generování), progres se ukládá podle nich.</summary>
-    public sealed class ArcanumNode
-    {
-        public int id;
-        public int category;   // -1 = kořen
-        public int tier;
-        public float angle;    // radiány, -PI..0 = horní půlkruh (osa Y nahoru v UI je otočená níže)
-        public float radius;
-        public Vector2 pos;    // pozice v souřadnicích stromu (Y nahoru)
-        public int parent;     // -1 = žádný
-        public bool major;
-        public string name;
-        public string recipe;
-        public int materialCost;
-        public readonly List<int> children = new List<int>();
+        public string[] paths;
     }
 
     /// <summary>
-    /// Data stromu Arcanum: 180 placeholder výzkumů (6 oborů × 30) + kořen.
-    /// Geometrie odpovídá schválenému HTML prototypu (arcanum-reference.html):
-    /// každý obor je malý ručně navržený strom (kmeny, vidlice, oblouky, slepé větve),
-    /// zrcadlený pro liché obory. Texty jsou anglické placeholdery.
+    /// Jeden uzel stromu v3. Perzistentní klíč je <see cref="code"/>; <see cref="id"/> je jen index
+    /// v aktuálně načtených datech (nikdy se neukládá).
+    /// </summary>
+    public sealed class ArcanumNode
+    {
+        public string code;
+        public int id;
+        public int category;   // -1 = kořen
+        public string path;
+        public int tier;       // 0–6
+        public char kind;      // R výzkum, D objev, B návod, K klíčový
+        public string name;
+        public int[] requires; // všechny musí být odemčené
+        public int[] any;      // aspoň jeden (prázdné = bez podmínky)
+        public ArcanumTreeAsset.ItemAmount[] cost;
+        public string quest;
+        public ArcanumTreeAsset.ItemAmount[] blueprint;
+        public string[] makes;
+        public string unlock;
+        public string flavor;
+        public string icon;
+
+        /// <summary>Zobrazovací rodič pro UI (první požadavek). -1 = žádný. Ne zdroj pravdy o dostupnosti.</summary>
+        public int parent;
+        /// <summary>Uzly, které tento uzel uvádějí v requires nebo any.</summary>
+        public readonly List<int> children = new List<int>();
+        public bool major;     // klíčový uzel (K)
+        public string recipe;  // názvy naučených předmětů (mk) pro stávající UI
+        /// <summary>Dočasný stav pro stávající UI (jedna surovina): množství první položky ceny. Skutečná cena je <see cref="cost"/>; UI nahradí story 003.</summary>
+        public int materialCost;
+        public Vector2 pos;    // v3 data nemají rozložení; to přijde ve story 003
+    }
+
+    /// <summary>
+    /// Data stromu Arcanum v3 (259 uzlů, 6 oborů) načtená z ArcanumTreeAsset, který generuje editorový
+    /// nástroj z design/arcanum/data.js. Počet uzlů na obor není pevný.
     /// </summary>
     public static class ArcanumData
     {
-        public const int NodesPerCategory = 30;
-
-        public static readonly ArcanumCategory[] DefaultCategories =
-        {
-            new ArcanumCategory { name = "Smithing", color = Hex("e59b38"), materialItemId = "everlost:stone", iconItemId = "everlost:stone_sword",
-                tierNames = new[] { "Copper Smelting", "Bronze Tools", "Iron Forge", "Tempered Steel", "Master Alloy", "Starmetal" },
-                tierRecipes = new[] { "Copper Ingot", "Bronze Pickaxe", "Iron Sword", "Steel Edge", "Master Hammer", "Star Blade" } },
-            new ArcanumCategory { name = "Alchemy", color = Hex("ba82db"), materialItemId = "everlost:berries", iconItemId = "everlost:berries",
-                tierNames = new[] { "Herbal Extracts", "Distillation", "Healing Tinctures", "Transmutation", "Living Essence", "Elixir of Ages" },
-                tierRecipes = new[] { "Herbal Extract", "Distilling Flask", "Healing Elixir", "Alchemical Salt", "Living Essence", "Elixir of Ages" } },
-            new ArcanumCategory { name = "Construction", color = Hex("d9ba79"), materialItemId = "everlost:log", iconItemId = "everlost:building_tool",
-                tierNames = new[] { "Stone Foundations", "Load-Bearing Frames", "Reinforced Masonry", "Vaulted Halls", "Citadel", "Ancient Monuments" },
-                tierRecipes = new[] { "Stone Block", "Support Beam", "Reinforced Wall", "Stone Vault", "Citadel Tower", "Rune Monument" } },
-            new ArcanumCategory { name = "Artificing", color = Hex("44bfd0"), materialItemId = "everlost:coal", iconItemId = "everlost:torch",
-                tierNames = new[] { "Rune Script", "Power Crystals", "Mechanical Core", "Aether Circuits", "Automatons", "Titan Heart" },
-                tierRecipes = new[] { "Rune Stone", "Charged Crystal", "Mechanical Core", "Aether Circuit", "Guardian Automaton", "Titan Heart" } },
-            new ArcanumCategory { name = "Survival", color = Hex("bfdf44"), materialItemId = "everlost:grass", iconItemId = "everlost:stone_axe",
-                tierNames = new[] { "Foraging & Hunting", "Hide Tanning", "Travel Rations", "Wilderness Lore", "Elemental Resistance", "Master of the Wild" },
-                tierRecipes = new[] { "Snare Trap", "Tanned Hide", "Travel Ration", "Hunting Bow", "Elemental Cloak", "Ancient Totem" } },
-            new ArcanumCategory { name = "Craftsmanship", color = Hex("dc7950"), materialItemId = "everlost:stick", iconItemId = "everlost:rope",
-                tierNames = new[] { "Work Tools", "Fine Components", "Weaving Loom", "Precision Mechanisms", "Master Workshop", "Perfect Machine" },
-                tierRecipes = new[] { "Crafting Kit", "Cogwheel", "Fine Cloth", "Precision Mechanism", "Master Kit", "Perfect Machine" } },
-        };
-
         public const string DefaultRootIconItemId = "everlost:stone_pickaxe";
-
-        private static ArcanumCategory[] categories;
-        private static string rootIconItemId;
-
-        /// <summary>Disciplines – from the serialized tree asset when present, else the built-in defaults.</summary>
-        public static ArcanumCategory[] Categories { get { if (nodes == null) Build(); return categories; } }
-
-        public static string RootIconItemId { get { if (nodes == null) Build(); return rootIconItemId; } }
 
         /// <summary>Resources path of the serialized tree (ArcanumTreeAsset).</summary>
         public const string AssetPath = "Arcanum/ArcanumTree";
 
-        // Šablona jednoho oboru z prototypu: { rodič v rámci oboru, poloměr, úhlový posun, úroveň }.
-        private static readonly float[,] Layout =
-        {
-            { -1, 340, 0, 1 }, { 0, 490, -.025f, 1 }, { 1, 620, -.14f, 2 }, { 1, 620, .12f, 2 },
-            { 2, 780, -.18f, 2 }, { 3, 770, .075f, 2 }, { 3, 880, .20f, 3 }, { 5, 930, .035f, 3 },
-            { 7, 930, -.085f, 3 }, { 7, 1080, .09f, 3 }, { 4, 960, -.205f, 3 }, { 10, 1120, -.16f, 4 },
-            { 11, 1120, -.055f, 4 }, { 9, 1220, .035f, 4 }, { 9, 1210, .185f, 4 }, { 6, 1040, .23f, 4 },
-            { 11, 1310, -.20f, 4 }, { 12, 1290, -.075f, 4 }, { 13, 1390, .03f, 5 }, { 14, 1390, .19f, 5 },
-            { 17, 1450, -.115f, 5 }, { 20, 1450, -.205f, 5 }, { 18, 1530, .075f, 5 }, { 18, 1530, -.015f, 5 },
-            { 19, 1580, .205f, 5 }, { 20, 1640, -.13f, 6 }, { 22, 1710, .115f, 6 }, { 23, 1730, -.025f, 6 },
-            { 25, 1810, -.18f, 6 }, { 26, 1840, .185f, 6 },
-        };
-
-        private static readonly int[] MajorIndices = { 0, 7, 18, 29 };
-        private static readonly string[] Numerals = { "", " II", " III", " IV", " V", " VI", " VII", " VIII", " IX", " X" };
-
+        private static ArcanumCategory[] categories;
+        private static ArcanumTreeAsset.Seal[] seals;
+        private static string rootIconItemId;
         private static List<ArcanumNode> nodes;
+        private static Dictionary<string, int> byCode;
+        private static bool fallback;
 
-        public static IReadOnlyList<ArcanumNode> Nodes
+        /// <summary>True, když se asset nepodařilo načíst a běží nouzový strom jen s kořenem (progres se pak neukládá).</summary>
+        public static bool IsFallback { get { if (nodes == null) Build(); return fallback; } }
+
+        public static ArcanumCategory[] Categories { get { if (nodes == null) Build(); return categories; } }
+
+        public static string RootIconItemId { get { if (nodes == null) Build(); return rootIconItemId; } }
+
+        public static IReadOnlyList<ArcanumNode> Nodes { get { if (nodes == null) Build(); return nodes; } }
+
+        /// <summary>Pečeť tieru N (N ≥ 2) nebo null, když tier pečeť nemá.</summary>
+        public static ArcanumTreeAsset.Seal? SealFor(int tier)
         {
-            get { if (nodes == null) Build(); return nodes; }
+            if (nodes == null) Build();
+            foreach (var s in seals) if (s.tier == tier) return s;
+            return null;
+        }
+
+        /// <summary>Index uzlu podle kódu, -1 když kód neexistuje.</summary>
+        public static int IndexOf(string code)
+        {
+            if (nodes == null) Build();
+            return code != null && byCode.TryGetValue(code, out int i) ? i : -1;
         }
 
         public static float CategoryCenterAngle(int c) => Mathf.PI * (c + 0.5f) / Categories.Length;
 
         /// <summary>Drops the cached tree (editor tools call this after changing the asset).</summary>
-        public static void Reload() { nodes = null; categories = null; }
+        public static void Reload() { nodes = null; categories = null; seals = null; byCode = null; }
 
         private static void Build()
         {
             var asset = Resources.Load<ArcanumTreeAsset>(AssetPath);
-            if (asset != null && TryBuildFromAsset(asset)) return;
-            BuildDefault();
+            fallback = asset == null || !TryBuildFromAsset(asset);
+            if (fallback) BuildRootOnly();
         }
 
         private static bool TryBuildFromAsset(ArcanumTreeAsset a)
         {
-            if (a.categories == null || a.categories.Count == 0 || a.nodes == null || a.nodes.Count != 1 + a.categories.Count * NodesPerCategory)
+            if (a.categories == null || a.categories.Count == 0 || a.nodes == null || a.nodes.Count == 0 || a.nodes[0].category != -1)
             {
-                Debug.LogWarning("[Arcanum] ArcanumTree asset is incomplete – using the built-in tree.");
+                Debug.LogWarning("[Arcanum] ArcanumTree asset is empty or outdated – run Tools/Everlost/Arcanum/Build tree asset from data.js.");
                 return false;
             }
             var cats = new ArcanumCategory[a.categories.Count];
             for (int c = 0; c < cats.Length; c++)
             {
                 var s = a.categories[c];
-                cats[c] = new ArcanumCategory { name = s.name, color = s.color, materialItemId = s.materialItemId, iconItemId = s.iconItemId, tierNames = s.tierNames, tierRecipes = s.tierRecipes };
+                cats[c] = new ArcanumCategory { key = s.key, name = s.name, color = s.color, iconItemId = s.iconItemId, paths = s.paths };
+            }
+            var codes = new Dictionary<string, int>(a.nodes.Count);
+            for (int i = 0; i < a.nodes.Count; i++)
+            {
+                if (!codes.TryAdd(a.nodes[i].code, i)) { Debug.LogWarning("[Arcanum] Duplicate node code " + a.nodes[i].code); return false; }
             }
             var list = new List<ArcanumNode>(a.nodes.Count);
             for (int i = 0; i < a.nodes.Count; i++)
             {
                 var s = a.nodes[i];
-                if (s.id != i) { Debug.LogWarning("[Arcanum] ArcanumTree node ids must be 0.." + (a.nodes.Count - 1) + " in order – using the built-in tree."); return false; }
+                if (!TryResolve(s.requires, codes, s.code, out var req) || !TryResolve(s.any, codes, s.code, out var any)) return false;
+                var cost = s.cost ?? System.Array.Empty<ArcanumTreeAsset.ItemAmount>();
                 list.Add(new ArcanumNode
                 {
-                    id = s.id, category = s.category, tier = s.tier, parent = s.parent, major = s.major,
-                    name = s.name, recipe = s.recipe, materialCost = s.materialCost, pos = s.position,
-                    angle = Mathf.Atan2(s.position.y, s.position.x), radius = s.position.magnitude,
+                    code = s.code, id = i, category = s.category, path = s.path, tier = s.tier,
+                    kind = string.IsNullOrEmpty(s.kind) ? 'R' : s.kind[0], name = s.name,
+                    requires = req, any = any, cost = cost, quest = s.quest,
+                    blueprint = s.blueprint ?? System.Array.Empty<ArcanumTreeAsset.ItemAmount>(),
+                    makes = s.makes ?? System.Array.Empty<string>(),
+                    unlock = s.unlock, flavor = s.flavor, icon = s.icon,
+                    parent = req.Length > 0 ? req[0] : any.Length > 0 ? any[0] : -1,
+                    major = s.kind == "K",
+                    recipe = string.Join(", ", s.makes ?? System.Array.Empty<string>()).Replace("everlost:", ""),
+                    materialCost = cost.Length > 0 ? cost[0].amount : 0,
                 });
             }
-            foreach (var n in list) if (n.parent >= 0 && n.parent < list.Count) list[n.parent].children.Add(n.id);
+            foreach (var n in list)
+            {
+                foreach (int r in n.requires) list[r].children.Add(n.id);
+                foreach (int r in n.any) list[r].children.Add(n.id);
+            }
             categories = cats;
+            seals = a.seals != null ? a.seals.ToArray() : System.Array.Empty<ArcanumTreeAsset.Seal>();
             rootIconItemId = string.IsNullOrEmpty(a.rootIconItemId) ? DefaultRootIconItemId : a.rootIconItemId;
+            byCode = codes;
             nodes = list;
             return true;
         }
 
-        /// <summary>The built-in placeholder tree (also used by the editor to create the asset).</summary>
-        public static List<ArcanumNode> GenerateDefault()
+        private static bool TryResolve(string[] codes, Dictionary<string, int> index, string owner, out int[] ids)
         {
-            BuildDefault();
-            var r = nodes;
-            nodes = null; categories = null;
-            return r;
+            ids = System.Array.Empty<int>();
+            if (codes == null || codes.Length == 0) return true;
+            ids = new int[codes.Length];
+            for (int i = 0; i < codes.Length; i++)
+            {
+                if (!index.TryGetValue(codes[i], out ids[i])) { Debug.LogWarning("[Arcanum] " + owner + " has unknown requirement " + codes[i]); return false; }
+            }
+            return true;
         }
 
-        private static void BuildDefault()
+        /// <summary>Nouzový strom jen s kořenem, aby UI a save nespadly, když asset chybí.</summary>
+        private static void BuildRootOnly()
         {
-            categories = DefaultCategories;
+            categories = new ArcanumCategory[0];
+            seals = new ArcanumTreeAsset.Seal[0];
             rootIconItemId = DefaultRootIconItemId;
-            var Categories = categories;
-            nodes = new List<ArcanumNode>(1 + Categories.Length * NodesPerCategory);
-            nodes.Add(new ArcanumNode
+            byCode = new Dictionary<string, int> { { "R0", 0 } };
+            nodes = new List<ArcanumNode>
             {
-                id = 0, category = -1, tier = 0, parent = -1, major = true, pos = Vector2.zero,
-                name = "First Insight", recipe = "Research Table", materialCost = 0,
-            });
-
-            for (int c = 0; c < Categories.Length; c++)
-            {
-                var cat = Categories[c];
-                int baseId = nodes.Count;
-                var perTier = new int[7]; // pořadí uzlu v rámci úrovně → unikátní jména (Copper Smelting, Copper Smelting II…)
-                // Úhel v UI: 0 = vpravo, PI = vlevo; obor 0 je vlevo (jako v prototypu, kde -PI je vlevo).
-                float center = Mathf.PI - CategoryCenterAngle(c);
-                for (int j = 0; j < NodesPerCategory; j++)
+                new ArcanumNode
                 {
-                    int parentLocal = (int)Layout[j, 0];
-                    float offset = Layout[j, 2] * (c % 2 == 1 ? -1f : 1f);
-                    int tier = (int)Layout[j, 3];
-                    float a = center - offset; // prototyp měl Y dolů; zrcadlíme, aby levé/pravé větvení odpovídalo
-                    float r = Layout[j, 1] + (j > 0 ? Mathf.Sin(j * 2.1f + c * 1.7f) * 24f : (c % 2) * 35f);
-                    var n = new ArcanumNode
-                    {
-                        id = nodes.Count,
-                        category = c,
-                        tier = tier,
-                        angle = a,
-                        radius = r,
-                        pos = new Vector2(Mathf.Cos(a) * r, Mathf.Sin(a) * r),
-                        parent = parentLocal < 0 ? 0 : baseId + parentLocal,
-                        major = System.Array.IndexOf(MajorIndices, j) >= 0,
-                        name = cat.tierNames[tier - 1] + Numerals[Mathf.Min(perTier[tier]++, Numerals.Length - 1)],
-                        recipe = cat.tierRecipes[tier - 1],
-                        materialCost = tier * 3 + 2,
-                    };
-                    nodes.Add(n);
-                }
-            }
-
-            foreach (var n in nodes)
-                if (n.parent >= 0) nodes[n.parent].children.Add(n.id);
+                    code = "R0", id = 0, category = -1, path = "", kind = 'K', name = "First Insight", major = true, parent = -1, recipe = "",
+                    requires = new int[0], any = new int[0], cost = new ArcanumTreeAsset.ItemAmount[0],
+                    blueprint = new ArcanumTreeAsset.ItemAmount[0], makes = new string[0],
+                },
+            };
         }
 
         public static string Description(ArcanumNode n)
         {
-            if (n.category < 0)
-                return "Every great discovery begins with a question. Choose one of six paths and push the limits of your craft.";
-            return "Uncover the secrets of " + Categories[n.category].name.ToLowerInvariant() +
-                   " and learn to make: " + n.recipe.ToLowerInvariant() + ". Each discovery opens the way to more advanced recipes.";
-        }
-
-        private static Color Hex(string hex)
-        {
-            ColorUtility.TryParseHtmlString("#" + hex, out var c);
-            return c;
+            if (!string.IsNullOrEmpty(n.unlock)) return n.unlock;
+            return n.flavor ?? "";
         }
     }
 }

@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Orivilon.EditorTools;
 using Orivilon.UI.Arcanum;
 using TMPro;
 using UnityEditor;
@@ -39,21 +40,8 @@ namespace Orivilon.UI.Refresh.EditorTools
         {
             var a = AssetDatabase.LoadAssetAtPath<ArcanumTreeAsset>(TreeAssetPath);
             if (a != null && a.nodes != null && a.nodes.Count > 0) return a;
-            EnsureFolder("Assets/Resources/Arcanum");
-            bool create = a == null;
-            if (create) a = ScriptableObject.CreateInstance<ArcanumTreeAsset>();
-            var nodes = ArcanumData.GenerateDefault();
-            a.rootIconItemId = ArcanumData.DefaultRootIconItemId;
-            a.categories = new List<ArcanumTreeAsset.Category>();
-            foreach (var c in ArcanumData.DefaultCategories)
-                a.categories.Add(new ArcanumTreeAsset.Category { name = c.name, color = c.color, materialItemId = c.materialItemId, iconItemId = c.iconItemId, tierNames = (string[])c.tierNames.Clone(), tierRecipes = (string[])c.tierRecipes.Clone() });
-            a.nodes = new List<ArcanumTreeAsset.Node>();
-            foreach (var n in nodes)
-                a.nodes.Add(new ArcanumTreeAsset.Node { id = n.id, category = n.category, tier = n.tier, parent = n.parent, major = n.major, name = n.name, recipe = n.recipe, materialCost = n.materialCost, position = n.pos });
-            if (create) AssetDatabase.CreateAsset(a, TreeAssetPath); else EditorUtility.SetDirty(a);
-            AssetDatabase.SaveAssets();
-            ArcanumData.Reload();
-            return a;
+            // Strom v3 se generuje z design/arcanum/data.js, ne z kódu.
+            return ArcanumTreeImporter.Build();
         }
 
         // ── shared art ───────────────────────────────────────────────────────
@@ -271,7 +259,7 @@ namespace Orivilon.UI.Refresh.EditorTools
                 {
                     var lbl = go.transform.Find("Label").GetComponent<TMP_Text>();
                     lbl.gameObject.SetActive(true);
-                    lbl.text = n.id == 0 ? n.name.ToUpperInvariant() : ArcanumData.Categories[n.category].tierNames[5].ToUpperInvariant();
+                    lbl.text = n.id == 0 ? n.name.ToUpperInvariant() : n.name.ToUpperInvariant();
                 }
                 viewsProp.GetArrayElementAtIndex(n.id).objectReferenceValue = v;
                 nodeViews.Add(v);
@@ -369,11 +357,11 @@ namespace Orivilon.UI.Refresh.EditorTools
                 t.Find("Slot/Stripe").GetComponent<Image>().color = cat.color;
                 var bar = t.Find("BarBg/Bar").GetComponent<Image>(); bar.color = Color.Lerp(cat.color, Color.gray, 0.45f);
                 bar.rectTransform.anchorMax = new Vector2(0f, 1f);
-                var item = ArcanumResearch.Item(cat.materialItemId);
+                var item = ArcanumResearch.Item(cat.iconItemId);
                 var mat = t.Find("MatIcon").GetComponent<Image>(); mat.sprite = item != null ? item.icon : null; mat.enabled = item != null && item.icon != null;
                 var supply = t.Find("Supply").GetComponent<TMP_Text>();
                 supply.text = (item != null ? item.itemName : "Material") + "  <color=#e6a56b>0 / 5</color>";
-                var next = t.Find("Next").GetComponent<TMP_Text>(); next.text = "Next: " + cat.tierNames[0];
+                var next = t.Find("Next").GetComponent<TMP_Text>(); next.text = "Next: —";
                 var btn = go.GetComponent<Button>();
                 UnityEventTools.AddIntPersistentListener(btn.onClick, new UnityAction<int>(x.ui.FocusCategory), c);
                 var e = rowsProp.GetArrayElementAtIndex(c);

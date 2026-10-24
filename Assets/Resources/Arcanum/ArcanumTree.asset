@@ -14,1741 +14,5702 @@ MonoBehaviour:
   m_EditorClassIdentifier: Orivilon::Orivilon.UI.Arcanum.ArcanumTreeAsset
   rootIconItemId: everlost:stone_pickaxe
   categories:
-  - name: Smithing
-    color: {r: 0.8980392, g: 0.60784316, b: 0.21960784, a: 1}
-    materialItemId: everlost:stone
-    iconItemId: everlost:stone_sword
-    tierNames:
-    - Copper Smelting
-    - Bronze Tools
-    - Iron Forge
-    - Tempered Steel
-    - Master Alloy
-    - Starmetal
-    tierRecipes:
-    - Copper Ingot
-    - Bronze Pickaxe
-    - Iron Sword
-    - Steel Edge
-    - Master Hammer
-    - Star Blade
-  - name: Alchemy
-    color: {r: 0.7294118, g: 0.50980395, b: 0.85882354, a: 1}
-    materialItemId: everlost:berries
-    iconItemId: everlost:berries
-    tierNames:
-    - Herbal Extracts
-    - Distillation
-    - Healing Tinctures
-    - Transmutation
-    - Living Essence
-    - Elixir of Ages
-    tierRecipes:
-    - Herbal Extract
-    - Distilling Flask
-    - Healing Elixir
-    - Alchemical Salt
-    - Living Essence
-    - Elixir of Ages
-  - name: Construction
-    color: {r: 0.8509804, g: 0.7294118, b: 0.4745098, a: 1}
-    materialItemId: everlost:log
-    iconItemId: everlost:building_tool
-    tierNames:
-    - Stone Foundations
-    - Load-Bearing Frames
-    - Reinforced Masonry
-    - Vaulted Halls
-    - Citadel
-    - Ancient Monuments
-    tierRecipes:
-    - Stone Block
-    - Support Beam
-    - Reinforced Wall
-    - Stone Vault
-    - Citadel Tower
-    - Rune Monument
-  - name: Artificing
+  - key: ar
+    name: Lore
     color: {r: 0.26666668, g: 0.7490196, b: 0.8156863, a: 1}
-    materialItemId: everlost:coal
     iconItemId: everlost:torch
-    tierNames:
-    - Rune Script
-    - Power Crystals
-    - Mechanical Core
-    - Aether Circuits
-    - Automatons
-    - Titan Heart
-    tierRecipes:
-    - Rune Stone
-    - Charged Crystal
-    - Mechanical Core
-    - Aether Circuit
-    - Guardian Automaton
-    - Titan Heart
-  - name: Survival
-    color: {r: 0.7490196, g: 0.8745098, b: 0.26666668, a: 1}
-    materialItemId: everlost:grass
-    iconItemId: everlost:stone_axe
-    tierNames:
-    - Foraging & Hunting
-    - Hide Tanning
-    - Travel Rations
-    - Wilderness Lore
-    - Elemental Resistance
-    - Master of the Wild
-    tierRecipes:
-    - Snare Trap
-    - Tanned Hide
-    - Travel Ration
-    - Hunting Bow
-    - Elemental Cloak
-    - Ancient Totem
-  - name: Craftsmanship
+    pathKeys:
+    - J
+    - C
+    - R
+    - X
+    paths:
+    - Journal
+    - Cartography
+    - Relics
+    - Crystals
+  - key: ko
+    name: Smithing
+    color: {r: 0.8980392, g: 0.60784316, b: 0.21960784, a: 1}
+    iconItemId: everlost:stone_sword
+    pathKeys:
+    - M
+    - T
+    - S
+    - X
+    paths:
+    - Metallurgy
+    - Toolsets
+    - Specialist tools
+    - Rare metals
+  - key: re
+    name: Craftsmanship
     color: {r: 0.8627451, g: 0.4745098, b: 0.3137255, a: 1}
-    materialItemId: everlost:stick
     iconItemId: everlost:rope
-    tierNames:
-    - Work Tools
-    - Fine Components
-    - Weaving Loom
-    - Precision Mechanisms
-    - Master Workshop
-    - Perfect Machine
-    tierRecipes:
-    - Crafting Kit
-    - Cogwheel
-    - Fine Cloth
-    - Precision Mechanism
-    - Master Kit
-    - Perfect Machine
+    pathKeys:
+    - F
+    - C
+    - W
+    - G
+    paths:
+    - Fiber
+    - Clay & glass
+    - Woodwork
+    - Gear
+  - key: co
+    name: Construction
+    color: {r: 0.8509804, g: 0.7294118, b: 0.4745098, a: 1}
+    iconItemId: everlost:building_tool
+    pathKeys:
+    - S
+    - M
+    - W
+    paths:
+    - Shelter
+    - Masonry
+    - Works
+  - key: pr
+    name: Survival
+    color: {r: 0.7490196, g: 0.8745098, b: 0.26666668, a: 1}
+    iconItemId: everlost:stone_axe
+    pathKeys:
+    - F
+    - N
+    - W
+    - C
+    paths:
+    - Fire & food
+    - Grow & fish
+    - Water & health
+    - Climate & rest
+  - key: al
+    name: Alchemy
+    color: {r: 0.7294118, g: 0.50980395, b: 0.85882354, a: 1}
+    iconItemId: everlost:berries
+    pathKeys:
+    - H
+    - M
+    - E
+    paths:
+    - Herbalism
+    - Minerals
+    - Essences
   nodes:
-  - id: 0
+  - code: R0
     category: -1
+    path: 
     tier: 0
-    parent: -1
-    major: 1
+    kind: K
     name: First Insight
-    recipe: Research Table
-    materialCost: 0
-    position: {x: 0, y: 0}
-  - id: 1
-    category: 0
+    requires: []
+    any: []
+    cost: []
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:rope
+    - everlost:torch
+    unlock: 'Today''s recipes (Rope, stone tools, Building Tool, grass Torch) and
+      free log building: place every log by hand.'
+    flavor: Every great discovery begins with a question. Write down what you see.
+    icon: png:StonePickaxe
+  - code: KO01
+    category: 1
+    path: M
     tier: 1
-    parent: 0
-    major: 1
+    kind: D
+    name: Prospecting
+    requires:
+    - R0
+    any: []
+    cost: []
+    quest: "Dig terrain 20\xD7 with a pickaxe or collect 20 Stone"
+    blueprint: []
+    makes: []
+    unlock: Rocks show their type on interaction. Flint drops from mined rock.
+    flavor: Not all stone is the same. Some rocks bleed rust, some bleed green.
+    icon: mountain
+  - code: KO02
+    category: 1
+    path: T
+    tier: 1
+    kind: R
+    name: Knapping
+    requires:
+    - R0
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 6
+    - itemId: everlost:flint
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Flint Knife: cuts grass, reeds and bark twice as fast.'
+    flavor: Strike at the right angle and stone gives you an edge.
+    icon: scissors
+  - code: KO03
+    category: 1
+    path: T
+    tier: 1
+    kind: R
+    name: Honed Edges
+    requires:
+    - KO02
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 8
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Stone tools need one hit fewer per tree and rock.
+    flavor: A sharper edge wastes less strength.
+    icon: png:StoneAxe
+  - code: KO04
+    category: 1
+    path: T
+    tier: 1
+    kind: R
+    name: Hardwood Hafts
+    requires:
+    - KO03
+    any: []
+    cost:
+    - itemId: everlost:oak
+      amount: 2
+    - itemId: everlost:rope
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Oak handles: every tool swings 15 % faster.'
+    flavor: Birch splits. Oak holds.
+    icon: png:OakLog
+  - code: KO05
+    category: 1
+    path: S
+    tier: 1
+    kind: R
+    name: Stone Hammer
+    requires:
+    - KO02
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 6
+    - itemId: everlost:oak
+      amount: 1
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Stone Hammer: places and repairs blueprint pieces, dismantles your own
+      builds.'
+    flavor: Every house starts with something to hit nails with. Even before nails.
+    icon: hammer
+  - code: KO06
+    category: 1
+    path: S
+    tier: 1
+    kind: R
+    name: Stone Spade
+    requires:
+    - KO02
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 4
+    - itemId: everlost:stick
+      amount: 4
+    - itemId: everlost:rope
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Spade: digs soil, sand and clay twice as fast. The pickaxe stays for
+      rock.'
+    flavor: Soft ground wants a flat blade.
+    icon: shovel
+  - code: KO07
+    category: 1
+    path: S
+    tier: 1
+    kind: R
+    name: Whetstone
+    requires:
+    - KO03
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 6
+    - itemId: everlost:sand
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Whetstone: use on a tool for +15 % speed for 10 minutes.'
+    flavor: Ten strokes on wet stone, ten minutes of easy work.
+    icon: square
+  - code: KO08
+    category: 1
+    path: M
+    tier: 2
+    kind: D
+    name: Green Stone
+    requires:
+    - KO01
+    any: []
+    cost: []
+    quest: 'Pick up Copper Ore (green-streaked rock: Mesa, Hills, Karst)'
+    blueprint: []
+    makes: []
+    unlock: Copper Ore becomes a research material.
+    flavor: The green crust is not moss.
+    icon: gem
+  - code: KO09
+    category: 1
+    path: M
+    tier: 2
+    kind: R
+    name: Clay Crucible
+    requires:
+    - KO08
+    - RE12
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 4
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:crucible
+    unlock: 'Clay Crucible: melts metal inside a kiln.'
+    flavor: A pot that has to survive what the kiln does to it.
+    icon: container
+  - code: KO10
+    category: 1
+    path: M
+    tier: 2
+    kind: R
     name: Copper Smelting
-    recipe: Copper Ingot
-    materialCost: 5
-    position: {x: -328.4148, y: 87.998436}
-  - id: 2
-    category: 0
-    tier: 1
-    parent: 1
-    major: 0
-    name: Copper Smelting II
-    recipe: Copper Ingot
-    materialCost: 5
-    position: {x: -496.46487, y: 119.81029}
-  - id: 3
-    category: 0
+    requires:
+    - KO09
+    - RE08
+    any: []
+    cost:
+    - itemId: everlost:copperore
+      amount: 4
+    - itemId: everlost:coal
+      amount: 4
+    - itemId: everlost:crucible
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:copper
+    unlock: "Kiln + Crucible: 2 Copper Ore + 1 Coal \u2192 1 Copper Ingot."
+    flavor: The first metal melts at a heat you can already make.
+    icon: box
+  - code: KO11
+    category: 1
+    path: T
     tier: 2
-    parent: 2
-    major: 0
-    name: Bronze Tools
-    recipe: Bronze Pickaxe
-    materialCost: 8
-    position: {x: -594.64404, y: 72.78742}
-  - id: 4
-    category: 0
+    kind: K
+    name: Copper Tools
+    requires:
+    - KO10
+    - KO04
+    any: []
+    cost:
+    - itemId: everlost:copper
+      amount: 4
+    - itemId: everlost:oak
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Copper Axe, Pickaxe, Hammer, Spade and Knife: 20 % fewer hits (tool
+      tier 2).'
+    flavor: Soft metal, but it does not shatter.
+    icon: pickaxe
+  - code: KO12
+    category: 1
+    path: S
     tier: 2
-    parent: 2
-    major: 0
-    name: Bronze Tools II
-    recipe: Bronze Pickaxe
-    materialCost: 8
-    position: {x: -575.7319, y: 231.15656}
-  - id: 5
-    category: 0
+    kind: R
+    name: Sickle
+    requires:
+    - KO11
+    any: []
+    cost:
+    - itemId: everlost:copper
+      amount: 2
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Sickle: harvests grass, reeds and grain three at a time.'
+    flavor: A curved blade for the meadow.
+    icon: wheat
+  - code: KO13
+    category: 1
+    path: S
     tier: 2
-    parent: 3
-    major: 0
-    name: Bronze Tools III
-    recipe: Bronze Pickaxe
-    materialCost: 8
-    position: {x: -797.8337, y: 65.4081}
-  - id: 6
-    category: 0
+    kind: R
+    name: Fish Hooks
+    requires:
+    - KO10
+    any: []
+    cost:
+    - itemId: everlost:copper
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:hooks
+    unlock: Copper Fish Hooks (10 per ingot).
+    flavor: The rivers here are full. You just need something sharp and bent.
+    icon: anchor
+  - code: KO14
+    category: 1
+    path: S
     tier: 2
-    parent: 4
-    major: 0
-    name: Bronze Tools IV
-    recipe: Bronze Pickaxe
-    materialCost: 8
-    position: {x: -706.8128, y: 247.48323}
-  - id: 7
-    category: 0
+    kind: R
+    name: Gold Pan
+    requires:
+    - KO10
+    - PR03
+    any: []
+    cost:
+    - itemId: everlost:copper
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:tin
+    - everlost:golddust
+    unlock: 'Gold Pan: wash river gravel for Tin Ore, Gold Dust and Flint.'
+    flavor: Swirl, tilt, wait. The heavy things stay.
+    icon: disc
+  - code: KO15
+    category: 1
+    path: S
+    tier: 2
+    kind: R
+    name: Hoe
+    requires:
+    - KO11
+    any: []
+    cost:
+    - itemId: everlost:copper
+      amount: 2
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Hoe: tills soil for garden beds.'
+    flavor: Break the ground and it will feed you.
+    icon: sprout
+  - code: KO16
+    category: 1
+    path: T
+    tier: 2
+    kind: B
+    name: Stone Anvil
+    requires:
+    - KO04
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 10
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 12
+    - itemId: everlost:oak
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: a dressed stone anvil. Metal tools are made here.'
+    flavor: Every smith starts with a flat rock.
+    icon: hammer
+  - code: KO17
+    category: 1
+    path: M
+    tier: 2
+    kind: D
+    name: Iron Ore
+    requires:
+    - KO01
+    any: []
+    cost: []
+    quest: Pick up your first Iron Ore (Iron-stained Rock)
+    blueprint: []
+    makes: []
+    unlock: Iron Ore becomes a research material.
+    flavor: Heavy, red-streaked and cold. This is worth more than stone.
+    icon: mountain
+  - code: KO18
+    category: 1
+    path: M
+    tier: 2
+    kind: D
+    name: Ore Veins
+    requires:
+    - KO17
+    any: []
+    cost: []
+    quest: Mine an ore vein inside a cave
+    blueprint: []
+    makes: []
+    unlock: "Cave veins drop 3\u20136 ore instead of 1\u20132."
+    flavor: The mountain keeps its best metal in the dark.
+    icon: pickaxe
+  - code: KO19
+    category: 1
+    path: M
     tier: 3
-    parent: 4
-    major: 0
-    name: Iron Forge
-    recipe: Iron Sword
-    materialCost: 11
-    position: {x: -788.5444, y: 392.45203}
-  - id: 8
-    category: 0
+    kind: D
+    name: Tin Stone
+    requires:
+    - KO14
+    any: []
+    cost: []
+    quest: Pan your first Tin Ore from a mountain stream
+    blueprint: []
+    makes: []
+    unlock: Tin becomes a research material.
+    flavor: Black grains at the bottom of the pan. Heavier than they look.
+    icon: circle-dot
+  - code: KO20
+    category: 1
+    path: M
     tier: 3
-    parent: 6
-    major: 1
-    name: Iron Forge II
-    recipe: Iron Sword
-    materialCost: 11
-    position: {x: -908.7485, y: 277.92505}
-  - id: 9
-    category: 0
+    kind: R
+    name: Bronze Alloy
+    requires:
+    - KO19
+    - KO10
+    any: []
+    cost:
+    - itemId: everlost:copper
+      amount: 6
+    - itemId: everlost:tin
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:bronze
+    unlock: "Crucible: 3 Copper Ingot + 1 Tin \u2192 4 Bronze Ingot."
+    flavor: Two soft metals make one hard one.
+    icon: box
+  - code: KO21
+    category: 1
+    path: T
     tier: 3
-    parent: 8
-    major: 0
-    name: Iron Forge III
-    recipe: Iron Sword
-    materialCost: 11
-    position: {x: -894.5334, y: 159.8215}
-  - id: 10
-    category: 0
+    kind: K
+    name: Bronze Age
+    requires:
+    - KO20
+    - KO16
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 4
+    - itemId: everlost:oak
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Bronze Axe, Pickaxe, Hammer, Spade, Knife and Sickle: 35 % fewer hits
+      (tool tier 3).'
+    flavor: Golden tools that ring when they strike.
+    icon: pickaxe
+  - code: KO22
+    category: 1
+    path: S
     tier: 3
-    parent: 8
-    major: 0
-    name: Iron Forge IV
-    recipe: Iron Sword
-    materialCost: 11
-    position: {x: -1014.9906, y: 372.5713}
-  - id: 11
-    category: 0
+    kind: R
+    name: Chisel
+    requires:
+    - KO21
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:cutstone
+    unlock: 'Chisel: dresses stone into Cut Stone blocks and carves wood.'
+    flavor: Take away everything that is not the block.
+    icon: pen-tool
+  - code: KO23
+    category: 1
+    path: S
     tier: 3
-    parent: 5
-    major: 0
-    name: Iron Forge V
-    recipe: Iron Sword
-    materialCost: 11
-    position: {x: -978.49915, y: 55.63794}
-  - id: 12
-    category: 0
+    kind: R
+    name: Saw
+    requires:
+    - KO21
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 2
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:beam
+    unlock: "Saw: 1 Log \u2192 6 Planks instead of 4, and long Beams."
+    flavor: The axe splits. The saw decides.
+    icon: slice
+  - code: KO24
+    category: 1
+    path: S
+    tier: 3
+    kind: R
+    name: Machete
+    requires:
+    - KO21
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 2
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Machete: clears bushes and vines in one swing; bamboo and palms twice
+      as fast; Palm Fronds.'
+    flavor: The jungle does not let you walk. It lets you cut.
+    icon: swords
+  - code: KO25
+    category: 1
+    path: M
+    tier: 3
+    kind: R
+    name: Sand Casting
+    requires:
+    - KO20
+    - RE07
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 3
+    - itemId: everlost:sand
+      amount: 6
+    - itemId: everlost:clay
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:gear
+    unlock: 'Sand molds: Bronze Gears, Hinges and Bells.'
+    flavor: Pour once and the shape is perfect every time.
+    icon: cog
+  - code: KO26
+    category: 1
+    path: M
+    tier: 3
+    kind: B
+    name: Bloomery
+    requires:
+    - KO17
+    - RE07
+    any: []
+    cost:
+    - itemId: everlost:ironore
+      amount: 2
+    - itemId: everlost:brick
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:brick
+      amount: 24
+    - itemId: everlost:clay
+      amount: 6
+    - itemId: everlost:stone
+      amount: 8
+    makes: []
+    unlock: 'Blueprint: a chest-high clay-brick shaft furnace. Every brick is placed
+      by hand.'
+    flavor: Clay, charcoal and patience turn rock into metal.
+    icon: factory
+  - code: KO27
+    category: 1
+    path: M
+    tier: 3
+    kind: D
+    name: First Bloom
+    requires:
+    - KO26
+    any: []
+    cost: []
+    quest: Finish building a Bloomery
+    blueprint: []
+    makes: []
+    unlock: Reveals Iron Smelting.
+    flavor: The shaft roars. Something glows at the bottom.
+    icon: flame
+  - code: KO28
+    category: 1
+    path: M
+    tier: 3
+    kind: R
+    name: Iron Smelting
+    requires:
+    - KO27
+    - RE08
+    any: []
+    cost:
+    - itemId: everlost:ironore
+      amount: 4
+    - itemId: everlost:coal
+      amount: 4
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:iron
+    unlock: "Bloomery: 2 Iron Ore + 1 Coal \u2192 1 Iron Ingot (40 s)."
+    flavor: Hammer the bloom while it is hot. The slag runs out, the iron stays.
+    icon: box
+  - code: KO29
+    category: 1
+    path: M
+    tier: 3
+    kind: R
+    name: Tongs & Hot Work
+    requires:
+    - KO28
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Iron Tongs: you can work glowing iron at the anvil.'
+    flavor: Hold it where your hand cannot.
+    icon: grip
+  - code: KO30
+    category: 1
+    path: M
+    tier: 3
+    kind: R
+    name: Bellows
+    requires:
+    - KO28
+    - RE01
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 1
+    - itemId: everlost:cloth
+      amount: 4
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "Bloomery and kiln: 3 ore + 1 Coal \u2192 2 ingots."
+    flavor: More air, hotter fire, less waste.
+    icon: wind
+  - code: KO31
+    category: 1
+    path: T
+    tier: 3
+    kind: R
+    name: Nailsmith
+    requires:
+    - KO28
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:nails
+    unlock: Iron Nails (8 per ingot), hinges and brackets.
+    flavor: Small iron makes big wood useful.
+    icon: paperclip
+  - code: KO32
+    category: 1
+    path: X
+    tier: 3
+    kind: D
+    name: Volcanic Glass
+    requires:
+    - KO02
+    any: []
+    cost: []
+    quest: Pick up Obsidian
+    blueprint: []
+    makes: []
+    unlock: Obsidian becomes a research material.
+    flavor: Black glass, sharper than anything you can knap.
+    icon: diamond
+  - code: KO33
+    category: 1
+    path: X
+    tier: 3
+    kind: R
+    name: Obsidian Blades
+    requires:
+    - KO32
+    any: []
+    cost:
+    - itemId: everlost:obsidian
+      amount: 4
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:lens
+    unlock: Obsidian Knife (fastest plant harvest) and obsidian lens blanks.
+    flavor: It cuts the light as well as the grass.
+    icon: diamond
+  - code: KO34
+    category: 1
+    path: X
+    tier: 3
+    kind: R
+    name: Gold Leaf
+    requires:
+    - KO19
+    any: []
+    cost:
+    - itemId: everlost:golddust
+      amount: 6
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:goldleaf
+    unlock: Beat Gold Dust into Gold Leaf for instruments and decoration.
+    flavor: Soft enough to beat thinner than a leaf.
+    icon: star
+  - code: KO35
+    category: 1
+    path: T
     tier: 4
-    parent: 11
-    major: 0
+    kind: K
+    name: Iron Age
+    requires:
+    - KO29
+    - KO21
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 4
+    - itemId: everlost:oak
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Iron Axe, Pickaxe and Hammer (tool tier 4, 50 % fewer hits). Spade, Knife,
+      Sickle, Saw, Chisel and Machete are reforged in iron.
+    flavor: Iron does not chip. Iron remembers its shape.
+    icon: pickaxe
+  - code: KO36
+    category: 1
+    path: T
+    tier: 4
+    kind: B
+    name: Iron Anvil
+    requires:
+    - KO31
+    - KO16
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 6
+    quest: 
+    blueprint:
+    - itemId: everlost:iron
+      amount: 6
+    - itemId: everlost:stone
+      amount: 8
+    - itemId: everlost:oak
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: an iron anvil on a stone plinth. Steel tools and wire are
+      made here.'
+    flavor: An anvil that outlives its smith.
+    icon: hammer
+  - code: KO37
+    category: 1
+    path: S
+    tier: 4
+    kind: R
+    name: Sledgehammer
+    requires:
+    - KO35
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 4
+    - itemId: everlost:oak
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Sledgehammer: breaks large boulders (20+ Stone, chance of ore) and knocks
+      down whole walls.'
+    flavor: Some rocks are not for mining. They are for breaking.
+    icon: hammer
+  - code: KO38
+    category: 1
+    path: S
+    tier: 4
+    kind: R
+    name: Crowbar
+    requires:
+    - KO35
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 3
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Crowbar: pries open sealed ruin vaults; ruins give twice the Relic Shards.'
+    flavor: The lost ones locked their doors. They did not plan for iron.
+    icon: wrench
+  - code: KO39
+    category: 1
+    path: S
+    tier: 4
+    kind: R
+    name: Ice Axe
+    requires:
+    - KO35
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 3
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Ice Axe: climb ice walls and mine Ice (Glacier, SnowPeaks, FrozenOcean).'
+    flavor: On a glacier you do not walk. You swing and pull.
+    icon: mountain-snow
+  - code: KO40
+    category: 1
+    path: S
+    tier: 4
+    kind: R
+    name: Hand Auger
+    requires:
+    - KO35
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 3
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Auger: drills wells and taps conifers for twice the Resin.'
+    flavor: Turn, turn, turn. Water.
+    icon: drill
+  - code: KO41
+    category: 1
+    path: M
+    tier: 4
+    kind: R
+    name: Ore Roasting
+    requires:
+    - KO30
+    - RE05
+    any: []
+    cost:
+    - itemId: everlost:ironore
+      amount: 6
+    - itemId: everlost:coal
+      amount: 3
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Roast ore in a kiln first: smelting takes half the time.'
+    flavor: Fire the stone once to crack it, twice to melt it.
+    icon: flame-kindling
+  - code: KO42
+    category: 1
+    path: M
+    tier: 4
+    kind: D
+    name: Flux Stone
+    requires:
+    - KO35
+    any: []
+    cost: []
+    quest: Pick up your first Limestone
+    blueprint: []
+    makes: []
+    unlock: Reveals the Forge and refractory brick.
+    flavor: Pale stone that drinks the impurities from molten iron.
+    icon: layers
+  - code: KO43
+    category: 1
+    path: M
+    tier: 4
+    kind: B
+    name: Forge
+    requires:
+    - KO42
+    - RE18
+    - KO31
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 2
+    - itemId: everlost:refbrick
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:refbrick
+      amount: 32
+    - itemId: everlost:iron
+      amount: 4
+    - itemId: everlost:stone
+      amount: 16
+    makes: []
+    unlock: 'Blueprint: a brick forge with chimney and quench trough.'
+    flavor: A fire that never has to stop.
+    icon: factory
+  - code: KO44
+    category: 1
+    path: M
+    tier: 4
+    kind: D
+    name: Forge Lit
+    requires:
+    - KO43
+    any: []
+    cost: []
+    quest: Finish building a Forge
+    blueprint: []
+    makes: []
+    unlock: Reveals Steelmaking.
+    flavor: White heat. The air shimmers.
+    icon: flame
+  - code: KO45
+    category: 1
+    path: M
+    tier: 4
+    kind: R
+    name: Steelmaking
+    requires:
+    - KO44
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 6
+    - itemId: everlost:coal
+      amount: 6
+    - itemId: everlost:limestone
+      amount: 3
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:steel
+    unlock: "Forge: 2 Iron Ingot + 2 Coal + 1 Limestone \u2192 1 Steel Ingot."
+    flavor: Fold, hammer, quench. Repeat until it rings.
+    icon: box
+  - code: KO46
+    category: 1
+    path: M
+    tier: 4
+    kind: R
+    name: Wire Drawing
+    requires:
+    - KO36
+    any: []
+    cost:
+    - itemId: everlost:iron
+      amount: 3
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:wire
+    unlock: 'Iron Wire: climbing gear, lantern cages and the grappling hook.'
+    flavor: Pull iron thin enough and it becomes rope.
+    icon: cable
+  - code: KO47
+    category: 1
+    path: T
+    tier: 5
+    kind: K
     name: Tempered Steel
-    recipe: Steel Edge
-    materialCost: 14
-    position: {x: -1092.8284, y: 111.63491}
-  - id: 13
-    category: 0
-    tier: 4
-    parent: 12
-    major: 0
-    name: Tempered Steel II
-    recipe: Steel Edge
-    materialCost: 14
-    position: {x: -1097.7148, y: 230.2989}
-  - id: 14
-    category: 0
-    tier: 4
-    parent: 10
-    major: 0
-    name: Tempered Steel III
-    recipe: Steel Edge
-    materialCost: 14
-    position: {x: -1185.6461, y: 362.60944}
-  - id: 15
-    category: 0
-    tier: 4
-    parent: 10
-    major: 0
-    name: Tempered Steel IV
-    recipe: Steel Edge
-    materialCost: 14
-    position: {x: -1071.6852, y: 513.4588}
-  - id: 16
-    category: 0
-    tier: 4
-    parent: 7
-    major: 0
-    name: Tempered Steel V
-    recipe: Steel Edge
-    materialCost: 14
-    position: {x: -918.52057, y: 492.05286}
-  - id: 17
-    category: 0
-    tier: 4
-    parent: 12
-    major: 0
-    name: Tempered Steel VI
-    recipe: Steel Edge
-    materialCost: 14
-    position: {x: -1327.0883, y: 82.11756}
-  - id: 18
-    category: 0
-    tier: 4
-    parent: 13
-    major: 0
-    name: Tempered Steel VII
-    recipe: Steel Edge
-    materialCost: 14
-    position: {x: -1246.1067, y: 235.5175}
-  - id: 19
-    category: 0
-    tier: 5
-    parent: 14
-    major: 1
-    name: Master Alloy
-    recipe: Master Hammer
-    materialCost: 17
-    position: {x: -1333.5568, y: 400.56482}
-  - id: 20
-    category: 0
-    tier: 5
-    parent: 15
-    major: 0
-    name: Master Alloy II
-    recipe: Master Hammer
-    materialCost: 17
-    position: {x: -1267.9773, y: 615.31915}
-  - id: 21
-    category: 0
-    tier: 5
-    parent: 18
-    major: 0
-    name: Master Alloy III
-    recipe: Master Hammer
-    materialCost: 17
-    position: {x: -1412.6444, y: 208.87773}
-  - id: 22
-    category: 0
-    tier: 5
-    parent: 21
-    major: 0
-    name: Master Alloy IV
-    recipe: Master Hammer
-    materialCost: 17
-    position: {x: -1450.4755, y: 82.47474}
-  - id: 23
-    category: 0
-    tier: 5
-    parent: 19
-    major: 0
-    name: Master Alloy V
-    recipe: Master Hammer
-    materialCost: 17
-    position: {x: -1462.1154, y: 511.94464}
-  - id: 24
-    category: 0
-    tier: 5
-    parent: 19
-    major: 0
-    name: Master Alloy VI
-    recipe: Master Hammer
-    materialCost: 17
-    position: {x: -1462.1566, y: 368.36862}
-  - id: 25
-    category: 0
-    tier: 5
-    parent: 20
-    major: 0
-    name: Master Alloy VII
-    recipe: Master Hammer
-    materialCost: 17
-    position: {x: -1413.8353, y: 712.4962}
-  - id: 26
-    category: 0
-    tier: 6
-    parent: 21
-    major: 0
-    name: Starmetal
-    recipe: Star Blade
-    materialCost: 20
-    position: {x: -1644.5175, y: 218.0102}
-  - id: 27
-    category: 0
-    tier: 6
-    parent: 23
-    major: 0
-    name: Starmetal II
-    recipe: Star Blade
-    materialCost: 20
-    position: {x: -1569.2966, y: 620.98016}
-  - id: 28
-    category: 0
-    tier: 6
-    parent: 24
-    major: 0
-    name: Starmetal III
-    recipe: Star Blade
-    materialCost: 20
-    position: {x: -1685.2394, y: 406.69345}
-  - id: 29
-    category: 0
-    tier: 6
-    parent: 26
-    major: 0
-    name: Starmetal IV
-    recipe: Star Blade
-    materialCost: 20
-    position: {x: -1822.5392, y: 149.41562}
-  - id: 30
-    category: 0
-    tier: 6
-    parent: 27
-    major: 1
-    name: Starmetal V
-    recipe: Star Blade
-    materialCost: 20
-    position: {x: -1639.1274, y: 785.328}
-  - id: 31
+    requires:
+    - KO45
+    - KO36
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 4
+    - itemId: everlost:oak
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:meteor
+    unlock: 'Steel Axe, Pickaxe and Hammer: tool tier 5, mines Meteoric Iron and
+      large crystals. Specialist tools reforged in steel.'
+    flavor: Steel bends where iron would break.
+    icon: pickaxe
+  - code: KO48
     category: 1
+    path: T
+    tier: 5
+    kind: R
+    name: Steel Fittings
+    requires:
+    - KO47
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:fittings
+    unlock: Steel fittings, springs and chain.
+    flavor: The joints decide how long a thing lasts.
+    icon: cog
+  - code: KO49
+    category: 1
+    path: T
+    tier: 5
+    kind: R
+    name: Quench Oil
+    requires:
+    - KO47
+    - AL10
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 1
+    - itemId: everlost:oil
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: All metal tools work 15 % faster.
+    flavor: Oil, not water. The edge stays true.
+    icon: droplet
+  - code: KO50
+    category: 1
+    path: S
+    tier: 5
+    kind: R
+    name: Flint & Steel
+    requires:
+    - KO47
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 1
+    - itemId: everlost:flint
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Striker: light any fire instantly, even in rain.'
+    flavor: One spark is enough.
+    icon: zap
+  - code: KO51
+    category: 1
+    path: S
+    tier: 5
+    kind: R
+    name: Precision Tools
+    requires:
+    - KO47
+    - KO22
+    - KO23
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 3
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Steel saw, chisel and auger: Cut Stone and Planks twice as fast; fine
+      joinery pieces.'
+    flavor: A tool that does exactly what you meant.
+    icon: ruler
+  - code: KO52
+    category: 1
+    path: X
+    tier: 5
+    kind: R
+    name: Prospector's Pick
+    requires:
+    - KO47
+    - AR12
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 2
+    - itemId: everlost:crystal
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: While held, ore and crystal within 30 m shimmer.
+    flavor: A crystal set in the head hums near metal.
+    icon: pickaxe
+  - code: KO53
+    category: 1
+    path: M
+    tier: 5
+    kind: R
+    name: Pattern Welding
+    requires:
+    - KO47
+    - AL33
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 4
+    - itemId: everlost:flux
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Folded steel: every steel tool +25 % speed.'
+    flavor: Layers of hard and soft, folded a hundred times.
+    icon: layers
+  - code: KO54
+    category: 1
+    path: M
+    tier: 5
+    kind: R
+    name: Trip Hammer
+    requires:
+    - KO45
+    - CO38
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 2
+    - itemId: everlost:gear
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Water-driven trip hammer next to a forge: nails, wire and plates twice
+      as fast.'
+    flavor: Let the river swing the hammer.
+    icon: hammer
+  - code: KO55
+    category: 1
+    path: X
+    tier: 5
+    kind: D
+    name: Sky-Iron
+    requires:
+    - KO47
+    any: []
+    cost: []
+    quest: Pick up Meteoric Iron
+    blueprint: []
+    makes: []
+    unlock: Reveals the Starforge.
+    flavor: It fell from the sky and it is still warm.
+    icon: orbit
+  - code: KO56
+    category: 1
+    path: X
+    tier: 6
+    kind: B
+    name: Starforge
+    requires:
+    - KO55
+    - CO27
+    any: []
+    cost:
+    - itemId: everlost:meteor
+      amount: 2
+    - itemId: everlost:relic
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:refbrick
+      amount: 40
+    - itemId: everlost:relic
+      amount: 8
+    - itemId: everlost:crystal
+      amount: 4
+    - itemId: everlost:steel
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: the forge of the lost ones, rebuilt stone by stone.'
+    flavor: They did not burn coal. They burned starlight.
+    icon: factory
+  - code: KO57
+    category: 1
+    path: X
+    tier: 6
+    kind: D
+    name: Starforge Lit
+    requires:
+    - KO56
+    any: []
+    cost: []
+    quest: Finish building the Starforge
+    blueprint: []
+    makes: []
+    unlock: Reveals Starmetal Smelting.
+    flavor: The crystals in the walls begin to sing.
+    icon: sparkles
+  - code: KO58
+    category: 1
+    path: X
+    tier: 6
+    kind: R
+    name: Starmetal Smelting
+    requires:
+    - KO57
+    any: []
+    cost:
+    - itemId: everlost:meteor
+      amount: 4
+    - itemId: everlost:crystal
+      amount: 2
+    - itemId: everlost:coal
+      amount: 6
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:starmetal
+    unlock: "Starforge: 2 Meteoric Iron + 1 Steel + 1 Crystal Shard \u2192 Starmetal
+      Ingot."
+    flavor: Iron alone will not melt it. Something must sing to it.
+    icon: star
+  - code: KO59
+    category: 1
+    path: T
+    tier: 6
+    kind: K
+    name: Starmetal Tools
+    requires:
+    - KO58
+    - KO48
+    any: []
+    cost:
+    - itemId: everlost:starmetal
+      amount: 3
+    - itemId: everlost:fittings
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "Starmetal Axe, Pickaxe and Hammer: a tree in 1\u20132 hits, the strongest
+      digging (tool tier 6)."
+    flavor: Tools the lost ones carried. Now yours.
+    icon: pickaxe
+  - code: KO60
+    category: 1
+    path: S
+    tier: 6
+    kind: R
+    name: Starmetal Instruments
+    requires:
+    - KO59
+    - KO51
+    any: []
+    cost:
+    - itemId: everlost:starmetal
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Sledgehammer, Crowbar, Ice Axe, Auger, Saw and Chisel in starmetal:
+      each at its best.'
+    flavor: Every tool you own, finished.
+    icon: wrench
+  - code: KO61
+    category: 1
+    path: X
+    tier: 6
+    kind: R
+    name: Resonant Edge
+    requires:
+    - KO58
+    - AR22
+    any: []
+    cost:
+    - itemId: everlost:starmetal
+      amount: 1
+    - itemId: everlost:crystal
+      amount: 3
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Crystal-tuned blades: every harvest gives one extra of each material.'
+    flavor: The edge hums, and the wood opens along the grain.
+    icon: sparkle
+  - code: KO62
+    category: 1
+    path: T
+    tier: 6
+    kind: R
+    name: Masterwork
+    requires:
+    - KO59
+    - KO49
+    any: []
+    cost:
+    - itemId: everlost:starmetal
+      amount: 1
+    - itemId: everlost:steel
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Every tool you own digs with +1 radius.
+    flavor: Nothing left to improve but the hand that holds it.
+    icon: crown
+  - code: AL01
+    category: 5
+    path: H
     tier: 1
-    parent: 0
-    major: 1
-    name: Herbal Extracts
-    recipe: Herbal Extract
-    materialCost: 5
-    position: {x: -265.16504, y: 265.16504}
-  - id: 32
-    category: 1
+    kind: D
+    name: Herb Lore
+    requires:
+    - R0
+    any: []
+    cost: []
+    quest: Collect 10 Berries and 10 Grass
+    blueprint: []
+    makes: []
+    unlock: Opens Alchemy.
+    flavor: Every plant does something. Most of them good.
+    icon: leaf
+  - code: AL02
+    category: 5
+    path: H
     tier: 1
-    parent: 31
-    major: 0
-    name: Herbal Extracts II
-    recipe: Herbal Extract
-    materialCost: 5
-    position: {x: -327.5921, y: 344.39532}
-  - id: 33
-    category: 1
+    kind: R
+    name: Poultice
+    requires:
+    - AL01
+    any: []
+    cost:
+    - itemId: everlost:berries
+      amount: 6
+    - itemId: everlost:grass
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "Poultice: 2 Berries + 2 Grass \u2192 +20 health."
+    flavor: Crushed leaves on a wound. Crude, but it works.
+    icon: heart
+  - code: AL03
+    category: 5
+    path: H
+    tier: 1
+    kind: D
+    name: Wildflowers
+    requires:
+    - AL01
+    any: []
+    cost: []
+    quest: Pick up a Wildflower
+    blueprint: []
+    makes: []
+    unlock: Wildflower becomes a research material.
+    flavor: Bright petals, bitter roots.
+    icon: flower
+  - code: AL04
+    category: 5
+    path: H
+    tier: 1
+    kind: R
+    name: Herbal Tea
+    requires:
+    - AL03
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:wildflower
+      amount: 4
+    - itemId: everlost:berries
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Brewed over a fire: +25 thirst and slow regeneration.'
+    flavor: Warm water and the right leaves.
+    icon: coffee
+  - code: AL05
+    category: 5
+    path: M
+    tier: 1
+    kind: R
+    name: Ash & Lye
+    requires:
+    - AL01
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:ash
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Ash becomes a material. Lye for curing.
+    flavor: What the fire leaves behind is not nothing.
+    icon: flame-kindling
+  - code: AL06
+    category: 5
+    path: H
     tier: 2
-    parent: 32
-    major: 0
-    name: Distillation
-    recipe: Distilling Flask
-    materialCost: 8
-    position: {x: -367.5428, y: 488.12524}
-  - id: 34
-    category: 1
+    kind: D
+    name: Fungi
+    requires:
+    - AL02
+    any: []
+    cost: []
+    quest: Pick up your first Mushroom
+    blueprint: []
+    makes: []
+    unlock: Mushroom becomes a research material.
+    flavor: Some caps feed, some cure.
+    icon: sprout
+  - code: AL07
+    category: 5
+    path: H
     tier: 2
-    parent: 32
-    major: 0
-    name: Distillation II
-    recipe: Distilling Flask
-    materialCost: 8
-    position: {x: -506.41516, y: 397.4302}
-  - id: 35
-    category: 1
+    kind: R
+    name: Mortar & Pestle
+    requires:
+    - AL02
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 6
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Held tool: grind herbs into paste and crystals into dust.'
+    flavor: Grind it fine and it gives up its secrets.
+    icon: cylinder
+  - code: AL08
+    category: 5
+    path: E
     tier: 2
-    parent: 33
-    major: 0
-    name: Distillation III
-    recipe: Distilling Flask
-    materialCost: 8
-    position: {x: -435.35248, y: 629.0394}
-  - id: 36
-    category: 1
+    kind: B
+    name: Distilling Still
+    requires:
+    - AL07
+    - RE12
+    any: []
+    cost:
+    - itemId: everlost:pot
+      amount: 1
+    - itemId: everlost:clay
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 12
+    - itemId: everlost:clay
+      amount: 6
+    - itemId: everlost:pot
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: a clay still on a stone hearth.'
+    flavor: Boil it, catch the steam, keep what matters.
+    icon: flask-round
+  - code: AL09
+    category: 5
+    path: E
     tier: 2
-    parent: 34
-    major: 0
-    name: Distillation IV
-    recipe: Distilling Flask
-    materialCost: 8
-    position: {x: -577.22095, y: 496.53766}
-  - id: 37
-    category: 1
+    kind: D
+    name: First Distillate
+    requires:
+    - AL08
+    any: []
+    cost: []
+    quest: Finish building a Still
+    blueprint: []
+    makes: []
+    unlock: Reveals tonics and spirits.
+    flavor: A single clear drop. Then another.
+    icon: droplet
+  - code: AL10
+    category: 5
+    path: E
+    tier: 2
+    kind: R
+    name: Resin Spirits
+    requires:
+    - AL09
+    - RE10
+    any: []
+    cost:
+    - itemId: everlost:resin
+      amount: 4
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:oil
+    unlock: "Still: Resin \u2192 Oil (lamp fuel, quench oil, waterproofing)."
+    flavor: The pine's blood, made thin.
+    icon: droplet
+  - code: AL11
+    category: 5
+    path: M
+    tier: 2
+    kind: R
+    name: Potash
+    requires:
+    - AL05
+    - RE05
+    any: []
+    cost:
+    - itemId: everlost:ash
+      amount: 8
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:potash
+    unlock: "Kiln: 3 Ash \u2192 1 Potash, the flux that makes glass."
+    flavor: Wash the ash, boil the water, keep the salt.
+    icon: beaker
+  - code: AL12
+    category: 5
+    path: H
     tier: 3
-    parent: 34
-    major: 0
-    name: Healing Tinctures
-    recipe: Healing Elixir
-    materialCost: 11
-    position: {x: -753.21234, y: 499.31284}
-  - id: 38
-    category: 1
+    kind: R
+    name: Herbal Tonic
+    requires:
+    - AL09
+    - AL06
+    any: []
+    cost:
+    - itemId: everlost:mushroom
+      amount: 3
+    - itemId: everlost:wildflower
+      amount: 3
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:tonic
+    unlock: 'Herbal Tonic: regeneration for 60 s.'
+    flavor: Bitter, but you feel it in your legs.
+    icon: flask-conical
+  - code: AL13
+    category: 5
+    path: M
     tier: 3
-    parent: 36
-    major: 1
-    name: Healing Tinctures II
-    recipe: Healing Elixir
-    materialCost: 11
-    position: {x: -669.0169, y: 623.7514}
-  - id: 39
-    category: 1
+    kind: D
+    name: Salt of the Earth
+    requires:
+    - AL11
+    any: []
+    cost: []
+    quest: Pick up Salt
+    blueprint: []
+    makes: []
+    unlock: Salt becomes a research material.
+    flavor: White crust of a dead sea.
+    icon: snowflake
+  - code: AL14
+    category: 5
+    path: M
     tier: 3
-    parent: 38
-    major: 0
-    name: Healing Tinctures III
-    recipe: Healing Elixir
-    materialCost: 11
-    position: {x: -594.1079, y: 704.7801}
-  - id: 40
-    category: 1
+    kind: R
+    name: Salt Curing
+    requires:
+    - AL13
+    - RE12
+    any: []
+    cost:
+    - itemId: everlost:salt
+      amount: 6
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Brine-cured Rations: more food, stack of 16.'
+    flavor: Salt keeps what the sun would spoil.
+    icon: package
+  - code: AL15
+    category: 5
+    path: M
     tier: 3
-    parent: 38
-    major: 0
-    name: Healing Tinctures IV
-    recipe: Healing Elixir
-    materialCost: 11
-    position: {x: -847.3531, y: 707.07574}
-  - id: 41
-    category: 1
+    kind: R
+    name: Desalination
+    requires:
+    - AL13
+    - AL09
+    - PR06
+    any: []
+    cost:
+    - itemId: everlost:salt
+      amount: 2
+    - itemId: everlost:flask
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "Still: Sea Water \u2192 Fresh Water + Salt. The ocean becomes drinkable."
+    flavor: The sea is full of water you cannot drink. Until now.
+    icon: waves
+  - code: AL16
+    category: 5
+    path: E
     tier: 3
-    parent: 35
-    major: 0
-    name: Healing Tinctures V
-    recipe: Healing Elixir
-    materialCost: 11
-    position: {x: -517.8557, y: 789.72986}
-  - id: 42
-    category: 1
+    kind: D
+    name: Glowcaps
+    requires:
+    - AL06
+    any: []
+    cost: []
+    quest: Pick up a Glowcap
+    blueprint: []
+    makes: []
+    unlock: Glowcap becomes a research material.
+    flavor: The forest floor glows where the light never reaches.
+    icon: sparkle
+  - code: AL17
+    category: 5
+    path: E
+    tier: 3
+    kind: R
+    name: Glowcap Tincture
+    requires:
+    - AL16
+    - AL09
+    any: []
+    cost:
+    - itemId: everlost:glowcap
+      amount: 4
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Night-sight Tincture: brighter nights and caves for 3 min.'
+    flavor: Drink the light the forest keeps underground.
+    icon: eye
+  - code: AL18
+    category: 5
+    path: M
+    tier: 3
+    kind: D
+    name: Brimstone
+    requires:
+    - AL11
+    any: []
+    cost: []
+    quest: Pick up Sulfur
+    blueprint: []
+    makes: []
+    unlock: Sulfur becomes a research material.
+    flavor: It stinks of rotten eggs and burns blue.
+    icon: zap
+  - code: AL19
+    category: 5
+    path: M
     tier: 4
-    parent: 41
-    major: 0
-    name: Transmutation
-    recipe: Alchemical Salt
-    materialCost: 14
-    position: {x: -651.08124, y: 901.6623}
-  - id: 43
-    category: 1
+    kind: R
+    name: Blasting Powder
+    requires:
+    - AL18
+    - AL14
+    - RE08
+    any: []
+    cost:
+    - itemId: everlost:sulfur
+      amount: 4
+    - itemId: everlost:salt
+      amount: 4
+    - itemId: everlost:coal
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Blasting Charge in a clay pot: digs out a ~6 m radius.'
+    flavor: The mountain will not move for a pickaxe. It will move for this.
+    icon: bomb
+  - code: AL20
+    category: 5
+    path: M
     tier: 4
-    parent: 42
-    major: 0
-    name: Transmutation II
-    recipe: Alchemical Salt
-    materialCost: 14
-    position: {x: -762.9302, y: 851.83185}
-  - id: 44
-    category: 1
+    kind: R
+    name: Mining Charges
+    requires:
+    - AL19
+    - KO35
+    any: []
+    cost:
+    - itemId: everlost:sulfur
+      amount: 4
+    - itemId: everlost:iron
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Shaped charges with fuses: 10 m tunnels, no crater on the surface.'
+    flavor: Point the blast where you want it.
+    icon: bomb
+  - code: AL21
+    category: 5
+    path: H
     tier: 4
-    parent: 40
-    major: 0
-    name: Transmutation III
-    recipe: Alchemical Salt
-    materialCost: 14
-    position: {x: -880.67993, y: 821.0933}
-  - id: 45
-    category: 1
+    kind: R
+    name: Ember Salve
+    requires:
+    - AL12
+    - AL18
+    any: []
+    cost:
+    - itemId: everlost:sulfur
+      amount: 3
+    - itemId: everlost:mushroom
+      amount: 4
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 5 min without the heat penalty (Volcanic, ObsidianPlain).
+    flavor: Smear it thick. The ground here wants to cook you.
+    icon: sun
+  - code: AL22
+    category: 5
+    path: H
     tier: 4
-    parent: 40
-    major: 0
-    name: Transmutation IV
-    recipe: Alchemical Salt
-    materialCost: 14
-    position: {x: -992.23126, y: 679.40216}
-  - id: 46
-    category: 1
+    kind: R
+    name: Frost Balm
+    requires:
+    - AL12
+    - AL10
+    any: []
+    cost:
+    - itemId: everlost:oil
+      amount: 2
+    - itemId: everlost:wildflower
+      amount: 4
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 5 min without the cold penalty (SnowPeaks, Glacier, FrozenOcean).
+    flavor: Oil keeps the cold from biting.
+    icon: snowflake
+  - code: AL23
+    category: 5
+    path: E
     tier: 4
-    parent: 37
-    major: 0
-    name: Transmutation V
-    recipe: Alchemical Salt
-    materialCost: 14
-    position: {x: -903.60864, y: 560.7409}
-  - id: 47
-    category: 1
+    kind: R
+    name: Crystal Dust
+    requires:
+    - AL07
+    - AR12
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Grind Crystal Shards into dust for essences.
+    flavor: Even ground to powder, it still hums.
+    icon: sparkles
+  - code: AL24
+    category: 5
+    path: E
     tier: 4
-    parent: 42
-    major: 0
-    name: Transmutation VI
-    recipe: Alchemical Salt
-    materialCost: 14
-    position: {x: -714.8501, y: 1078.3499}
-  - id: 48
-    category: 1
-    tier: 4
-    parent: 43
-    major: 0
-    name: Transmutation VII
-    recipe: Alchemical Salt
-    materialCost: 14
-    position: {x: -836.64294, y: 972.5906}
-  - id: 49
-    category: 1
+    kind: R
+    name: Crystal Essence
+    requires:
+    - AL23
+    - AL17
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 3
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Prospector''s Draught: ore and crystals show on the compass for 2 min.'
+    flavor: Dissolved crystal hums near its own kind.
+    icon: compass
+  - code: AL25
+    category: 5
+    path: E
     tier: 5
-    parent: 44
-    major: 1
+    kind: K
+    name: Athanor
+    requires:
+    - AL24
+    - AL19
+    - RE20
+    any: []
+    cost:
+    - itemId: everlost:gflask
+      amount: 2
+    - itemId: everlost:brick
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:brick
+      amount: 30
+    - itemId: everlost:glass
+      amount: 6
+    - itemId: everlost:mortar
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: the slow furnace of alchemy. Unlocks tier 5 brews in glass.'
+    flavor: A fire that burns for a week at the same heat.
+    icon: factory
+  - code: AL26
+    category: 5
+    path: E
+    tier: 5
+    kind: R
+    name: Night Eye
+    requires:
+    - AL25
+    - AL17
+    any: []
+    cost:
+    - itemId: everlost:glowcap
+      amount: 6
+    - itemId: everlost:crystal
+      amount: 1
+    - itemId: everlost:gflask
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 10 min of night sight.
+    flavor: The dark becomes grey, then clear.
+    icon: eye
+  - code: AL27
+    category: 5
+    path: H
+    tier: 5
+    kind: R
+    name: Fleetfoot Draught
+    requires:
+    - AL25
+    - AL12
+    any: []
+    cost:
+    - itemId: everlost:wildflower
+      amount: 6
+    - itemId: everlost:salt
+      amount: 2
+    - itemId: everlost:gflask
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: +20 % sprint speed for 3 min.
+    flavor: Your heart races before your legs do.
+    icon: footprints
+  - code: AL28
+    category: 5
+    path: H
+    tier: 5
+    kind: R
     name: Living Essence
-    recipe: Living Essence
-    materialCost: 17
-    position: {x: -1028.9296, y: 968.9744}
-  - id: 50
-    category: 1
+    requires:
+    - AL25
+    - PR17
+    any: []
+    cost:
+    - itemId: everlost:glowcap
+      amount: 4
+    - itemId: everlost:crystal
+      amount: 2
+    - itemId: everlost:gflask
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:vigor
+    unlock: 'Elixir of Vigor: +10 max health, up to 3 times.'
+    flavor: What keeps the old trees alive for a thousand years?
+    icon: heart
+  - code: AL29
+    category: 5
+    path: M
     tier: 5
-    parent: 45
-    major: 0
-    name: Living Essence II
-    recipe: Living Essence
-    materialCost: 17
-    position: {x: -1137.1372, y: 770.2993}
-  - id: 51
-    category: 1
-    tier: 5
-    parent: 48
-    major: 0
-    name: Living Essence III
-    recipe: Living Essence
-    materialCost: 17
-    position: {x: -896.7284, y: 1130.9442}
-  - id: 52
-    category: 1
-    tier: 5
-    parent: 51
-    major: 0
-    name: Living Essence IV
-    recipe: Living Essence
-    materialCost: 17
-    position: {x: -807.87915, y: 1232.0155}
-  - id: 53
-    category: 1
-    tier: 5
-    parent: 49
-    major: 0
-    name: Living Essence V
-    recipe: Living Essence
-    materialCost: 17
-    position: {x: -1147.1512, y: 986.8037}
-  - id: 54
-    category: 1
-    tier: 5
-    parent: 49
-    major: 0
-    name: Living Essence VI
-    recipe: Living Essence
-    materialCost: 17
-    position: {x: -1061.1387, y: 1093.4602}
-  - id: 55
-    category: 1
-    tier: 5
-    parent: 50
-    major: 0
-    name: Living Essence VII
-    recipe: Living Essence
-    materialCost: 17
-    position: {x: -1340.6421, y: 879.1097}
-  - id: 56
-    category: 1
+    kind: R
+    name: Aqua Fortis
+    requires:
+    - AL25
+    - AL20
+    any: []
+    cost:
+    - itemId: everlost:sulfur
+      amount: 4
+    - itemId: everlost:salt
+      amount: 4
+    - itemId: everlost:gflask
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:acid
+    unlock: An acid that etches stone. Reveals hidden carvings on relics.
+    flavor: Strong water. It eats stone and leaves the story.
+    icon: test-tube
+  - code: AL30
+    category: 5
+    path: E
     tier: 6
-    parent: 51
-    major: 0
+    kind: D
+    name: Starlight Dew
+    requires:
+    - AL26
+    any: []
+    cost: []
+    quest: Hold an empty Glass Flask in the Crystal biome at night
+    blueprint: []
+    makes:
+    - everlost:dew
+    unlock: Starlight Dew becomes a material.
+    flavor: It condenses only where the crystals sing.
+    icon: moon-star
+  - code: AL31
+    category: 5
+    path: E
+    tier: 6
+    kind: R
     name: Elixir of Ages
-    recipe: Elixir of Ages
-    materialCost: 20
-    position: {x: -989.11816, y: 1286.6456}
-  - id: 57
-    category: 1
+    requires:
+    - AL28
+    - AL30
+    - KO55
+    any: []
+    cost:
+    - itemId: everlost:dew
+      amount: 3
+    - itemId: everlost:meteor
+      amount: 1
+    - itemId: everlost:glowcap
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Hunger and thirst drain 20 % slower, permanently.
+    flavor: The lost ones did not starve. Now you know why.
+    icon: hourglass
+  - code: AL32
+    category: 5
+    path: M
     tier: 6
-    parent: 53
-    major: 0
-    name: Elixir of Ages II
-    recipe: Elixir of Ages
-    materialCost: 20
-    position: {x: -1335.2838, y: 1058.7498}
-  - id: 58
-    category: 1
-    tier: 6
-    parent: 54
-    major: 0
-    name: Elixir of Ages III
-    recipe: Elixir of Ages
-    materialCost: 20
-    position: {x: -1208.2275, y: 1270.2014}
-  - id: 59
-    category: 1
-    tier: 6
-    parent: 56
-    major: 0
-    name: Elixir of Ages IV
-    recipe: Elixir of Ages
-    materialCost: 20
-    position: {x: -1020.162, y: 1474.0288}
-  - id: 60
-    category: 1
-    tier: 6
-    parent: 57
-    major: 1
-    name: Elixir of Ages V
-    recipe: Elixir of Ages
-    materialCost: 20
-    position: {x: -1513.6533, y: 1036.4312}
-  - id: 61
-    category: 2
+    kind: K
+    name: Transmutation
+    requires:
+    - AL29
+    - AL31
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 4
+    - itemId: everlost:iron
+      amount: 8
+    - itemId: everlost:dew
+      amount: 1
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:meteor
+    unlock: "Athanor: 4 Iron Ingot + 1 Crystal Shard \u2192 1 Meteoric Iron. A second
+      road to starmetal."
+    flavor: Iron that remembers the sky.
+    icon: infinity
+  - code: CO01
+    category: 3
+    path: S
     tier: 1
-    parent: 0
-    major: 1
-    name: Stone Foundations
-    recipe: Stone Block
-    materialCost: 5
-    position: {x: -87.99851, y: 328.41476}
-  - id: 62
-    category: 2
+    kind: B
+    name: Lean-to
+    requires:
+    - R0
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    - itemId: everlost:stick
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 4
+    - itemId: everlost:stick
+      amount: 8
+    - itemId: everlost:grass
+      amount: 12
+    makes: []
+    unlock: 'Blueprint: a lean-to. Rest spot and rain cover.'
+    flavor: Sticks against a log and grass on top. A start.
+    icon: tent
+  - code: CO02
+    category: 3
+    path: S
     tier: 1
-    parent: 61
-    major: 0
-    name: Stone Foundations II
-    recipe: Stone Block
-    materialCost: 5
-    position: {x: -133.82304, y: 453.74423}
-  - id: 63
-    category: 2
-    tier: 2
-    parent: 62
-    major: 0
-    name: Load-Bearing Frames
-    recipe: Support Beam
-    materialCost: 8
-    position: {x: -251.55127, y: 592.00244}
-  - id: 64
-    category: 2
-    tier: 2
-    parent: 62
-    major: 0
-    name: Load-Bearing Frames II
-    recipe: Support Beam
-    materialCost: 8
-    position: {x: -86.6996, y: 607.32043}
-  - id: 65
-    category: 2
-    tier: 2
-    parent: 63
-    major: 0
-    name: Load-Bearing Frames III
-    recipe: Support Beam
-    materialCost: 8
-    position: {x: -326.38553, y: 690.06085}
-  - id: 66
-    category: 2
-    tier: 2
-    parent: 64
-    major: 0
-    name: Load-Bearing Frames IV
-    recipe: Support Beam
-    materialCost: 8
-    position: {x: -147.33293, y: 779.52716}
-  - id: 67
-    category: 2
-    tier: 3
-    parent: 64
-    major: 0
-    name: Reinforced Masonry
-    recipe: Reinforced Wall
-    materialCost: 11
-    position: {x: -53.922165, y: 871.42365}
-  - id: 68
-    category: 2
-    tier: 3
-    parent: 66
-    major: 1
-    name: Reinforced Masonry II
-    recipe: Reinforced Wall
-    materialCost: 11
-    position: {x: -205.44315, y: 890.25085}
-  - id: 69
-    category: 2
-    tier: 3
-    parent: 68
-    major: 0
-    name: Reinforced Masonry III
-    recipe: Reinforced Wall
-    materialCost: 11
-    position: {x: -324.05743, y: 896.65814}
-  - id: 70
-    category: 2
-    tier: 3
-    parent: 68
-    major: 0
-    name: Reinforced Masonry IV
-    recipe: Reinforced Wall
-    materialCost: 11
-    position: {x: -183.3849, y: 1056.9132}
-  - id: 71
-    category: 2
-    tier: 3
-    parent: 65
-    major: 0
-    name: Reinforced Masonry V
-    recipe: Reinforced Wall
-    materialCost: 11
-    position: {x: -424.8045, y: 842.9564}
-  - id: 72
-    category: 2
-    tier: 4
-    parent: 71
-    major: 0
-    name: Vaulted Halls
-    recipe: Stone Vault
-    materialCost: 14
-    position: {x: -468.15408, y: 1043.2806}
-  - id: 73
-    category: 2
-    tier: 4
-    parent: 72
-    major: 0
-    name: Vaulted Halls II
-    recipe: Stone Vault
-    materialCost: 14
-    position: {x: -346.51804, y: 1056.9695}
-  - id: 74
-    category: 2
-    tier: 4
-    parent: 70
-    major: 0
-    name: Vaulted Halls III
-    recipe: Stone Vault
-    materialCost: 14
-    position: {x: -270.7875, y: 1173.4088}
-  - id: 75
-    category: 2
-    tier: 4
-    parent: 70
-    major: 0
-    name: Vaulted Halls IV
-    recipe: Stone Vault
-    materialCost: 14
-    position: {x: -94.645515, y: 1229.9468}
-  - id: 76
-    category: 2
-    tier: 4
-    parent: 67
-    major: 0
-    name: Vaulted Halls V
-    recipe: Stone Vault
-    materialCost: 14
-    position: {x: -32.809635, y: 1031.4186}
-  - id: 77
-    category: 2
-    tier: 4
-    parent: 72
-    major: 0
-    name: Vaulted Halls VI
-    recipe: Stone Vault
-    materialCost: 14
-    position: {x: -576.8018, y: 1158.9532}
-  - id: 78
-    category: 2
-    tier: 4
-    parent: 73
-    major: 0
-    name: Vaulted Halls VII
-    recipe: Stone Vault
-    materialCost: 14
-    position: {x: -434.12094, y: 1239.8496}
-  - id: 79
-    category: 2
-    tier: 5
-    parent: 74
-    major: 1
-    name: Citadel
-    recipe: Citadel Tower
-    materialCost: 17
-    position: {x: -317.3851, y: 1344.6108}
-  - id: 80
-    category: 2
-    tier: 5
-    parent: 75
-    major: 0
-    name: Citadel II
-    recipe: Citadel Tower
-    materialCost: 17
-    position: {x: -98.62982, y: 1371.3237}
-  - id: 81
-    category: 2
-    tier: 5
-    parent: 78
-    major: 0
-    name: Citadel III
-    recipe: Citadel Tower
-    materialCost: 17
-    position: {x: -542.2497, y: 1370.3334}
-  - id: 82
-    category: 2
-    tier: 5
-    parent: 81
-    major: 0
-    name: Citadel IV
-    recipe: Citadel Tower
-    materialCost: 17
-    position: {x: -648.57697, y: 1286.9971}
-  - id: 83
-    category: 2
-    tier: 5
-    parent: 79
-    major: 0
-    name: Citadel V
-    recipe: Citadel Tower
-    materialCost: 17
-    position: {x: -281.39188, y: 1488.8228}
-  - id: 84
-    category: 2
-    tier: 5
-    parent: 79
-    major: 0
-    name: Citadel VI
-    recipe: Citadel Tower
-    materialCost: 17
-    position: {x: -424.61374, y: 1494.6329}
-  - id: 85
-    category: 2
-    tier: 5
-    parent: 80
-    major: 0
-    name: Citadel VII
-    recipe: Citadel Tower
-    materialCost: 17
-    position: {x: -89.173225, y: 1568.2775}
-  - id: 86
-    category: 2
-    tier: 6
-    parent: 81
-    major: 0
-    name: Ancient Monuments
-    recipe: Rune Monument
-    materialCost: 20
-    position: {x: -620.7011, y: 1502.326}
-  - id: 87
-    category: 2
-    tier: 6
-    parent: 83
-    major: 0
-    name: Ancient Monuments II
-    recipe: Rune Monument
-    materialCost: 20
-    position: {x: -253.61201, y: 1715.1804}
-  - id: 88
-    category: 2
-    tier: 6
-    parent: 84
-    major: 0
-    name: Ancient Monuments III
-    recipe: Rune Monument
-    materialCost: 20
-    position: {x: -486.68448, y: 1650.1664}
-  - id: 89
-    category: 2
-    tier: 6
-    parent: 86
-    major: 0
-    name: Ancient Monuments IV
-    recipe: Rune Monument
-    materialCost: 20
-    position: {x: -767.8352, y: 1623.3961}
-  - id: 90
-    category: 2
-    tier: 6
-    parent: 87
-    major: 1
-    name: Ancient Monuments V
-    recipe: Rune Monument
-    materialCost: 20
-    position: {x: -143.004, y: 1858.3796}
-  - id: 91
+    kind: B
+    name: Log Cabin
+    requires:
+    - CO01
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 4
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 36
+    - itemId: everlost:stick
+      amount: 12
+    makes: []
+    unlock: "Blueprint: a 3\xD73 m cabin. Walls go up log by log, the door gap stays
+      open."
+    flavor: Notch, lift, drop. Thirty-six times.
+    icon: house
+  - code: CO03
     category: 3
+    path: S
     tier: 1
-    parent: 0
-    major: 1
-    name: Rune Script
-    recipe: Rune Stone
-    materialCost: 5
-    position: {x: 97.05715, y: 362.22217}
-  - id: 92
+    kind: B
+    name: Thatch Roof
+    requires:
+    - CO01
+    any: []
+    cost:
+    - itemId: everlost:grass
+      amount: 10
+    - itemId: everlost:stick
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:grass
+      amount: 40
+    - itemId: everlost:stick
+      amount: 20
+    makes: []
+    unlock: 'Blueprint: a thatch roof over any log frame.'
+    flavor: Four walls are not a home until the rain stays out.
+    icon: tent-tree
+  - code: CO04
     category: 3
+    path: W
     tier: 1
-    parent: 91
-    major: 0
-    name: Rune Script II
-    recipe: Rune Stone
-    materialCost: 5
-    position: {x: 144.00143, y: 488.25555}
-  - id: 93
+    kind: B
+    name: Drying Rack
+    requires:
+    - R0
+    any: []
+    cost:
+    - itemId: everlost:stick
+      amount: 6
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:stick
+      amount: 10
+    - itemId: everlost:rope
+      amount: 3
+    makes: []
+    unlock: 'Blueprint: a drying rack. Dries berries and grass into Straw.'
+    flavor: Sun and wind do half the work.
+    icon: grid-3x3
+  - code: CO05
     category: 3
-    tier: 2
-    parent: 92
-    major: 0
-    name: Power Crystals
-    recipe: Charged Crystal
-    materialCost: 8
-    position: {x: 243.63464, y: 573.37146}
-  - id: 94
-    category: 3
-    tier: 2
-    parent: 92
-    major: 0
-    name: Power Crystals II
-    recipe: Charged Crystal
-    materialCost: 8
-    position: {x: 84.50313, y: 591.9348}
-  - id: 95
-    category: 3
-    tier: 2
-    parent: 93
-    major: 0
-    name: Power Crystals III
-    recipe: Charged Crystal
-    materialCost: 8
-    position: {x: 341.75027, y: 722.5459}
-  - id: 96
-    category: 3
-    tier: 2
-    parent: 94
-    major: 0
-    name: Power Crystals IV
-    recipe: Charged Crystal
-    materialCost: 8
-    position: {x: 143.48076, y: 759.14594}
-  - id: 97
-    category: 3
-    tier: 3
-    parent: 94
-    major: 0
-    name: Mechanical Core
-    recipe: Mechanical Core
-    materialCost: 11
-    position: {x: 52.996162, y: 856.45996}
-  - id: 98
-    category: 3
-    tier: 3
-    parent: 96
-    major: 1
-    name: Mechanical Core II
-    recipe: Mechanical Core
-    materialCost: 11
-    position: {x: 213.51099, y: 925.21173}
-  - id: 99
-    category: 3
-    tier: 3
-    parent: 98
-    major: 0
-    name: Mechanical Core III
-    recipe: Mechanical Core
-    materialCost: 11
-    position: {x: 316.8398, y: 876.6873}
-  - id: 100
-    category: 3
-    tier: 3
-    parent: 98
-    major: 0
-    name: Mechanical Core IV
-    recipe: Mechanical Core
-    materialCost: 11
-    position: {x: 180.91643, y: 1042.6871}
-  - id: 101
-    category: 3
-    tier: 3
-    parent: 95
-    major: 0
-    name: Mechanical Core V
-    recipe: Mechanical Core
-    materialCost: 11
-    position: {x: 440.92184, y: 874.93854}
-  - id: 102
-    category: 3
-    tier: 4
-    parent: 101
-    major: 0
-    name: Aether Circuits
-    recipe: Aether Circuit
-    materialCost: 14
-    position: {x: 459.26083, y: 1023.46234}
-  - id: 103
-    category: 3
-    tier: 4
-    parent: 102
-    major: 0
-    name: Aether Circuits II
-    recipe: Aether Circuit
-    materialCost: 14
-    position: {x: 342.1936, y: 1043.779}
-  - id: 104
-    category: 3
-    tier: 4
-    parent: 100
-    major: 0
-    name: Aether Circuits III
-    recipe: Aether Circuit
-    materialCost: 14
-    position: {x: 278.8234, y: 1208.2314}
-  - id: 105
-    category: 3
-    tier: 4
-    parent: 100
-    major: 0
-    name: Aether Circuits IV
-    recipe: Aether Circuit
-    materialCost: 14
-    position: {x: 92.94188, y: 1207.809}
-  - id: 106
-    category: 3
-    tier: 4
-    parent: 97
-    major: 0
-    name: Aether Circuits V
-    recipe: Aether Circuit
-    materialCost: 14
-    position: {x: 32.38606, y: 1018.1057}
-  - id: 107
-    category: 3
-    tier: 4
-    parent: 102
-    major: 0
-    name: Aether Circuits VI
-    recipe: Aether Circuit
-    materialCost: 14
-    position: {x: 592.68665, y: 1190.8705}
-  - id: 108
-    category: 3
-    tier: 4
-    parent: 103
-    major: 0
-    name: Aether Circuits VII
-    recipe: Aether Circuit
-    materialCost: 14
-    position: {x: 426.62656, y: 1218.446}
-  - id: 109
-    category: 3
-    tier: 5
-    parent: 104
-    major: 1
-    name: Automatons
-    recipe: Guardian Automaton
-    materialCost: 17
-    position: {x: 314.45496, y: 1332.1976}
-  - id: 110
-    category: 3
-    tier: 5
-    parent: 105
-    major: 0
-    name: Automatons II
-    recipe: Guardian Automaton
-    materialCost: 17
-    position: {x: 101.180374, y: 1406.7877}
-  - id: 111
-    category: 3
-    tier: 5
-    parent: 108
-    major: 0
-    name: Automatons III
-    recipe: Guardian Automaton
-    materialCost: 17
-    position: {x: 533.7331, y: 1348.8114}
-  - id: 112
-    category: 3
-    tier: 5
-    parent: 111
-    major: 0
-    name: Automatons IV
-    recipe: Guardian Automaton
-    materialCost: 17
-    position: {x: 643.09326, y: 1276.1152}
-  - id: 113
-    category: 3
-    tier: 5
-    parent: 109
-    major: 0
-    name: Automatons V
-    recipe: Guardian Automaton
-    materialCost: 17
-    position: {x: 287.97522, y: 1523.6554}
-  - id: 114
-    category: 3
-    tier: 5
-    parent: 109
-    major: 0
-    name: Automatons VI
-    recipe: Guardian Automaton
-    materialCost: 17
-    position: {x: 418.1622, y: 1471.924}
-  - id: 115
-    category: 3
-    tier: 5
-    parent: 110
-    major: 0
-    name: Automatons VII
-    recipe: Guardian Automaton
-    materialCost: 17
-    position: {x: 88.51383, y: 1556.6833}
-  - id: 116
-    category: 3
-    tier: 6
-    parent: 111
-    major: 0
-    name: Titan Heart
-    recipe: Titan Heart
-    materialCost: 20
-    position: {x: 634.19293, y: 1534.9817}
-  - id: 117
-    category: 3
-    tier: 6
-    parent: 113
-    major: 0
-    name: Titan Heart II
-    recipe: Titan Heart
-    materialCost: 20
-    position: {x: 250.09218, y: 1691.3766}
-  - id: 118
-    category: 3
-    tier: 6
-    parent: 114
-    major: 0
-    name: Titan Heart III
-    recipe: Titan Heart
-    materialCost: 20
-    position: {x: 483.5621, y: 1639.5801}
-  - id: 119
-    category: 3
-    tier: 6
-    parent: 116
-    major: 0
-    name: Titan Heart IV
-    recipe: Titan Heart
-    materialCost: 20
-    position: {x: 782.8883, y: 1655.2225}
-  - id: 120
-    category: 3
-    tier: 6
-    parent: 117
-    major: 1
-    name: Titan Heart V
-    recipe: Titan Heart
-    materialCost: 20
-    position: {x: 141.12326, y: 1833.941}
-  - id: 121
-    category: 4
+    path: M
     tier: 1
-    parent: 0
-    major: 1
-    name: Foraging & Hunting
-    recipe: Snare Trap
-    materialCost: 5
-    position: {x: 240.41628, y: 240.41632}
-  - id: 122
-    category: 4
-    tier: 1
-    parent: 121
-    major: 0
-    name: Foraging & Hunting II
-    recipe: Snare Trap
-    materialCost: 5
-    position: {x: 346.00027, y: 363.7477}
-  - id: 123
-    category: 4
+    kind: B
+    name: Dry Stone Laying
+    requires:
+    - R0
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 10
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Place single stones freely: walls, paths and floors without mortar.'
+    flavor: Stack them right and they hold themselves.
+    icon: brick-wall
+  - code: CO06
+    category: 3
+    path: S
     tier: 2
-    parent: 122
-    major: 0
-    name: Hide Tanning
-    recipe: Tanned Hide
-    materialCost: 8
-    position: {x: 358.50397, y: 476.12097}
-  - id: 124
-    category: 4
+    kind: B
+    name: Door & Shutters
+    requires:
+    - CO02
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 4
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 10
+    - itemId: everlost:rope
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: a plank door and window shutters.'
+    flavor: A door you can close is a door you can sleep behind.
+    icon: door-open
+  - code: CO07
+    category: 3
+    path: S
     tier: 2
-    parent: 122
-    major: 0
-    name: Hide Tanning II
-    recipe: Tanned Hide
-    materialCost: 8
-    position: {x: 497.3396, y: 390.30774}
-  - id: 125
-    category: 4
+    kind: B
+    name: Plank Floor
+    requires:
+    - CO02
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 16
+    makes: []
+    unlock: "Blueprint: plank floors and raised decks (per 2\xD72 m)."
+    flavor: No more mud inside.
+    icon: rows-3
+  - code: CO08
+    category: 3
+    path: S
     tier: 2
-    parent: 123
-    major: 0
-    name: Hide Tanning III
-    recipe: Tanned Hide
-    materialCost: 8
-    position: {x: 450.5331, y: 650.9739}
-  - id: 126
-    category: 4
+    kind: B
+    name: Log Rack
+    requires:
+    - CO02
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 6
+    - itemId: everlost:stick
+      amount: 4
+    makes: []
+    unlock: 'Blueprint: a log rack that holds 24 logs. Your hands hold eight.'
+    flavor: Logs stack eight to a hand. You will want a rack.
+    icon: png:Log
+  - code: CO09
+    category: 3
+    path: M
     tier: 2
-    parent: 124
-    major: 0
-    name: Hide Tanning IV
-    recipe: Tanned Hide
-    materialCost: 8
-    position: {x: 565.5484, y: 486.4968}
-  - id: 127
-    category: 4
+    kind: B
+    name: Stone Hearth
+    requires:
+    - CO05
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 8
+    - itemId: everlost:clay
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 30
+    - itemId: everlost:clay
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: an indoor hearth with chimney. Warmth and cooking inside.'
+    flavor: Bring the fire in and keep the smoke out.
+    icon: flame
+  - code: CO10
+    category: 3
+    path: W
+    tier: 2
+    kind: B
+    name: Ladder & Stairs
+    requires:
+    - CO04
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    - itemId: everlost:stick
+      amount: 6
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 2
+    - itemId: everlost:stick
+      amount: 10
+    - itemId: everlost:rope
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: ladders and log stairs.'
+    flavor: Up is also a direction.
+    icon: align-justify
+  - code: CO11
+    category: 3
+    path: W
+    tier: 2
+    kind: B
+    name: Rain Catcher
+    requires:
+    - CO10
+    - RE12
+    - RE01
+    any: []
+    cost:
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint:
+    - itemId: everlost:stick
+      amount: 8
+    - itemId: everlost:cloth
+      amount: 2
+    - itemId: everlost:pot
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: fills clay pots and flasks when it rains.'
+    flavor: Let the sky carry your water.
+    icon: cloud-rain
+  - code: CO12
+    category: 3
+    path: M
     tier: 3
-    parent: 124
-    major: 0
-    name: Travel Rations
-    recipe: Travel Ration
-    materialCost: 11
-    position: {x: 743.93634, y: 493.16385}
-  - id: 128
-    category: 4
+    kind: B
+    name: Clay Plaster
+    requires:
+    - CO09
+    - RE02
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 6
+    - itemId: everlost:grass
+      amount: 4
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:mortar
+    unlock: Clay Mortar recipe; plastered walls keep warmth inside (climate).
+    flavor: Mud that hardens holds stone together.
+    icon: paint-roller
+  - code: CO13
+    category: 3
+    path: M
     tier: 3
-    parent: 126
-    major: 1
-    name: Travel Rations II
-    recipe: Travel Ration
-    materialCost: 11
-    position: {x: 688.4973, y: 641.91394}
-  - id: 129
-    category: 4
+    kind: B
+    name: Brick Laying
+    requires:
+    - CO12
+    - RE07
+    any: []
+    cost:
+    - itemId: everlost:brick
+      amount: 4
+    - itemId: everlost:mortar
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Lay bricks one by one with mortar: brick walls, floors and chimneys.'
+    flavor: Fired clay, laid in rows. The first real house.
+    icon: brick-wall
+  - code: CO14
+    category: 3
+    path: S
     tier: 3
-    parent: 128
-    major: 0
-    name: Travel Rations III
-    recipe: Travel Ration
-    materialCost: 11
-    position: {x: 583.94824, y: 692.7279}
-  - id: 130
-    category: 4
+    kind: K
+    name: Homestead
+    requires:
+    - CO06
+    - CO09
+    - CO08
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 8
+    - itemId: everlost:stone
+      amount: 10
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'A finished home (door, roof, hearth): rest regeneration and a respawn
+      point.'
+    flavor: Somewhere to come back to.
+    icon: house
+  - code: CO15
+    category: 3
+    path: W
     tier: 3
-    parent: 128
-    major: 0
-    name: Travel Rations IV
-    recipe: Travel Ration
-    materialCost: 11
-    position: {x: 839.12384, y: 700.20874}
-  - id: 131
-    category: 4
+    kind: B
+    name: Rope Bridge
+    requires:
+    - CO10
+    - RE04
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:rope
+      amount: 6
+    - itemId: everlost:planks
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:rope
+      amount: 20
+    - itemId: everlost:planks
+      amount: 24
+    makes: []
+    unlock: 'Blueprint: rope bridges up to 30 m over rivers and gorges (per 10 m).'
+    flavor: The rivers run deep. Go over them.
+    icon: link
+  - code: CO16
+    category: 3
+    path: W
     tier: 3
-    parent: 125
-    major: 0
-    name: Travel Rations V
-    recipe: Travel Ration
-    materialCost: 11
-    position: {x: 532.43365, y: 811.9615}
-  - id: 132
-    category: 4
+    kind: B
+    name: Watchtower
+    requires:
+    - CO15
+    - KO31
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 4
+    - itemId: everlost:nails
+      amount: 8
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 30
+    - itemId: everlost:nails
+      amount: 24
+    - itemId: everlost:rope
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: a 12 m tower. From the top, landmarks within 400 m go into
+      the journal.'
+    flavor: See the land before it sees you.
+    icon: flag
+  - code: CO17
+    category: 3
+    path: S
     tier: 4
-    parent: 131
-    major: 0
-    name: Wilderness Lore
-    recipe: Hunting Bow
-    materialCost: 14
-    position: {x: 641.64154, y: 888.5895}
-  - id: 133
-    category: 4
+    kind: B
+    name: Nailed Framing
+    requires:
+    - CO14
+    - KO31
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 8
+    - itemId: everlost:nails
+      amount: 16
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Second floors, wide spans and balconies.
+    flavor: Nails let wood span what rope never could.
+    icon: frame
+  - code: CO18
+    category: 3
+    path: S
     tier: 4
-    parent: 132
-    major: 0
-    name: Wilderness Lore II
-    recipe: Hunting Bow
-    materialCost: 14
-    position: {x: 756.0556, y: 844.15625}
-  - id: 134
-    category: 4
+    kind: B
+    name: Glazed Windows
+    requires:
+    - CO17
+    - RE20
+    any: []
+    cost:
+    - itemId: everlost:glass
+      amount: 4
+    - itemId: everlost:planks
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Glass windows for wood, stone and brick walls.
+    flavor: Light in, wind out.
+    icon: app-window
+  - code: CO19
+    category: 3
+    path: M
     tier: 4
-    parent: 130
-    major: 0
-    name: Wilderness Lore III
-    recipe: Hunting Bow
-    materialCost: 14
-    position: {x: 900.08325, y: 839.18414}
-  - id: 135
-    category: 4
+    kind: B
+    name: Lime Mortar
+    requires:
+    - CO13
+    - RE19
+    any: []
+    cost:
+    - itemId: everlost:quicklime
+      amount: 4
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:limemortar
+    unlock: 'Lime Mortar recipe: taller walls and load-bearing stone.'
+    flavor: Burned limestone binds harder than any clay.
+    icon: layers
+  - code: CO20
+    category: 3
+    path: M
     tier: 4
-    parent: 130
-    major: 0
-    name: Wilderness Lore IV
-    recipe: Hunting Bow
-    materialCost: 14
-    position: {x: 978.63214, y: 670.0905}
-  - id: 136
-    category: 4
+    kind: B
+    name: Arch & Vault
+    requires:
+    - CO19
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 20
+    - itemId: everlost:limemortar
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Blueprint: stone arches, vaulted roofs and columns.'
+    flavor: Stone that holds up stone.
+    icon: landmark
+  - code: CO21
+    category: 3
+    path: W
     tier: 4
-    parent: 127
-    major: 0
-    name: Wilderness Lore V
-    recipe: Hunting Bow
-    materialCost: 14
-    position: {x: 895.2076, y: 555.52765}
-  - id: 137
-    category: 4
+    kind: B
+    name: Cistern
+    requires:
+    - CO11
+    - CO19
+    any: []
+    cost:
+    - itemId: everlost:limemortar
+      amount: 4
+    - itemId: everlost:stone
+      amount: 10
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 60
+    - itemId: everlost:limemortar
+      amount: 12
+    makes: []
+    unlock: 'Blueprint: stores 50 flasks of water and fills from rain catchers.'
+    flavor: A dry month is no longer a threat.
+    icon: cylinder
+  - code: CO22
+    category: 3
+    path: W
     tier: 4
-    parent: 132
-    major: 0
-    name: Wilderness Lore VI
-    recipe: Hunting Bow
-    materialCost: 14
-    position: {x: 729.4727, y: 1100.4081}
-  - id: 138
-    category: 4
-    tier: 4
-    parent: 133
-    major: 0
-    name: Wilderness Lore VII
-    recipe: Hunting Bow
-    materialCost: 14
-    position: {x: 825.6649, y: 959.8287}
-  - id: 139
-    category: 4
+    kind: B
+    name: Stilts & Docks
+    requires:
+    - CO15
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:mangrove
+      amount: 4
+    quest: Visible after picking up Mangrove Log
+    blueprint:
+    - itemId: everlost:mangrove
+      amount: 12
+    - itemId: everlost:planks
+      amount: 20
+    - itemId: everlost:rope
+      amount: 6
+    makes: []
+    unlock: Build over water on mangrove piles.
+    flavor: Mangrove wood does not rot in water.
+    icon: anchor
+  - code: CO23
+    category: 3
+    path: S
     tier: 5
-    parent: 134
-    major: 1
-    name: Elemental Resistance
-    recipe: Elemental Cloak
-    materialCost: 17
-    position: {x: 1022.0371, y: 962.48376}
-  - id: 140
-    category: 4
+    kind: K
+    name: Great Hall
+    requires:
+    - CO17
+    - CO20
+    - RE23
+    any: []
+    cost:
+    - itemId: everlost:redwood
+      amount: 6
+    - itemId: everlost:steel
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:redwood
+      amount: 12
+    - itemId: everlost:limemortar
+      amount: 20
+    - itemId: everlost:stone
+      amount: 120
+    - itemId: everlost:glass
+      amount: 8
+    makes: []
+    unlock: 'Blueprint: a hall on redwood beams. Shared respawn point for every player
+      in the world.'
+    flavor: One beam, one tree, one hundred years.
+    icon: castle
+  - code: CO24
+    category: 3
+    path: M
     tier: 5
-    parent: 135
-    major: 0
-    name: Elemental Resistance II
-    recipe: Elemental Cloak
-    materialCost: 17
-    position: {x: 1158.9889, y: 785.10187}
-  - id: 141
-    category: 4
+    kind: B
+    name: Regional Stone
+    requires:
+    - CO20
+    any: []
+    cost:
+    - itemId: everlost:basalt
+      amount: 10
+    - itemId: everlost:alabaster
+      amount: 10
+    quest: Visible after picking up Basalt or Alabaster
+    blueprint: []
+    makes: []
+    unlock: Basalt and alabaster building sets.
+    flavor: Every land has its own stone. Build with it.
+    icon: hexagon
+  - code: CO25
+    category: 3
+    path: W
     tier: 5
-    parent: 138
-    major: 0
-    name: Elemental Resistance III
-    recipe: Elemental Cloak
-    materialCost: 17
-    position: {x: 886.05347, y: 1117.4812}
-  - id: 142
-    category: 4
+    kind: B
+    name: Aqueduct
+    requires:
+    - CO21
+    - CO20
+    - RE26
+    any: []
+    cost:
+    - itemId: everlost:bamboo
+      amount: 6
+    - itemId: everlost:limemortar
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Bamboo pipes and stone channels carry river water to your base.
+    flavor: Make the river come to you.
+    icon: waves
+  - code: CO26
+    category: 3
+    path: W
     tier: 5
-    parent: 141
-    major: 0
-    name: Elemental Resistance IV
-    recipe: Elemental Cloak
-    materialCost: 17
-    position: {x: 802.91895, y: 1224.4515}
-  - id: 143
-    category: 4
-    tier: 5
-    parent: 139
-    major: 0
-    name: Elemental Resistance V
-    recipe: Elemental Cloak
-    materialCost: 17
-    position: {x: 1167.1001, y: 1003.9644}
-  - id: 144
-    category: 4
-    tier: 5
-    parent: 139
-    major: 0
-    name: Elemental Resistance VI
-    recipe: Elemental Cloak
-    materialCost: 17
-    position: {x: 1048.9344, y: 1080.8843}
-  - id: 145
-    category: 4
-    tier: 5
-    parent: 140
-    major: 0
-    name: Elemental Resistance VII
-    recipe: Elemental Cloak
-    materialCost: 17
-    position: {x: 1333.4332, y: 874.38257}
-  - id: 146
-    category: 4
+    kind: B
+    name: Lighthouse
+    requires:
+    - CO16
+    - AR17
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 2
+    - itemId: everlost:glass
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 80
+    - itemId: everlost:iron
+      amount: 6
+    - itemId: everlost:crystal
+      amount: 4
+    - itemId: everlost:glass
+      amount: 4
+    makes: []
+    unlock: A light visible across the full view distance; compass marker for every
+      player.
+    flavor: Light a fire the whole world can see.
+    icon: lamp
+  - code: CO27
+    category: 3
+    path: M
     tier: 6
-    parent: 141
-    major: 0
+    kind: B
+    name: Ancient Masonry
+    requires:
+    - CO24
+    - AR16
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 6
+    - itemId: everlost:limemortar
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Columns, ruin arches and carved walls in the style of the lost ones.
+    flavor: Their walls still stand. Now yours will too.
+    icon: landmark
+  - code: CO28
+    category: 3
+    path: W
+    tier: 6
+    kind: B
+    name: Monolith Restoration
+    requires:
+    - CO27
+    - AR18
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 4
+    - itemId: everlost:crystal
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Restore broken monoliths stone by stone. Each becomes a waystone.
+    flavor: Put back what fell.
+    icon: milestone
+  - code: CO29
+    category: 3
+    path: W
+    tier: 6
+    kind: B
+    name: Waystone
+    requires:
+    - CO28
+    - KO58
+    any: []
+    cost:
+    - itemId: everlost:starmetal
+      amount: 2
+    - itemId: everlost:relic
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:relic
+      amount: 12
+    - itemId: everlost:crystal
+      amount: 4
+    - itemId: everlost:starmetal
+      amount: 2
+    - itemId: everlost:stone
+      amount: 20
+    makes: []
+    unlock: 'Blueprint: your own waystone in the travel network.'
+    flavor: The lost ones did not walk. They stepped.
+    icon: route
+  - code: CO30
+    category: 3
+    path: S
+    tier: 6
+    kind: K
+    name: Citadel of the Lost
+    requires:
+    - CO23
+    - CO27
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 8
+    - itemId: everlost:steel
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 900
+    - itemId: everlost:limemortar
+      amount: 220
+    - itemId: everlost:redwood
+      amount: 40
+    - itemId: everlost:relic
+      amount: 60
+    - itemId: everlost:glass
+      amount: 40
+    makes: []
+    unlock: 'The endgame build: about 1,260 pieces. When it is finished, it lights
+      up the world map.'
+    flavor: Build what they built, and finish what they could not.
+    icon: crown
+  - code: AR01
+    category: 0
+    path: J
+    tier: 1
+    kind: D
+    name: Traveler's Journal
+    requires:
+    - R0
+    any: []
+    cost: []
+    quest: Visit 3 different biomes
+    blueprint: []
+    makes: []
+    unlock: Biome journal (x / 37) and the biome name by the minimap.
+    flavor: Write down every land you cross.
+    icon: book-open
+  - code: AR02
+    category: 0
+    path: C
+    tier: 1
+    kind: R
+    name: Waymarks
+    requires:
+    - AR01
+    any: []
+    cost:
+    - itemId: everlost:berries
+      amount: 6
+    - itemId: everlost:stick
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Up to 5 own markers on the compass and minimap (berry ink).
+    flavor: A scratched mark is a way back home.
+    icon: map-pin
+  - code: AR03
+    category: 0
+    path: X
+    tier: 1
+    kind: D
+    name: High Ground
+    requires:
+    - AR01
+    any: []
+    cost: []
+    quest: Stand above 300 m
+    blueprint: []
+    makes: []
+    unlock: Summits reveal glints of crystal and ruins on the horizon.
+    flavor: From up here the land is a map.
+    icon: mountain-snow
+  - code: AR04
+    category: 0
+    path: J
+    tier: 2
+    kind: D
+    name: Biome Atlas I
+    requires:
+    - AR01
+    any: []
+    cost: []
+    quest: 8 biomes in the journal
+    blueprint: []
+    makes: []
+    unlock: The minimap is tinted by biome.
+    flavor: Eight lands, eight kinds of weather.
+    icon: globe
+  - code: AR05
+    category: 0
+    path: C
+    tier: 2
+    kind: R
+    name: Charcoal Sketching
+    requires:
+    - AR02
+    - RE08
+    any: []
+    cost:
+    - itemId: everlost:coal
+      amount: 4
+    - itemId: everlost:stick
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: One more map zoom-out level and 15 markers.
+    flavor: Draw it once and you will never lose it.
+    icon: map
+  - code: AR06
+    category: 0
+    path: R
+    tier: 2
+    kind: D
+    name: Standing Stones
+    requires:
+    - AR01
+    any: []
+    cost: []
+    quest: Come within 15 m of a monolith or a ruin
+    blueprint: []
+    makes: []
+    unlock: Reveals Relic Shards.
+    flavor: Someone raised these. Someone who knew the sky.
+    icon: milestone
+  - code: AR07
+    category: 0
+    path: R
+    tier: 2
+    kind: R
+    name: Rubbings
+    requires:
+    - AR06
+    - RE01
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 2
+    - itemId: everlost:stick
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Take rubbings of carvings: each one is a journal page.'
+    flavor: Cloth, charcoal, a steady hand.
+    icon: scroll
+  - code: AR08
+    category: 0
+    path: R
+    tier: 3
+    kind: R
+    name: Relic Study
+    requires:
+    - AR07
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 3
+    quest: Visible after picking up a Relic Shard
+    blueprint: []
+    makes: []
+    unlock: Relic Shard becomes a research material. First story fragment.
+    flavor: 'The carvings repeat: a crystal, a falling star, a ring of stones.'
+    icon: scroll-text
+  - code: AR09
+    category: 0
+    path: R
+    tier: 3
+    kind: K
+    name: Echoes of the Lost
+    requires:
+    - AR08
+    - AR04
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 5
+    - itemId: everlost:stick
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: The compass points to the nearest ruin or monolith within 1 km.
+    flavor: The stones are not random. They point to each other.
+    icon: radar
+  - code: AR10
+    category: 0
+    path: J
+    tier: 3
+    kind: D
+    name: Biome Atlas II
+    requires:
+    - AR04
+    any: []
+    cost: []
+    quest: 15 biomes in the journal
+    blueprint: []
+    makes: []
+    unlock: Journal shows the climate band of every biome.
+    flavor: The world is bigger than you thought.
+    icon: globe
+  - code: AR11
+    category: 0
+    path: C
+    tier: 3
+    kind: R
+    name: Surveyor's Kit
+    requires:
+    - AR05
+    - KO21
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 1
+    - itemId: everlost:rope
+      amount: 2
+    - itemId: everlost:stick
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Altitude readout and named survey stakes, shared with other players.
+    flavor: Measure twice, walk once.
+    icon: drafting-compass
+  - code: AR12
+    category: 0
+    path: X
+    tier: 3
+    kind: D
+    name: Crystal Resonance
+    requires:
+    - AR03
+    any: []
+    cost: []
+    quest: Pick up a Crystal Shard
+    blueprint: []
+    makes: []
+    unlock: Crystal Shard becomes a research material.
+    flavor: It glows without fire and hums in your hand.
+    icon: gem
+  - code: AR13
+    category: 0
+    path: C
+    tier: 4
+    kind: R
+    name: Spyglass
+    requires:
+    - AR11
+    any:
+    - RE20
+    - KO33
+    cost:
+    - itemId: everlost:lens
+      amount: 1
+    - itemId: everlost:bronze
+      amount: 2
+    - itemId: everlost:oak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "4\xD7 zoom. Landmarks you look at go into the journal."
+    flavor: From the summit, the whole land is a map.
+    icon: telescope
+  - code: AR14
+    category: 0
+    path: J
+    tier: 4
+    kind: R
+    name: Cave Lore
+    requires:
+    - AR10
+    - KO18
+    any: []
+    cost:
+    - itemId: everlost:torch
+      amount: 4
+    - itemId: everlost:rope
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Cave entrances within 200 m appear on the compass.
+    flavor: Cold air means an opening.
+    icon: search
+  - code: AR15
+    category: 0
+    path: X
+    tier: 4
+    kind: R
+    name: Crystal Lamp
+    requires:
+    - AR12
+    - RE20
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 2
+    - itemId: everlost:glass
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: A weak crystal lamp that needs no fuel.
+    flavor: A little light that never goes out.
+    icon: lamp
+  - code: AR16
+    category: 0
+    path: R
+    tier: 4
+    kind: R
+    name: Deciphering
+    requires:
+    - AR09
+    - AR10
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 4
+    - itemId: everlost:cloth
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Read the glyphs of the lost: story fragments and ancient building styles.'
+    flavor: It is a language. It has always been a language.
+    icon: languages
+  - code: AR17
+    category: 0
+    path: X
+    tier: 5
+    kind: K
+    name: Crystal Lantern
+    requires:
+    - AR15
+    - KO46
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 3
+    - itemId: everlost:glass
+      amount: 2
+    - itemId: everlost:wire
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Bright permanent light, held or placed.
+    flavor: A light that never needs feeding.
+    icon: lamp
+  - code: AR18
+    category: 0
+    path: R
+    tier: 5
+    kind: R
+    name: Attunement
+    requires:
+    - AR16
+    - AR17
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 4
+    - itemId: everlost:crystal
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Hum a monolith''s note: attuned monoliths become points on the map.'
+    flavor: The stones answer when you hum their note.
+    icon: audio-waveform
+  - code: AR19
+    category: 0
+    path: J
+    tier: 5
+    kind: D
+    name: Biome Atlas III
+    requires:
+    - AR10
+    any: []
+    cost: []
+    quest: 25 biomes in the journal
+    blueprint: []
+    makes: []
+    unlock: Journal shows which biomes hold which materials.
+    flavor: Each land gives something only it can give.
+    icon: globe
+  - code: AR20
+    category: 0
+    path: C
+    tier: 5
+    kind: R
+    name: Star Charts
+    requires:
+    - AR13
+    - AR19
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 1
+    - itemId: everlost:relic
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: The compass points to the nearest unvisited rare biome (MeteorCrater,
+      Ruins, Crystal).
+    flavor: The stars do not move. Everything else does.
+    icon: star
+  - code: AR21
+    category: 0
+    path: X
+    tier: 5
+    kind: D
+    name: Sky Scar
+    requires:
+    - AR12
+    any: []
+    cost: []
+    quest: Enter a MeteorCrater
+    blueprint: []
+    makes: []
+    unlock: Meteoric Iron is marked on the compass inside craters.
+    flavor: Something fell here. Something heavy.
+    icon: orbit
+  - code: AR22
+    category: 0
+    path: X
+    tier: 5
+    kind: R
+    name: Resonant Compass
+    requires:
+    - AR17
+    - AR21
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 2
+    - itemId: everlost:glass
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: The compass shows crystals and Meteoric Iron within 150 m.
+    flavor: The needle no longer points north.
+    icon: compass
+  - code: AR23
+    category: 0
+    path: R
+    tier: 6
+    kind: R
+    name: Etched Relics
+    requires:
+    - AR18
+    - AL29
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 4
+    - itemId: everlost:acid
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Hidden carvings show where the last monoliths stand.
+    flavor: Under the moss, a map.
+    icon: scan-search
+  - code: AR24
+    category: 0
+    path: R
+    tier: 6
+    kind: R
+    name: Waystone Network
+    requires:
+    - AR18
+    - CO29
+    any: []
+    cost:
+    - itemId: everlost:crystal
+      amount: 2
+    - itemId: everlost:relic
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Travel between your waystones and attuned monoliths.
+    flavor: Every stone is a door.
+    icon: route
+  - code: AR25
+    category: 0
+    path: J
+    tier: 6
+    kind: D
+    name: Biome Atlas IV
+    requires:
+    - AR19
+    any: []
+    cost: []
+    quest: All 37 biomes in the journal
+    blueprint: []
+    makes: []
+    unlock: 'A complete atlas. Cosmetic: the journal''s gold cover.'
+    flavor: There is nowhere left you have not been.
+    icon: globe
+  - code: AR26
+    category: 0
+    path: J
+    tier: 6
+    kind: K
+    name: Heart of Everlost
+    requires:
+    - AR24
+    - AR20
+    - AR23
+    any: []
+    cost:
+    - itemId: everlost:meteor
+      amount: 3
+    - itemId: everlost:crystal
+      amount: 3
+    - itemId: everlost:relic
+      amount: 3
+    quest: Visible at 30 / 37 biomes
+    blueprint: []
+    makes: []
+    unlock: 'The last journal page and the Starlit Compass: the whole world map.'
+    flavor: Every page connects. You know where they went.
+    icon: sparkles
+  - code: PR01
+    category: 4
+    path: F
+    tier: 1
+    kind: R
+    name: Firecraft
+    requires:
+    - R0
+    any: []
+    cost:
+    - itemId: everlost:stick
+      amount: 6
+    - itemId: everlost:grass
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Hand drill: light fires and torches anywhere.'
+    flavor: Fire first. Everything else after.
+    icon: flame-kindling
+  - code: PR02
+    category: 4
+    path: F
+    tier: 1
+    kind: B
+    name: Fire Pit
+    requires:
+    - PR01
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 4
+    - itemId: everlost:stick
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 8
+    - itemId: everlost:stick
+      amount: 6
+    - itemId: everlost:log
+      amount: 2
+    makes:
+    - everlost:ash
+    unlock: 'Blueprint: a stone-ringed fire pit. Light, warmth, cooking. Leaves Ash.'
+    flavor: Eight stones in a ring. The oldest blueprint there is.
+    icon: flame
+  - code: PR03
+    category: 4
+    path: W
+    tier: 1
+    kind: D
+    name: Fresh Water
+    requires:
+    - R0
+    any: []
+    cost: []
+    quest: Drink from a river or lake
+    blueprint: []
+    makes: []
+    unlock: Opens the water path.
+    flavor: The rivers run all the way to the sea. Drink while you can.
+    icon: droplet
+  - code: PR04
+    category: 4
+    path: F
+    tier: 1
+    kind: D
+    name: Foraging
+    requires:
+    - R0
+    any: []
+    cost: []
+    quest: Eat 3 kinds of wild food
+    blueprint: []
+    makes: []
+    unlock: Berry bushes give +1. Edible plants are named.
+    flavor: Most of what grows here is food, if you know it.
+    icon: cherry
+  - code: PR05
+    category: 4
+    path: F
+    tier: 2
+    kind: R
+    name: Roasting
+    requires:
+    - PR02
+    - PR04
+    any: []
+    cost:
+    - itemId: everlost:berries
+      amount: 6
+    - itemId: everlost:stick
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Roasted Berries, Roasted Mushroom, Coconut Milk.
+    flavor: Cooked food goes further.
+    icon: utensils
+  - code: PR06
+    category: 4
+    path: W
+    tier: 2
+    kind: R
+    name: Clay Flask
+    requires:
+    - PR03
+    - RE12
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 4
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:flask
+    unlock: 'Clay Flask: fill at any water, +35 thirst, 3 sips.'
+    flavor: Carry the river with you.
+    icon: milk
+  - code: PR07
+    category: 4
+    path: C
+    tier: 2
+    kind: R
+    name: Bedroll
+    requires:
+    - PR01
+    - RE01
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 4
+    - itemId: everlost:grass
+      amount: 10
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Sleep through the night.
+    flavor: Rest is a resource too.
+    icon: bed
+  - code: PR08
+    category: 4
+    path: F
+    tier: 2
+    kind: R
+    name: Wall Torches
+    requires:
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:torch
+      amount: 4
+    - itemId: everlost:stone
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Torches can be mounted on walls or stuck into the ground.
+    flavor: Light a path, then follow it back.
+    icon: png:Torch
+  - code: PR09
+    category: 4
+    path: W
+    tier: 2
+    kind: R
+    name: Bandages
+    requires:
+    - PR03
+    - RE01
+    - AL02
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 3
+    - itemId: everlost:grass
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Bandage: +30 health over 10 s.'
+    flavor: Clean cloth, tight wrap.
+    icon: heart-pulse
+  - code: PR10
+    category: 4
+    path: F
+    tier: 3
+    kind: K
+    name: Provisioning
+    requires:
+    - PR05
+    - CO04
+    any: []
+    cost:
+    - itemId: everlost:berries
+      amount: 10
+    - itemId: everlost:mushroom
+      amount: 4
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:trailmix
+    unlock: 'Dried Berries and Trail Mix: lots of food, stacks of 32.'
+    flavor: Food for the long road.
+    icon: package
+  - code: PR11
+    category: 4
+    path: C
+    tier: 3
+    kind: D
+    name: Exposure
+    requires:
+    - PR07
+    any: []
+    cost: []
+    quest: Enter a hot or a freezing biome
+    blueprint: []
+    makes: []
+    unlock: "Climate explained: heat drains water \xD72, frost drains food \xD71.5."
+    flavor: This land is trying to kill you slowly.
+    icon: thermometer
+  - code: PR12
+    category: 4
+    path: F
+    tier: 3
+    kind: B
+    name: Smokehouse
+    requires:
+    - PR10
+    - CO09
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 4
+    - itemId: everlost:stone
+      amount: 6
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 10
+    - itemId: everlost:stone
+      amount: 30
+    - itemId: everlost:clay
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: smoked food gives 50 % more.'
+    flavor: Slow smoke, long keep.
+    icon: warehouse
+  - code: PR13
+    category: 4
+    path: W
+    tier: 3
+    kind: R
+    name: Boiling
+    requires:
+    - PR06
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Boil swamp water: full thirst value instead of half.'
+    flavor: Bubbles mean it is safe.
+    icon: soup
+  - code: PR14
+    category: 4
+    path: C
+    tier: 3
+    kind: R
+    name: Desert Wraps
+    requires:
+    - PR11
+    - RE01
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 6
+    - itemId: everlost:rope
+      amount: 4
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:wrap
+    unlock: 'Desert Wrap: half the water drain in heat.'
+    flavor: Cover up. The sun takes water through your skin.
+    icon: sun
+  - code: PR15
+    category: 4
+    path: C
+    tier: 4
+    kind: R
+    name: Insulated Cloak
+    requires:
+    - PR14
+    - RE14
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 8
+    - itemId: everlost:grass
+      amount: 16
+    - itemId: everlost:pitch
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:cloak
+    unlock: 'Insulated Cloak: no penalty in freezing cold.'
+    flavor: Layers of reed and cloth hold the warmth in.
+    icon: shirt
+  - code: PR16
+    category: 4
+    path: W
+    tier: 4
+    kind: R
+    name: Bamboo Canteen
+    requires:
+    - PR13
+    - RE10
+    any: []
+    cost:
+    - itemId: everlost:bamboo
+      amount: 2
+    - itemId: everlost:resin
+      amount: 1
+    quest: Visible after picking up Bamboo
+    blueprint: []
+    makes: []
+    unlock: 'Canteen: 6 sips, refills at any water.'
+    flavor: Hollow, light, watertight.
+    icon: png:BambooStalk
+  - code: PR17
+    category: 4
+    path: W
+    tier: 4
+    kind: D
+    name: Hot Springs
+    requires:
+    - PR13
+    any: []
+    cost: []
+    quest: Rest by the travertine terraces (Geothermal)
+    blueprint: []
+    makes: []
+    unlock: Fast health regeneration in hot springs.
+    flavor: Warm water that heals. The lost ones bathed here.
+    icon: waves
+  - code: PR18
+    category: 4
+    path: W
+    tier: 4
+    kind: R
+    name: Field Medicine
+    requires:
+    - PR09
+    - AL12
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 4
+    - itemId: everlost:tonic
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Medkit: full heal over 20 s.'
+    flavor: Everything you know about healing, in one pouch.
+    icon: heart
+  - code: PR19
+    category: 4
+    path: C
+    tier: 4
+    kind: R
+    name: Camp Kit
+    requires:
+    - PR07
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 4
+    - itemId: everlost:rope
+      amount: 4
+    - itemId: everlost:flint
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Bedroll and fire starter in one: rest anywhere, temporary respawn point.'
+    flavor: Home is wherever you unroll it.
+    icon: tent-tree
+  - code: PR20
+    category: 4
+    path: C
+    tier: 5
+    kind: K
+    name: Expedition
+    requires:
+    - PR15
+    - PR16
+    - PR19
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 6
+    - itemId: everlost:rope
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Hunger and thirst drain 15 % slower more than 1 km from home.
+    flavor: The farther you go, the lighter you travel.
+    icon: footprints
+  - code: PR21
+    category: 4
+    path: C
+    tier: 5
+    kind: R
+    name: Hardiness
+    requires:
+    - PR20
+    any: []
+    cost:
+    - itemId: everlost:wrap
+      amount: 1
+    - itemId: everlost:cloak
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Climate penalties are halved even without gear.
+    flavor: You stopped feeling the cold some time ago.
+    icon: shield
+  - code: PR22
+    category: 4
+    path: F
+    tier: 5
+    kind: R
+    name: Hearty Stew
+    requires:
+    - PR12
+    - PR20
+    any: []
+    cost:
+    - itemId: everlost:pot
+      amount: 1
+    - itemId: everlost:mushroom
+      amount: 6
+    - itemId: everlost:salt
+      amount: 2
+    - itemId: everlost:trailmix
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Stew from a pot over the fire: the best food in the game.'
+    flavor: Everything you found today, in one pot.
+    icon: soup
+  - code: PR23
+    category: 4
+    path: W
+    tier: 5
+    kind: R
+    name: Second Wind
+    requires:
+    - PR18
+    - AL28
+    any: []
+    cost:
+    - itemId: everlost:vigor
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Once every 5 min: heal 30 when health drops below 10 %.'
+    flavor: Not yet.
+    icon: heart-pulse
+  - code: PR24
+    category: 4
+    path: W
+    tier: 6
+    kind: R
+    name: Endurance
+    requires:
+    - PR23
+    any: []
+    cost:
+    - itemId: everlost:tonic
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Sprinting drains 15 % less.
+    flavor: You have walked further than anyone left alive.
+    icon: activity
+  - code: PR25
+    category: 4
+    path: C
+    tier: 6
+    kind: K
     name: Master of the Wild
-    recipe: Ancient Totem
-    materialCost: 20
-    position: {x: 1005.1036, y: 1307.4395}
-  - id: 147
-    category: 4
-    tier: 6
-    parent: 143
-    major: 0
-    name: Master of the Wild II
-    recipe: Ancient Totem
-    materialCost: 20
-    position: {x: 1321.2875, y: 1047.6522}
-  - id: 148
-    category: 4
-    tier: 6
-    parent: 144
-    major: 0
-    name: Master of the Wild III
-    recipe: Ancient Totem
-    materialCost: 20
-    position: {x: 1202.5808, y: 1264.265}
-  - id: 149
-    category: 4
-    tier: 6
-    parent: 146
-    major: 0
-    name: Master of the Wild IV
-    recipe: Ancient Totem
-    materialCost: 20
-    position: {x: 1035.0348, y: 1495.5187}
-  - id: 150
-    category: 4
-    tier: 6
-    parent: 147
-    major: 1
-    name: Master of the Wild V
-    recipe: Ancient Totem
-    materialCost: 20
-    position: {x: 1498.6407, y: 1026.1516}
-  - id: 151
-    category: 5
+    requires:
+    - PR21
+    - PR22
+    - PR24
+    any: []
+    cost:
+    - itemId: everlost:cloak
+      amount: 2
+    - itemId: everlost:wrap
+      amount: 2
+    - itemId: everlost:vigor
+      amount: 2
+    quest: Visible after surviving a night in 3 extreme biomes
+    blueprint: []
+    makes: []
+    unlock: Climate gear merges into one piece. No land is hostile.
+    flavor: No land is hostile to someone who understands it.
+    icon: mountain-snow
+  - code: RE01
+    category: 2
+    path: F
     tier: 1
-    parent: 0
-    major: 1
-    name: Work Tools
-    recipe: Crafting Kit
-    materialCost: 5
-    position: {x: 362.22217, y: 97.05712}
-  - id: 152
-    category: 5
+    kind: R
+    name: Woven Cloth
+    requires:
+    - R0
+    any: []
+    cost:
+    - itemId: everlost:grass
+      amount: 8
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:cloth
+    unlock: 'Cloth: 4 Grass + 1 Rope.'
+    flavor: Twist the grass, then twist it again.
+    icon: feather
+  - code: RE02
+    category: 2
+    path: C
     tier: 1
-    parent: 151
-    major: 0
-    name: Work Tools II
-    recipe: Crafting Kit
-    materialCost: 5
-    position: {x: 454.7974, y: 109.75489}
-  - id: 153
-    category: 5
+    kind: D
+    name: River Clay
+    requires:
+    - R0
+    any: []
+    cost: []
+    quest: Dig by a river or swamp and pick up Clay
+    blueprint: []
+    makes: []
+    unlock: Clay becomes a research material.
+    flavor: Grey, cold, and it keeps any shape you give it.
+    icon: shovel
+  - code: RE03
+    category: 2
+    path: W
+    tier: 1
+    kind: B
+    name: Workbench
+    requires:
+    - R0
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    - itemId: everlost:stick
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 4
+    - itemId: everlost:stick
+      amount: 8
+    - itemId: everlost:rope
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: a workbench. Advanced recipes work within 4 m of it.'
+    flavor: A flat surface and two free hands.
+    icon: wrench
+  - code: RE04
+    category: 2
+    path: F
+    tier: 1
+    kind: R
+    name: Rope Twisting
+    requires:
+    - RE01
+    any: []
+    cost:
+    - itemId: everlost:grass
+      amount: 10
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "Rope: 3 Grass \u2192 2 Rope."
+    flavor: A better twist, half the grass.
+    icon: png:Rope
+  - code: RE05
+    category: 2
+    path: C
     tier: 2
-    parent: 152
-    major: 0
-    name: Fine Components
-    recipe: Cogwheel
-    materialCost: 8
-    position: {x: 618.5807, y: 75.717514}
-  - id: 154
-    category: 5
+    kind: B
+    name: Pit Kiln
+    requires:
+    - RE02
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 4
+    - itemId: everlost:stone
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 16
+    - itemId: everlost:clay
+      amount: 8
+    makes: []
+    unlock: 'Blueprint: a pit kiln. Fires clay and burns charcoal.'
+    flavor: Fire in a clay belly burns hotter and slower.
+    icon: flame
+  - code: RE06
+    category: 2
+    path: C
     tier: 2
-    parent: 152
-    major: 0
-    name: Fine Components II
-    recipe: Cogwheel
-    materialCost: 8
-    position: {x: 592.9132, y: 238.05501}
-  - id: 155
-    category: 5
+    kind: D
+    name: First Firing
+    requires:
+    - RE05
+    any: []
+    cost: []
+    quest: Finish building a Pit Kiln
+    blueprint: []
+    makes: []
+    unlock: Reveals bricks, charcoal and fired clay.
+    flavor: The clay rings when you tap it.
+    icon: flame-kindling
+  - code: RE07
+    category: 2
+    path: C
     tier: 2
-    parent: 153
-    major: 0
-    name: Fine Components III
-    recipe: Cogwheel
-    materialCost: 8
-    position: {x: 755.16754, y: 61.910343}
-  - id: 156
-    category: 5
+    kind: R
+    name: Clay Bricks
+    requires:
+    - RE06
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 6
+    - itemId: everlost:sand
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:brick
+    unlock: "Brick mold: 2 Clay + 1 Sand \u2192 Raw Brick. Fired in a kiln \u2192
+      Brick."
+    flavor: The same shape, again and again. That is how walls begin.
+    icon: brick-wall
+  - code: RE08
+    category: 2
+    path: C
     tier: 2
-    parent: 154
-    major: 0
-    name: Fine Components IV
-    recipe: Cogwheel
-    materialCost: 8
-    position: {x: 730.1342, y: 255.64902}
-  - id: 157
-    category: 5
+    kind: R
+    name: Charcoal Burning
+    requires:
+    - RE06
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:coal
+    unlock: "Kiln: 1 Log \u2192 2 Coal; Charred Log \u2192 3 Coal."
+    flavor: Burn wood without air and it becomes fuel.
+    icon: png:coal
+  - code: RE09
+    category: 2
+    path: W
+    tier: 2
+    kind: R
+    name: Planks
+    requires:
+    - RE03
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:planks
+    unlock: "Workbench: 1 Log \u2192 4 Planks."
+    flavor: Split it straight and it goes four times as far.
+    icon: rows-3
+  - code: RE10
+    category: 2
+    path: W
+    tier: 2
+    kind: D
+    name: Resin Tapping
+    requires:
+    - RE03
+    any: []
+    cost: []
+    quest: Chop a fir or a spruce
+    blueprint: []
+    makes:
+    - everlost:resin
+    unlock: Conifers drop Resin (30 %).
+    flavor: Sticky, golden, and it burns for a long time.
+    icon: droplet
+  - code: RE11
+    category: 2
+    path: W
+    tier: 2
+    kind: B
+    name: Storage Chest
+    requires:
+    - RE09
+    - RE04
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 8
+    - itemId: everlost:rope
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: a 16-slot chest.'
+    flavor: Logs stack eight to a hand. You will want a chest.
+    icon: archive
+  - code: RE12
+    category: 2
+    path: C
+    tier: 2
+    kind: R
+    name: Fired Clay
+    requires:
+    - RE06
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 6
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:pot
+    unlock: 'Kiln: Clay Pot (and with Survival, Clay Flask).'
+    flavor: Shape it wet, fire it dry.
+    icon: container
+  - code: RE13
+    category: 2
+    path: C
     tier: 3
-    parent: 154
-    major: 0
-    name: Weaving Loom
-    recipe: Fine Cloth
-    materialCost: 11
-    position: {x: 804.5337, y: 400.4098}
-  - id: 158
-    category: 5
+    kind: K
+    name: Brick Kiln
+    requires:
+    - RE07
+    - CO13
+    any: []
+    cost:
+    - itemId: everlost:brick
+      amount: 6
+    quest: 
+    blueprint:
+    - itemId: everlost:brick
+      amount: 30
+    - itemId: everlost:mortar
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: a brick kiln. Fires twice as fast and reaches glass and lime
+      heat.'
+    flavor: Walls that hold the heat in.
+    icon: factory
+  - code: RE14
+    category: 2
+    path: W
     tier: 3
-    parent: 156
-    major: 1
-    name: Weaving Loom II
-    recipe: Fine Cloth
-    materialCost: 11
-    position: {x: 867.8743, y: 265.4244}
-  - id: 159
-    category: 5
+    kind: R
+    name: Glue & Pitch
+    requires:
+    - RE10
+    - RE08
+    any: []
+    cost:
+    - itemId: everlost:resin
+      amount: 4
+    - itemId: everlost:coal
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:pitch
+    unlock: 'Pitch: waterproofing, long-burning torches, cloak lining.'
+    flavor: Black, sticky, and nothing gets through it.
+    icon: droplets
+  - code: RE15
+    category: 2
+    path: F
     tier: 3
-    parent: 158
-    major: 0
-    name: Weaving Loom III
-    recipe: Fine Cloth
-    materialCost: 11
-    position: {x: 919.43604, y: 164.27084}
-  - id: 160
-    category: 5
+    kind: B
+    name: Loom
+    requires:
+    - RE04
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 4
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 12
+    - itemId: everlost:rope
+      amount: 4
+    - itemId: everlost:stick
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: a loom. Twice the cloth per batch; canvas later.'
+    flavor: Over, under. Over, under.
+    icon: grid-3x3
+  - code: RE16
+    category: 2
+    path: W
     tier: 3
-    parent: 158
-    major: 0
-    name: Weaving Loom IV
-    recipe: Fine Cloth
-    materialCost: 11
-    position: {x: 1031.1377, y: 378.49863}
-  - id: 161
-    category: 5
+    kind: R
+    name: Iron-bound Chest
+    requires:
+    - RE11
+    - KO31
+    any: []
+    cost:
+    - itemId: everlost:nails
+      amount: 8
+    - itemId: everlost:planks
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: A 32-slot chest.
+    flavor: Iron bands, twice the room.
+    icon: archive
+  - code: RE17
+    category: 2
+    path: G
     tier: 3
-    parent: 155
-    major: 0
-    name: Weaving Loom V
-    recipe: Fine Cloth
-    materialCost: 11
-    position: {x: 935.9035, y: 53.21594}
-  - id: 162
-    category: 5
+    kind: R
+    name: Climbing Picks
+    requires:
+    - KO21
+    - RE04
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 2
+    - itemId: everlost:rope
+      amount: 2
+    - itemId: everlost:cloth
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Climb steep slopes and rock faces.
+    flavor: The massifs are not walls. They are ladders.
+    icon: mountain
+  - code: RE18
+    category: 2
+    path: C
     tier: 4
-    parent: 161
-    major: 0
-    name: Precision Mechanisms
-    recipe: Precision Mechanism
-    materialCost: 14
-    position: {x: 1118.5718, y: 114.26485}
-  - id: 163
-    category: 5
+    kind: R
+    name: Refractory Brick
+    requires:
+    - RE13
+    - KO42
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 6
+    - itemId: everlost:limestone
+      amount: 2
+    - itemId: everlost:sand
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:refbrick
+    unlock: Heat-proof bricks for the Forge, Athanor and Starforge.
+    flavor: A brick that laughs at fire.
+    icon: brick-wall
+  - code: RE19
+    category: 2
+    path: C
     tier: 4
-    parent: 162
-    major: 0
-    name: Precision Mechanisms II
-    recipe: Precision Mechanism
-    materialCost: 14
-    position: {x: 1113.8989, y: 233.69446}
-  - id: 164
-    category: 5
+    kind: R
+    name: Quicklime
+    requires:
+    - RE13
+    - KO42
+    any: []
+    cost:
+    - itemId: everlost:limestone
+      amount: 4
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:quicklime
+    unlock: "Brick Kiln: Limestone \u2192 Quicklime, the base of Lime Mortar."
+    flavor: Burn the white stone and it burns back.
+    icon: cloud
+  - code: RE20
+    category: 2
+    path: C
     tier: 4
-    parent: 160
-    major: 0
-    name: Precision Mechanisms III
-    recipe: Precision Mechanism
-    materialCost: 14
-    position: {x: 1144.9337, y: 350.15826}
-  - id: 165
-    category: 5
+    kind: R
+    name: Glassblowing
+    requires:
+    - RE13
+    - AL11
+    any: []
+    cost:
+    - itemId: everlost:sand
+      amount: 8
+    - itemId: everlost:potash
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:glass
+    - everlost:gflask
+    - everlost:lens
+    unlock: "Brick Kiln: 2 Sand + 1 Potash \u2192 Glass. Glass Flask, Lens."
+    flavor: Sand, fire and breath.
+    icon: glass-water
+  - code: RE21
+    category: 2
+    path: F
     tier: 4
-    parent: 160
-    major: 0
-    name: Precision Mechanisms IV
-    recipe: Precision Mechanism
-    materialCost: 14
-    position: {x: 1095.5388, y: 524.8876}
-  - id: 166
-    category: 5
+    kind: R
+    name: Canvas
+    requires:
+    - RE15
+    - RE14
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 6
+    - itemId: everlost:pitch
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:canvas
+    unlock: 'Pitched canvas: tents, packs and the glider sail.'
+    flavor: Cloth that keeps the rain out.
+    icon: flag
+  - code: RE22
+    category: 2
+    path: G
     tier: 4
-    parent: 157
-    major: 0
-    name: Precision Mechanisms V
-    recipe: Precision Mechanism
-    materialCost: 14
-    position: {x: 932.5073, y: 499.54572}
-  - id: 167
-    category: 5
-    tier: 4
-    parent: 162
-    major: 0
-    name: Precision Mechanisms VI
-    recipe: Precision Mechanism
-    materialCost: 14
-    position: {x: 1284.6979, y: 79.4947}
-  - id: 168
-    category: 5
-    tier: 4
-    parent: 163
-    major: 0
-    name: Precision Mechanisms VII
-    recipe: Precision Mechanism
-    materialCost: 14
-    position: {x: 1272.6521, y: 240.53485}
-  - id: 169
-    category: 5
+    kind: R
+    name: Backpack
+    requires:
+    - RE21
+    - RE16
+    any: []
+    cost:
+    - itemId: everlost:canvas
+      amount: 4
+    - itemId: everlost:rope
+      amount: 4
+    - itemId: everlost:nails
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: A portable 12-slot pack.
+    flavor: Take your storeroom with you.
+    icon: backpack
+  - code: RE23
+    category: 2
+    path: W
     tier: 5
-    parent: 164
-    major: 1
+    kind: K
     name: Master Workshop
-    recipe: Master Kit
-    materialCost: 17
-    position: {x: 1348.1083, y: 404.93588}
-  - id: 170
-    category: 5
+    requires:
+    - RE20
+    - KO47
+    - RE16
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 2
+    - itemId: everlost:planks
+      amount: 10
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 20
+    - itemId: everlost:steel
+      amount: 4
+    - itemId: everlost:nails
+      amount: 20
+    makes: []
+    unlock: 'Workbench upgrade: recipes give 25 % more.'
+    flavor: Every tool has its place.
+    icon: cog
+  - code: RE24
+    category: 2
+    path: G
     tier: 5
-    parent: 165
-    major: 0
-    name: Master Workshop II
-    recipe: Master Kit
-    materialCost: 17
-    position: {x: 1229.8704, y: 596.82684}
-  - id: 171
-    category: 5
+    kind: R
+    name: Grappling Hook
+    requires:
+    - RE23
+    - KO46
+    any: []
+    cost:
+    - itemId: everlost:steel
+      amount: 2
+    - itemId: everlost:wire
+      amount: 4
+    - itemId: everlost:rope
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Pull yourself to a point up to 25 m away.
+    flavor: Throw it high, trust the rope.
+    icon: anchor
+  - code: RE25
+    category: 2
+    path: C
     tier: 5
-    parent: 168
-    major: 0
-    name: Master Workshop III
-    recipe: Master Kit
-    materialCost: 17
-    position: {x: 1439.9214, y: 212.9111}
-  - id: 172
-    category: 5
+    kind: R
+    name: Lens Grinding
+    requires:
+    - RE20
+    - RE23
+    any: []
+    cost:
+    - itemId: everlost:glass
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "Precision lens: Spyglass \xD78 and the Lighthouse lens."
+    flavor: A perfect curve brings the far near.
+    icon: aperture
+  - code: RE26
+    category: 2
+    path: W
     tier: 5
-    parent: 171
-    major: 0
-    name: Master Workshop IV
-    recipe: Master Kit
-    materialCost: 17
-    position: {x: 1464.9681, y: 83.29882}
-  - id: 173
-    category: 5
-    tier: 5
-    parent: 169
-    major: 0
-    name: Master Workshop V
-    recipe: Master Kit
-    materialCost: 17
-    position: {x: 1422.2577, y: 497.98895}
-  - id: 174
-    category: 5
-    tier: 5
-    parent: 169
-    major: 0
-    name: Master Workshop VI
-    recipe: Master Kit
-    materialCost: 17
-    position: {x: 1489.4277, y: 375.23947}
-  - id: 175
-    category: 5
-    tier: 5
-    parent: 170
-    major: 0
-    name: Master Workshop VII
-    recipe: Master Kit
-    materialCost: 17
-    position: {x: 1426.1893, y: 718.7223}
-  - id: 176
-    category: 5
+    kind: R
+    name: Bamboo Frames
+    requires:
+    - RE23
+    any: []
+    cost:
+    - itemId: everlost:bamboo
+      amount: 10
+    - itemId: everlost:rope
+      amount: 4
+    quest: Visible after picking up Bamboo
+    blueprint: []
+    makes: []
+    unlock: Light, strong frames for pipes and wings.
+    flavor: Hollow, strong and almost weightless.
+    icon: png:BambooStalk
+  - code: RE27
+    category: 2
+    path: G
     tier: 6
-    parent: 171
-    major: 0
-    name: Perfect Machine
-    recipe: Perfect Machine
-    materialCost: 20
-    position: {x: 1602.7906, y: 212.47852}
-  - id: 177
-    category: 5
+    kind: R
+    name: Wingsail
+    requires:
+    - RE26
+    - RE21
+    any: []
+    cost:
+    - itemId: everlost:canvas
+      amount: 8
+    - itemId: everlost:bamboo
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Wingsail cloth and ribs.
+    flavor: It catches the wind like a hand.
+    icon: feather
+  - code: RE28
+    category: 2
+    path: G
     tier: 6
-    parent: 173
-    major: 0
-    name: Perfect Machine II
-    recipe: Perfect Machine
-    materialCost: 20
-    position: {x: 1595.951, y: 631.5277}
-  - id: 178
+    kind: K
+    name: Glider
+    requires:
+    - RE27
+    - KO58
+    any: []
+    cost:
+    - itemId: everlost:starmetal
+      amount: 1
+    - itemId: everlost:canvas
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: "Glide down from the 670\u2013850 m peaks."
+    flavor: From the highest peak, the fastest way down is the most beautiful.
+    icon: plane
+  - code: AL33
     category: 5
-    tier: 6
-    parent: 174
-    major: 0
-    name: Perfect Machine III
-    recipe: Perfect Machine
-    materialCost: 20
-    position: {x: 1698.021, y: 409.77832}
-  - id: 179
+    path: M
+    tier: 4
+    kind: R
+    name: Welding Flux
+    requires:
+    - AL11
+    - AL14
+    any: []
+    cost:
+    - itemId: everlost:potash
+      amount: 3
+    - itemId: everlost:salt
+      amount: 3
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:flux
+    unlock: 'Flux powder: forge-welds steel and cleans ore in the crucible.'
+    flavor: A pinch on the hot seam and the metal flows together.
+    icon: beaker
+  - code: AL34
     category: 5
-    tier: 6
-    parent: 176
-    major: 0
-    name: Perfect Machine IV
-    recipe: Perfect Machine
-    materialCost: 20
-    position: {x: 1780.738, y: 145.98894}
-  - id: 180
+    path: H
+    tier: 3
+    kind: R
+    name: Smelling Salts
+    requires:
+    - AL14
+    any: []
+    cost:
+    - itemId: everlost:salt
+      amount: 3
+    - itemId: everlost:wildflower
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Revive a downed teammate at half health (multiplayer).
+    flavor: One sharp breath and they are back.
+    icon: wind
+  - code: AL35
     category: 5
-    tier: 6
-    parent: 177
-    major: 1
-    name: Perfect Machine V
-    recipe: Perfect Machine
-    materialCost: 20
-    position: {x: 1665.4602, y: 797.9447}
+    path: H
+    tier: 3
+    kind: R
+    name: Herb Garden
+    requires:
+    - AL12
+    - PR27
+    any: []
+    cost:
+    - itemId: everlost:wildflower
+      amount: 6
+    - itemId: everlost:seeds
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Wildflowers and Glowcaps can be planted in garden beds.
+    flavor: Grow what you used to search for.
+    icon: flower
+  - code: AL36
+    category: 5
+    path: H
+    tier: 4
+    kind: R
+    name: Iron Stomach
+    requires:
+    - AL12
+    - PR30
+    any: []
+    cost:
+    - itemId: everlost:mushroom
+      amount: 4
+    - itemId: everlost:flour
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: All food restores 20 % more.
+    flavor: Bitter roots at breakfast. You stop noticing.
+    icon: utensils
+  - code: CO31
+    category: 3
+    path: M
+    tier: 3
+    kind: B
+    name: Cut Stone
+    requires:
+    - CO13
+    - KO22
+    any: []
+    cost:
+    - itemId: everlost:cutstone
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Lay dressed Cut Stone: straight, tall walls that stand without mortar.'
+    flavor: A block that fits needs nothing to hold it.
+    icon: brick-wall
+  - code: CO32
+    category: 3
+    path: S
+    tier: 3
+    kind: B
+    name: Timber Frame
+    requires:
+    - CO06
+    - KO23
+    any: []
+    cost:
+    - itemId: everlost:beam
+      amount: 4
+    - itemId: everlost:planks
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:beam
+      amount: 16
+    - itemId: everlost:planks
+      amount: 40
+    makes: []
+    unlock: 'Blueprint: beams and posts for two-storey frame houses.'
+    flavor: Bones first, skin later.
+    icon: frame
+  - code: CO33
+    category: 3
+    path: S
+    tier: 2
+    kind: B
+    name: Shingle Roof
+    requires:
+    - CO03
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Plank shingles: a roof that does not need re-thatching.'
+    flavor: Overlap them like scales.
+    icon: triangle
+  - code: CO34
+    category: 3
+    path: S
+    tier: 4
+    kind: B
+    name: Tile Roof
+    requires:
+    - CO17
+    - RE34
+    any: []
+    cost:
+    - itemId: everlost:tiles
+      amount: 8
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Fired clay roof tiles for stone and brick houses.
+    flavor: Red roofs, cool rooms.
+    icon: grid-2x2
+  - code: CO35
+    category: 3
+    path: W
+    tier: 1
+    kind: B
+    name: Fence & Gate
+    requires:
+    - CO04
+    any: []
+    cost:
+    - itemId: everlost:stick
+      amount: 8
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Stick fences and gates, placed post by post.
+    flavor: 'A line that says: this part is mine.'
+    icon: fence
+  - code: CO36
+    category: 3
+    path: W
+    tier: 2
+    kind: B
+    name: Garden Bed
+    requires:
+    - CO35
+    - KO15
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    - itemId: everlost:stick
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 4
+    - itemId: everlost:stick
+      amount: 8
+    makes: []
+    unlock: 'Blueprint: a tilled garden bed for crops, herbs and berry bushes.'
+    flavor: Four logs and turned soil.
+    icon: sprout
+  - code: CO37
+    category: 3
+    path: W
+    tier: 4
+    kind: B
+    name: Well
+    requires:
+    - CO21
+    - KO40
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 10
+    - itemId: everlost:rope
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 40
+    - itemId: everlost:limemortar
+      amount: 8
+    - itemId: everlost:rope
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: drill and line a well. Water anywhere above groundwater.'
+    flavor: The river is under your feet, if you dig.
+    icon: cylinder
+  - code: CO38
+    category: 3
+    path: W
+    tier: 4
+    kind: B
+    name: Water Wheel
+    requires:
+    - CO15
+    - KO25
+    - KO23
+    any: []
+    cost:
+    - itemId: everlost:gear
+      amount: 2
+    - itemId: everlost:beam
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:beam
+      amount: 12
+    - itemId: everlost:planks
+      amount: 30
+    - itemId: everlost:gear
+      amount: 6
+    - itemId: everlost:stone
+      amount: 20
+    makes: []
+    unlock: 'Blueprint: a wheel on a river. Powers machines built next to it.'
+    flavor: The rivers here never stop. Make them work.
+    icon: loader
+  - code: CO39
+    category: 3
+    path: W
+    tier: 5
+    kind: B
+    name: Sawmill
+    requires:
+    - CO38
+    - KO23
+    any: []
+    cost:
+    - itemId: everlost:gear
+      amount: 2
+    - itemId: everlost:planks
+      amount: 6
+    quest: 
+    blueprint:
+    - itemId: everlost:beam
+      amount: 10
+    - itemId: everlost:planks
+      amount: 20
+    - itemId: everlost:gear
+      amount: 4
+    makes: []
+    unlock: 'Water-powered: Logs become Planks and Beams on their own.'
+    flavor: Feed it logs, come back to lumber.
+    icon: slice
+  - code: CO40
+    category: 3
+    path: W
+    tier: 5
+    kind: B
+    name: Watermill
+    requires:
+    - CO38
+    - PR29
+    any: []
+    cost:
+    - itemId: everlost:gear
+      amount: 2
+    - itemId: everlost:stone
+      amount: 10
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 60
+    - itemId: everlost:beam
+      amount: 8
+    - itemId: everlost:gear
+      amount: 4
+    makes: []
+    unlock: "Grain \u2192 Flour, and crushed ore that smelts one extra ingot per
+      four."
+    flavor: Two stones, one river, no tired arms.
+    icon: loader
+  - code: CO41
+    category: 3
+    path: M
+    tier: 5
+    kind: B
+    name: Stone Bridge
+    requires:
+    - CO20
+    - CO31
+    - CO15
+    any: []
+    cost:
+    - itemId: everlost:cutstone
+      amount: 10
+    - itemId: everlost:limemortar
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:cutstone
+      amount: 120
+    - itemId: everlost:limemortar
+      amount: 30
+    makes: []
+    unlock: 'Blueprint: arched stone bridges up to 40 m.'
+    flavor: Built for the next thousand years of floods.
+    icon: landmark
+  - code: CO42
+    category: 3
+    path: S
+    tier: 2
+    kind: B
+    name: Furniture
+    requires:
+    - CO02
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Table, chair, shelf and bed frame. Sleeping in a bed rests you faster.
+    flavor: Somewhere to sit that is not the floor.
+    icon: armchair
+  - code: AR27
+    category: 0
+    path: C
+    tier: 2
+    kind: R
+    name: Bark Paper
+    requires:
+    - AR02
+    - RE29
+    any: []
+    cost:
+    - itemId: everlost:bark
+      amount: 4
+    - itemId: everlost:berries
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Paper from Birch Bark: map sheets and journal pages you can hand to
+      other players.'
+    flavor: White bark, charcoal lines.
+    icon: file-text
+  - code: AR28
+    category: 0
+    path: C
+    tier: 3
+    kind: B
+    name: Map Table
+    requires:
+    - AR27
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 4
+    - itemId: everlost:bark
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 12
+    - itemId: everlost:bark
+      amount: 6
+    makes: []
+    unlock: 'Blueprint: a map table. Your map and markers are shared with every player
+      in the world.'
+    flavor: Everyone adds what they saw.
+    icon: map
+  - code: AR29
+    category: 0
+    path: C
+    tier: 4
+    kind: R
+    name: Sextant
+    requires:
+    - AR28
+    - KO21
+    any:
+    - RE20
+    - KO33
+    cost:
+    - itemId: everlost:bronze
+      amount: 3
+    - itemId: everlost:lens
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Exact coordinates and altitude; place markers by coordinates.
+    flavor: Measure the sun and you know where you stand.
+    icon: drafting-compass
+  - code: AR30
+    category: 0
+    path: C
+    tier: 5
+    kind: R
+    name: Astrolabe
+    requires:
+    - AR29
+    - KO34
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 2
+    - itemId: everlost:goldleaf
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Time of day and moon phase on the HUD; the compass glows at night.
+    flavor: A brass sky that fits in your hand.
+    icon: orbit
+  - code: AR31
+    category: 0
+    path: R
+    tier: 4
+    kind: D
+    name: Sealed Vault
+    requires:
+    - AR16
+    - KO38
+    any: []
+    cost: []
+    quest: Pry open a sealed vault in a ruin
+    blueprint: []
+    makes: []
+    unlock: Reveals the Lost Archive.
+    flavor: Air that has not moved for a thousand years.
+    icon: door-closed
+  - code: AR32
+    category: 0
+    path: R
+    tier: 5
+    kind: R
+    name: Lost Archive
+    requires:
+    - AR31
+    any: []
+    cost:
+    - itemId: everlost:relic
+      amount: 8
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Every opened vault teaches one ancient blueprint piece.
+    flavor: Shelves of stone tablets. Most are broken. Some are not.
+    icon: library
+  - code: AR33
+    category: 0
+    path: X
+    tier: 4
+    kind: D
+    name: Singing Cave
+    requires:
+    - AR12
+    any: []
+    cost: []
+    quest: Enter a crystal cave
+    blueprint: []
+    makes: []
+    unlock: Crystal caves are marked once seen.
+    flavor: The walls hum when you breathe.
+    icon: gem
+  - code: AR34
+    category: 0
+    path: X
+    tier: 4
+    kind: R
+    name: Tuning Fork
+    requires:
+    - AR33
+    - KO21
+    any: []
+    cost:
+    - itemId: everlost:bronze
+      amount: 2
+    - itemId: everlost:crystal
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Strike it near a crystal: hear ore within 60 m.'
+    flavor: Bronze sings back to stone.
+    icon: audio-waveform
+  - code: AR35
+    category: 0
+    path: J
+    tier: 3
+    kind: D
+    name: Under the World
+    requires:
+    - AR04
+    any: []
+    cost: []
+    quest: Go 60 m below the surface
+    blueprint: []
+    makes: []
+    unlock: Caves count as places in the journal.
+    flavor: The map has a second floor.
+    icon: arrow-down-to-line
+  - code: AR36
+    category: 0
+    path: J
+    tier: 2
+    kind: D
+    name: River to Sea
+    requires:
+    - AR01
+    any: []
+    cost: []
+    quest: Follow a river until it reaches the sea
+    blueprint: []
+    makes: []
+    unlock: Opens Waterways.
+    flavor: Every river here ends in salt water.
+    icon: waves
+  - code: AR37
+    category: 0
+    path: J
+    tier: 3
+    kind: R
+    name: Waterways
+    requires:
+    - AR36
+    any: []
+    cost:
+    - itemId: everlost:stick
+      amount: 4
+    - itemId: everlost:berries
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Rivers, lakes and waterfalls are drawn on the minimap.
+    flavor: Follow the water and you never get lost.
+    icon: route
+  - code: PR26
+    category: 4
+    path: N
+    tier: 1
+    kind: D
+    name: Seeds
+    requires:
+    - R0
+    any: []
+    cost: []
+    quest: Pick seeds from berry bushes and tall grass
+    blueprint: []
+    makes:
+    - everlost:seeds
+    unlock: Seeds become a material.
+    flavor: Everything that grows here started small.
+    icon: sprout
+  - code: PR27
+    category: 4
+    path: N
+    tier: 2
+    kind: R
+    name: Berry Planting
+    requires:
+    - PR26
+    - CO36
+    any: []
+    cost:
+    - itemId: everlost:seeds
+      amount: 6
+    - itemId: everlost:berries
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Plant berry bushes in garden beds. They regrow every 3 days.
+    flavor: No more walking for breakfast.
+    icon: cherry
+  - code: PR28
+    category: 4
+    path: N
+    tier: 2
+    kind: D
+    name: Wild Grain
+    requires:
+    - PR26
+    any: []
+    cost: []
+    quest: Pick Wild Grain (Steppe, Savanna, Meadow)
+    blueprint: []
+    makes:
+    - everlost:grain
+    unlock: Grain becomes a material.
+    flavor: Tall golden heads in the dry grass.
+    icon: wheat
+  - code: PR29
+    category: 4
+    path: N
+    tier: 2
+    kind: B
+    name: Quern
+    requires:
+    - PR28
+    any: []
+    cost:
+    - itemId: everlost:stone
+      amount: 8
+    - itemId: everlost:grain
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:stone
+      amount: 10
+    makes:
+    - everlost:flour
+    unlock: "Blueprint: a hand mill. Grain \u2192 Flour."
+    flavor: Two stones and a lot of turning.
+    icon: disc
+  - code: PR30
+    category: 4
+    path: F
+    tier: 3
+    kind: R
+    name: Flatbread
+    requires:
+    - PR29
+    - PR02
+    any: []
+    cost:
+    - itemId: everlost:flour
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Flatbread on hot stones: 30 food.'
+    flavor: Flour, water, fire.
+    icon: croissant
+  - code: PR31
+    category: 4
+    path: F
+    tier: 3
+    kind: B
+    name: Clay Oven
+    requires:
+    - PR30
+    - RE07
+    any: []
+    cost:
+    - itemId: everlost:brick
+      amount: 4
+    - itemId: everlost:clay
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:brick
+      amount: 30
+    - itemId: everlost:clay
+      amount: 10
+    makes: []
+    unlock: 'Blueprint: a dome oven. Bread (60 food) and baked dishes.'
+    flavor: A fire you put food inside.
+    icon: cooking-pot
+  - code: PR32
+    category: 4
+    path: N
+    tier: 3
+    kind: R
+    name: Mushroom Logs
+    requires:
+    - PR27
+    - AL06
+    any: []
+    cost:
+    - itemId: everlost:oak
+      amount: 2
+    - itemId: everlost:mushroom
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Grow mushrooms on oak logs in the shade.
+    flavor: Leave a log in the dark and it feeds you.
+    icon: sprout
+  - code: PR33
+    category: 4
+    path: N
+    tier: 4
+    kind: R
+    name: Fertilizer
+    requires:
+    - PR27
+    - AL11
+    any: []
+    cost:
+    - itemId: everlost:potash
+      amount: 2
+    - itemId: everlost:ash
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Garden beds grow twice as fast.
+    flavor: Feed the soil and it feeds you back.
+    icon: leaf
+  - code: PR34
+    category: 4
+    path: N
+    tier: 4
+    kind: R
+    name: Irrigation
+    requires:
+    - PR33
+    - CO37
+    any: []
+    cost:
+    - itemId: everlost:bamboo
+      amount: 4
+    - itemId: everlost:stone
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Watered beds give 50 % more.
+    flavor: Bring the well to the garden.
+    icon: droplets
+  - code: PR35
+    category: 4
+    path: N
+    tier: 2
+    kind: R
+    name: Fishing
+    requires:
+    - PR03
+    - KO13
+    any: []
+    cost:
+    - itemId: everlost:hooks
+      amount: 2
+    - itemId: everlost:stick
+      amount: 2
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:fish
+    unlock: 'Fishing rod: fish in rivers, lakes and the sea.'
+    flavor: Patience, a line and a little luck.
+    icon: fish
+  - code: PR36
+    category: 4
+    path: N
+    tier: 3
+    kind: B
+    name: Fish Trap
+    requires:
+    - PR35
+    - RE30
+    any: []
+    cost:
+    - itemId: everlost:stick
+      amount: 8
+    - itemId: everlost:rope
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:stick
+      amount: 20
+    - itemId: everlost:rope
+      amount: 6
+    - itemId: everlost:stone
+      amount: 10
+    makes: []
+    unlock: 'Blueprint: a weir trap in a stream. Fills while you are away.'
+    flavor: Let the river do the fishing.
+    icon: fish
+  - code: PR37
+    category: 4
+    path: N
+    tier: 5
+    kind: R
+    name: Deep-Sea Fishing
+    requires:
+    - PR35
+    - RE40
+    any: []
+    cost:
+    - itemId: everlost:hooks
+      amount: 4
+    - itemId: everlost:rope
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Big catches from a boat at sea; Fish Oil for lamps.
+    flavor: The big ones live where you cannot see the bottom.
+    icon: fish
+  - code: PR38
+    category: 4
+    path: F
+    tier: 3
+    kind: R
+    name: Smoked Fish
+    requires:
+    - PR12
+    - PR35
+    any: []
+    cost:
+    - itemId: everlost:fish
+      amount: 6
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Smoked Fish: 45 food, stacks of 32.'
+    flavor: Salt, smoke and time.
+    icon: fish
+  - code: PR39
+    category: 4
+    path: W
+    tier: 3
+    kind: R
+    name: Charcoal Filter
+    requires:
+    - PR13
+    - RE08
+    any: []
+    cost:
+    - itemId: everlost:coal
+      amount: 4
+    - itemId: everlost:sand
+      amount: 4
+    - itemId: everlost:pot
+      amount: 1
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Filter any water clean: swamp and lake water give full value.'
+    flavor: Black on top, clear underneath.
+    icon: filter
+  - code: PR40
+    category: 4
+    path: C
+    tier: 3
+    kind: R
+    name: Sun Hat
+    requires:
+    - PR11
+    - RE30
+    any: []
+    cost:
+    - itemId: everlost:grass
+      amount: 12
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Woven hat: 25 % less water drain in heat.'
+    flavor: Shade you can carry.
+    icon: sun
+  - code: RE29
+    category: 2
+    path: W
+    tier: 1
+    kind: R
+    name: Bark Stripping
+    requires:
+    - R0
+    - KO02
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:bark
+    unlock: 'Knife on a birch log: Birch Bark for paper, containers and tinder.'
+    flavor: Birch bark peels in sheets.
+    icon: scroll
+  - code: RE30
+    category: 2
+    path: F
+    tier: 1
+    kind: R
+    name: Basketry
+    requires:
+    - RE04
+    any: []
+    cost:
+    - itemId: everlost:grass
+      amount: 12
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Basket: a light 9-slot container you can carry or place.'
+    flavor: Grass, woven tight enough to hold berries.
+    icon: shopping-basket
+  - code: RE31
+    category: 2
+    path: F
+    tier: 2
+    kind: R
+    name: Dyes
+    requires:
+    - RE01
+    - AL03
+    any: []
+    cost:
+    - itemId: everlost:wildflower
+      amount: 6
+    - itemId: everlost:berries
+      amount: 4
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:dye
+    unlock: Dye cloth, canvas and banners in 8 colours.
+    flavor: Every flower is a colour if you boil it.
+    icon: palette
+  - code: RE32
+    category: 2
+    path: F
+    tier: 3
+    kind: B
+    name: Banner
+    requires:
+    - RE31
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:cloth
+      amount: 2
+    - itemId: everlost:dye
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 4
+    - itemId: everlost:cloth
+      amount: 3
+    - itemId: everlost:dye
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: a banner pole. Shows your colours and marks the spot for
+      every player.'
+    flavor: So the others know where home is.
+    icon: flag
+  - code: RE33
+    category: 2
+    path: C
+    tier: 3
+    kind: B
+    name: Potter's Wheel
+    requires:
+    - RE12
+    - RE09
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 4
+    - itemId: everlost:stone
+      amount: 4
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 8
+    - itemId: everlost:stone
+      amount: 6
+    - itemId: everlost:clay
+      amount: 4
+    makes: []
+    unlock: 'Blueprint: two pots per batch and big storage jars (10 flasks of water).'
+    flavor: Spin it and the clay rises by itself.
+    icon: disc
+  - code: RE34
+    category: 2
+    path: C
+    tier: 4
+    kind: R
+    name: Glaze & Tiles
+    requires:
+    - RE33
+    - AL14
+    any: []
+    cost:
+    - itemId: everlost:clay
+      amount: 8
+    - itemId: everlost:salt
+      amount: 2
+    quest: 
+    blueprint: []
+    makes:
+    - everlost:tiles
+    unlock: Salt-glazed jars and fired roof tiles.
+    flavor: Throw salt in the kiln and the clay turns to glass skin.
+    icon: grid-2x2
+  - code: RE35
+    category: 2
+    path: C
+    tier: 5
+    kind: R
+    name: Stained Glass
+    requires:
+    - RE20
+    - RE31
+    any: []
+    cost:
+    - itemId: everlost:glass
+      amount: 4
+    - itemId: everlost:dye
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Coloured glass for windows and lamps.
+    flavor: Light, but in colour.
+    icon: app-window
+  - code: RE36
+    category: 2
+    path: W
+    tier: 3
+    kind: R
+    name: Cooperage
+    requires:
+    - RE09
+    - KO31
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 8
+    - itemId: everlost:nails
+      amount: 4
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: 'Barrel: 32 slots, or 20 flasks of water.'
+    flavor: Bent staves and iron hoops.
+    icon: cylinder
+  - code: RE37
+    category: 2
+    path: W
+    tier: 3
+    kind: R
+    name: Woodcarving
+    requires:
+    - RE09
+    - KO22
+    any: []
+    cost:
+    - itemId: everlost:planks
+      amount: 4
+    - itemId: everlost:oak
+      amount: 2
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Carved bowls, furniture and decorations from cherry and oak.
+    flavor: Sakura wood carves like butter.
+    icon: pen-tool
+  - code: RE38
+    category: 2
+    path: G
+    tier: 1
+    kind: B
+    name: Raft
+    requires:
+    - RE04
+    any: []
+    cost:
+    - itemId: everlost:log
+      amount: 2
+    - itemId: everlost:rope
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:log
+      amount: 6
+    - itemId: everlost:rope
+      amount: 4
+    makes: []
+    unlock: 'Blueprint: a log raft. Floats down rivers and across lakes.'
+    flavor: Six logs and a lot of rope.
+    icon: sailboat
+  - code: RE39
+    category: 2
+    path: G
+    tier: 3
+    kind: B
+    name: Dugout Canoe
+    requires:
+    - RE38
+    - KO22
+    any: []
+    cost:
+    - itemId: everlost:redwood
+      amount: 1
+    quest: 
+    blueprint:
+    - itemId: everlost:redwood
+      amount: 1
+    - itemId: everlost:rope
+      amount: 2
+    makes: []
+    unlock: 'Blueprint: carve a redwood trunk hollow, chip by chip. Fast on rivers
+      and lakes.'
+    flavor: One tree, one boat.
+    icon: sailboat
+  - code: RE40
+    category: 2
+    path: G
+    tier: 5
+    kind: B
+    name: Sailboat
+    requires:
+    - RE39
+    - RE21
+    - KO48
+    any: []
+    cost:
+    - itemId: everlost:canvas
+      amount: 4
+    - itemId: everlost:fittings
+      amount: 2
+    quest: 
+    blueprint:
+    - itemId: everlost:planks
+      amount: 70
+    - itemId: everlost:canvas
+      amount: 8
+    - itemId: everlost:rope
+      amount: 12
+    - itemId: everlost:fittings
+      amount: 4
+    makes: []
+    unlock: 'Blueprint: plank hull and canvas sail. Crosses the sea between continents.'
+    flavor: The world is made of continents. Now you can reach them all.
+    icon: sailboat
+  - code: RE41
+    category: 2
+    path: F
+    tier: 3
+    kind: R
+    name: Netting
+    requires:
+    - RE30
+    - RE04
+    any: []
+    cost:
+    - itemId: everlost:rope
+      amount: 8
+    quest: 
+    blueprint: []
+    makes: []
+    unlock: Nets for fish traps and cargo; climbing nets on walls.
+    flavor: Knots, a thousand of them.
+    icon: grid-3x3
+  itemIds:
+  - everlost:stone
+  - everlost:stick
+  - everlost:log
+  - everlost:grass
+  - everlost:berries
+  - everlost:rope
+  - everlost:torch
+  - everlost:coal
+  - everlost:oak
+  - everlost:redwood
+  - everlost:mangrove
+  - everlost:bamboo
+  - everlost:flint
+  - everlost:clay
+  - everlost:sand
+  - everlost:ironore
+  - everlost:wildflower
+  - everlost:mushroom
+  - everlost:glowcap
+  - everlost:salt
+  - everlost:sulfur
+  - everlost:limestone
+  - everlost:obsidian
+  - everlost:crystal
+  - everlost:relic
+  - everlost:basalt
+  - everlost:alabaster
+  - everlost:ash
+  - everlost:meteor
+  - everlost:cloth
+  - everlost:planks
+  - everlost:resin
+  - everlost:pitch
+  - everlost:pot
+  - everlost:flask
+  - everlost:brick
+  - everlost:mortar
+  - everlost:refbrick
+  - everlost:quicklime
+  - everlost:limemortar
+  - everlost:potash
+  - everlost:glass
+  - everlost:gflask
+  - everlost:lens
+  - everlost:iron
+  - everlost:nails
+  - everlost:wire
+  - everlost:steel
+  - everlost:fittings
+  - everlost:canvas
+  - everlost:oil
+  - everlost:tonic
+  - everlost:trailmix
+  - everlost:wrap
+  - everlost:cloak
+  - everlost:vigor
+  - everlost:acid
+  - everlost:dew
+  - everlost:starmetal
+  - everlost:copperore
+  - everlost:copper
+  - everlost:crucible
+  - everlost:hooks
+  - everlost:tin
+  - everlost:golddust
+  - everlost:goldleaf
+  - everlost:bronze
+  - everlost:cutstone
+  - everlost:beam
+  - everlost:gear
+  - everlost:flux
+  - everlost:seeds
+  - everlost:grain
+  - everlost:flour
+  - everlost:fish
+  - everlost:bark
+  - everlost:dye
+  - everlost:tiles
+  seals:
+  - tier: 2
+    total: 8
+    disc: 3
+    each: 2
+  - tier: 3
+    total: 28
+    disc: 4
+    each: 4
+  - tier: 4
+    total: 65
+    disc: 5
+    each: 7
+  - tier: 5
+    total: 110
+    disc: 5
+    each: 12
+  - tier: 6
+    total: 160
+    disc: 6
+    each: 15
