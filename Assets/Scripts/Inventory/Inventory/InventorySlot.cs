@@ -153,6 +153,7 @@ namespace Orivilon.Inventory.Inventory
         public void OnPointerEnter(PointerEventData eventData)
         {
             InventoryDragDistributor.PointerEnter(Ref);
+            ItemTooltip.Ensure(this, stackAmountText);
 
             if (!InventoryActions.Cursor.IsEmpty)
                 return;

@@ -55,6 +55,7 @@ public class PlayerItemUse : MonoBehaviour
             if (playerNeeds.food >= playerNeeds.maxFood)
                 return;
 
+            TravelerAvatar.Local?.PlayAction(TravelerAction.Use);
             playerNeeds.AddFood(item.foodRestore);
 
             playerNeeds.AddWater(item.waterRestore);

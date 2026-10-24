@@ -110,8 +110,9 @@ namespace Orivilon.UI.Settings
         /// <summary>Invertovat vodorovnou osu kamery.</summary>
         public bool invertMouseX = false;
 
-        /// <summary>Klávesa pro sprint (jako string, např. "LeftShift").</summary>
-        public string sprintKey = "LeftShift";
+        /// <summary>Klávesa pro sprint (jako string, např. "LeftControl"). Výchozí odpovídá dosavadní hře (scéna:
+        /// FirstPersonController.sprintKey = LeftControl) – nastavení se dřív neaplikovalo, „LeftShift“ nikdy neplatil.</summary>
+        public string sprintKey = "LeftControl";
 
         /// <summary>Klávesa pro skok.</summary>
         public string jumpKey = "Space";
@@ -131,8 +132,8 @@ namespace Orivilon.UI.Settings
         /// <summary>Klávesa pro létání (debug/kreativní mód).</summary>
         public string flightKey = "F";
 
-        /// <summary>Klávesa pro rychlé uložení.</summary>
-        public string quickSaveKey = "F5";
+        /// <summary>Klávesa pro rychlé uložení (F5 přepíná pohled kamery).</summary>
+        public string quickSaveKey = "F6";
 
         /// <summary>Přepnout sprint na toggle (true) nebo hold (false).</summary>
         public bool sprintToggle = false;

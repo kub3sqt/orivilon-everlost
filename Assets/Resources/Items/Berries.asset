@@ -13,12 +13,13 @@ MonoBehaviour:
   m_Name: Berries
   m_EditorClassIdentifier: Axegen::Orivilon.Inventory.Inventory.InventoryItemData
   id: everlost:berries
-  icon: {fileID: 21300000, guid: 0c30c3cf34a85084cbb473f18da673cb, type: 3}
+  icon: {fileID: 21300000, guid: 229b558199e584ae59e189b22effc405, type: 3}
   itemName: Berries
   description: Edible
   stackable: 1
   maxStack: 64
-  handPrefab: {fileID: 0}
+  handPrefab: {fileID: 6074932156591183248, guid: c785d2ab7fa8c472596838409bba65e5,
+    type: 3}
   handPositionOffset: {x: 0, y: 0, z: 0}
   handRotationOffset: {x: 0, y: 0, z: 0}
   handScale: {x: 1, y: 1, z: 1}
@@ -26,3 +27,4 @@ MonoBehaviour:
   isFood: 1
   foodRestore: 15
   waterRestore: 17
+  countsAs: {fileID: 0}

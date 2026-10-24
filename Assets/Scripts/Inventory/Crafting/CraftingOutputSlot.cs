@@ -92,6 +92,7 @@ namespace Orivilon.Inventory.Crafting
         public void OnPointerEnter(PointerEventData eventData)
         {
             InventoryDragDistributor.PointerEnter(SlotRef.Output);
+            ItemTooltip.Ensure(this, stackAmountText);
             if (!InventoryActions.Cursor.IsEmpty) return;
 
             var item = CraftingData.Instance.resultItem;

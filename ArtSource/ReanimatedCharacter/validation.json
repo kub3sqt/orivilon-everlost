@@ -1,0 +1,32 @@
+{
+  "clips": {
+    "Walk": {
+      "frames": 37,
+      "seconds": 1.2,
+      "seamless_loop": true
+    },
+    "Run": {
+      "frames": 25,
+      "seconds": 0.8,
+      "seamless_loop": true
+    },
+    "Chop": {
+      "frames": 46,
+      "seconds": 1.5,
+      "seamless_loop": true
+    },
+    "Mine": {
+      "frames": 55,
+      "seconds": 1.8,
+      "seamless_loop": true
+    },
+    "Swim": {
+      "frames": 49,
+      "seconds": 1.6,
+      "seamless_loop": true
+    }
+  },
+  "original_body_unchanged": true,
+  "old_actions_removed": true,
+  "preview_tools_included": true
+}

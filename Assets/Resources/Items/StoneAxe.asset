@@ -13,14 +13,17 @@ MonoBehaviour:
   m_Name: StoneAxe
   m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
   id: everlost:stone_axe
-  icon: {fileID: 21300000, guid: 83937043e4b0ae842bac59a39e274140, type: 3}
+  icon: {fileID: 21300000, guid: 5270ed68626744703bcc6f0e1d406b9b, type: 3}
   itemName: Stone Axe
   description: Used to chop trees.. or heads.
   stackable: 0
   maxStack: 1
-  handPrefab: {fileID: 6829378584733593697, guid: f5590a5de352b9a438b8636093e8f847,
+  handPrefab: {fileID: 6635181429272386545, guid: 6c80c38ba71c54f7788618cc818b4f65,
     type: 3}
   handPositionOffset: {x: 0.2, y: 0, z: -0.1}
   handRotationOffset: {x: -15, y: -75, z: 0}
   handScale: {x: 0.1, y: 0.1, z: 0.1}
   toolType: 1
+  isFood: 0
+  foodRestore: 0
+  waterRestore: 0

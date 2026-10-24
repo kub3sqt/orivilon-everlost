@@ -82,9 +82,9 @@ RectTransform:
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 4023545302789347392}
+  - {fileID: 1982903210894440541}
   - {fileID: 2970881798009572472}
   - {fileID: 3689872941478808809}
-  - {fileID: 1982903210894440541}
   - {fileID: 6152003552427338606}
   - {fileID: 1273759898744807854}
   - {fileID: 7738335958459704378}
@@ -166,6 +166,80 @@ MonoBehaviour:
     - piece: {fileID: 1519443673185004918}
       anchorMin: {x: 0, y: 0}
       anchorMax: {x: 1, y: 1}
+      offsetMin: {x: 0, y: 0}
+      offsetMax: {x: 0, y: 0}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 2970881798009572472}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 0, y: 0}
+      offsetMin: {x: -60, y: -60}
+      offsetMax: {x: 336, y: 50}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 3689872941478808809}
+      anchorMin: {x: 1, y: 0}
+      anchorMax: {x: 1, y: 0}
+      offsetMin: {x: -220, y: -60}
+      offsetMax: {x: 60, y: 50}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+  - name: Closed
+    pieces:
+    - piece: {fileID: 1273759898744807854}
+      anchorMin: {x: 0, y: 1}
+      anchorMax: {x: 1, y: 1}
+      offsetMin: {x: -60, y: -12}
+      offsetMax: {x: 60, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 7738335958459704378}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 1, y: 0}
+      offsetMin: {x: -60, y: -60}
+      offsetMax: {x: 60, y: 12}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 2705902010972070327}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 0, y: 1}
+      offsetMin: {x: -60, y: -60}
+      offsetMax: {x: 12, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 8086612224903061059}
+      anchorMin: {x: 1, y: 0}
+      anchorMax: {x: 1, y: 1}
+      offsetMin: {x: -12, y: -60}
+      offsetMax: {x: 60, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 6384122818256948142}
+      anchorMin: {x: 0, y: 1}
+      anchorMax: {x: 0, y: 1}
+      offsetMin: {x: -60, y: -104}
+      offsetMax: {x: 104, y: 60}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 1249099531681700539}
+      anchorMin: {x: 0, y: 1}
+      anchorMax: {x: 0, y: 1}
+      offsetMin: {x: 110, y: -140}
+      offsetMax: {x: 110, y: -68}
+      fit: 0
+      fitTo: {fileID: 0}
+      fitPad: 0
+    - piece: {fileID: 1519443673185004918}
+      anchorMin: {x: 0, y: 0}
+      anchorMax: {x: 0, y: 1}
       offsetMin: {x: 0, y: 0}
       offsetMax: {x: 0, y: 0}
       fit: 0

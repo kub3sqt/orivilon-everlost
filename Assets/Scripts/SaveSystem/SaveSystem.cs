@@ -80,6 +80,18 @@ namespace Orivilon.SaveSystem
                 lastPlayed = GameManager.selectedWorld.lastPlayed
             };
 
+            // Čas dne patří světu hosta. Klient (guest kopie světa) ho neukládá – po připojení rozhoduje host.
+            if (!Orivilon.Multiplayer.MultiplayerManager.IsClient)
+            {
+                var sun = UnityEngine.Object.FindFirstObjectByType<Orivilon.SunRotation>();
+                if (sun != null)
+                {
+                    worldData.hasTime = true;
+                    worldData.timeOfDay = Mathf.Repeat(sun.timeOfDay, 24f);
+                    worldData.timePaused = sun.paused;
+                }
+            }
+
             string worldDataFile = Path.Combine(GameManager.selectedWorld.folderPath, "world_data.json");
             SaveTransaction.WriteText(worldDataFile, JsonUtility.ToJson(worldData, true));
 
@@ -113,6 +125,15 @@ namespace Orivilon.SaveSystem
                 playerRotation = player.transform.rotation,
                 inventory = SaveInventory()
             };
+
+            var needs = Orivilon.Player.PlayerNeeds.Find(player);
+            if (needs != null && needs.TryGetState(out float hp, out float fd, out float wt))
+            {
+                data.hasNeeds = true;
+                data.health = hp;
+                data.food = fd;
+                data.water = wt;
+            }
 
             Camera playerCamera = player.GetComponentInChildren<Camera>();
             if (playerCamera != null)
@@ -632,6 +653,14 @@ namespace Orivilon.SaveSystem
 
         /// <summary>Obsah inventáře hráče.</summary>
         public InventorySaveData inventory;
+
+        // ── Potřeby hráče (22.10.2026) ── starší savy pole nemají: hasNeeds = false → výchozí hodnoty.
+        // Nula je platná hodnota (prázdný žaludek), proto o existenci rozhoduje hasNeeds, ne hodnota.
+        /// <summary>True, když save nese zdraví, hlad a žízeň.</summary>
+        public bool hasNeeds;
+        public float health;
+        public float food;
+        public float water;
     }
 
     /// <summary>
@@ -673,6 +702,14 @@ namespace Orivilon.SaveSystem
 
         /// <summary>Timestamp posledního hraní ve formátu ISO 8601.</summary>
         public string lastPlayed;
+
+        // ── Čas dne (22.10.2026) ── starší savy pole nemají: hasTime = false → výchozí čas scény.
+        /// <summary>True, když save nese čas dne (0:00 je platný čas, proto příznak).</summary>
+        public bool hasTime;
+        /// <summary>Herní čas 0–24 v okamžiku uložení.</summary>
+        public float timeOfDay;
+        /// <summary>Ruční pauza času (P) v okamžiku uložení.</summary>
+        public bool timePaused;
     }
 
     /// <summary>Úpravy terénu hráčem pro celý svět.</summary>

@@ -16,6 +16,8 @@ namespace Orivilon.UI.Refresh
     public class MainMenuController : MonoBehaviour
     {
         public const string MenuState = "Menu", WorldsState = "Worlds", CreateState = "Create";
+        /// <summary>Výběr světů bez vybraného světa a seznam kamarádů: pravý výběžek jen s křížkem.</summary>
+        public const string WorldsCompactState = "WorldsCompact";
 
         public MainMenuUI ui;
         public UiFrame frame;
@@ -34,6 +36,14 @@ namespace Orivilon.UI.Refresh
         public TMP_Text playLabel;
         public string emptyName = "Select a world";
 
+        [Header("Side tab (menu polish 23.10.2026)")]
+        [Tooltip("Ikony Singleplayer / Multiplayer v pravém výběžku: skryté (i hitboxy), dokud není vybraný svět.")]
+        public CanvasGroup[] sideModeGroups = new CanvasGroup[0];
+        [Tooltip("Délka vysunutí ikon (s, unscaled).")]
+        public float sideFade = 0.22f;
+        [Tooltip("Odkud ikony vyjíždějí (px vlevo, tj. zpoza panelu).")]
+        public float sideSlide = 18f;
+
         private static readonly FieldInfo SelectedField =
             typeof(MainMenuUI).GetField("selectedWorldData", BindingFlags.Instance | BindingFlags.NonPublic);
 
@@ -43,6 +53,8 @@ namespace Orivilon.UI.Refresh
         private object lastSelected = new object();   // first frame always fills the details
 
         // Režim Multiplayer (kolo MP 17.10.2026): detail ukazuje vybranou lobby kamaráda, PLAY = JOIN.
+        private float sideShown = -1f;
+        private Vector2[] sideBase;
         private int lastFriendVersion = -1;
         private bool friendDetailShown;
         private string[] savedKeys;
@@ -76,7 +88,38 @@ namespace Orivilon.UI.Refresh
         private string Current()
         {
             if (ui == null || !ui.gameObject.activeInHierarchy) return MenuState;
-            return ui.createMenu != null && ui.createMenu.activeSelf ? CreateState : WorldsState;
+            if (ui.createMenu != null && ui.createMenu.activeSelf && !ui.FriendsMode) return CreateState;
+            // bez vybraného světa (a v režimu Multiplayer) je ve výběžku jen křížek – kompaktní varianta,
+            // pokud ji rám má (jinak původní Worlds)
+            bool compact = ui.FriendsMode || (SelectedField != null && SelectedField.GetValue(ui) == null);
+            return compact && frame != null && frame.Find(WorldsCompactState) != null ? WorldsCompactState : WorldsState;
+        }
+
+        /// <summary>Ikony režimu vyjedou s rámem (unscaled), skryté nechytají raycasty.</summary>
+        private void UpdateSideModes()
+        {
+            if (sideModeGroups == null || sideModeGroups.Length == 0) return;
+            if (sideBase == null || sideBase.Length != sideModeGroups.Length)
+            {
+                sideBase = new Vector2[sideModeGroups.Length];
+                for (int i = 0; i < sideModeGroups.Length; i++)
+                    if (sideModeGroups[i] != null) sideBase[i] = ((RectTransform)sideModeGroups[i].transform).anchoredPosition;
+            }
+            float target = state == WorldsState || state == CreateState ? 1f : 0f;
+            float next = sideShown < 0f || state == MenuState ? target
+                : Mathf.MoveTowards(sideShown, target, Time.unscaledDeltaTime / Mathf.Max(0.01f, sideFade));
+            if (Mathf.Approximately(next, sideShown)) return;
+            sideShown = next;
+            float e = UiKit.EaseOut(next);
+            bool live = target > 0.5f;
+            for (int i = 0; i < sideModeGroups.Length; i++)
+            {
+                var g = sideModeGroups[i];
+                if (g == null) continue;
+                g.alpha = e;
+                g.blocksRaycasts = live; g.interactable = live;
+                ((RectTransform)g.transform).anchoredPosition = sideBase[i] + new Vector2(-sideSlide * (1f - e), 0f);
+            }
         }
 
         private void Update()
@@ -88,6 +131,7 @@ namespace Orivilon.UI.Refresh
                 state = s;
                 if (frame != null) frame.SetState(s, animate ? frame.morphTime : 0f);
             }
+            UpdateSideModes();
 
             if (listContent != null && listContent.childCount != rowCount)
             {

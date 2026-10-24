@@ -13,13 +13,17 @@ MonoBehaviour:
   m_Name: Torch
   m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
   id: everlost:torch
-  icon: {fileID: 21300000, guid: c719b77378bbfda4eb15254c68e89507, type: 3}
+  icon: {fileID: 21300000, guid: 2c379aec7edd84c92b6181308af3a8b9, type: 3}
   itemName: Torch
   description: The light in the end of the tunel
   stackable: 1
   maxStack: 64
-  handPrefab: {fileID: 0}
+  handPrefab: {fileID: 4899012332379078525, guid: f8111e36ac86c4f12b8ab53b735affdb,
+    type: 3}
   handPositionOffset: {x: 0, y: 0, z: 0}
   handRotationOffset: {x: 0, y: 0, z: 0}
   handScale: {x: 1, y: 1, z: 1}
   toolType: 0
+  isFood: 0
+  foodRestore: 0
+  waterRestore: 0

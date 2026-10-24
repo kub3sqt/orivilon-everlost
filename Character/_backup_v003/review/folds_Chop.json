@@ -1,0 +1,110 @@
+{
+ "Chop": {
+  "Body": [
+   59,
+   21.0,
+   [
+    [
+     "upper_arm.R",
+     30
+    ],
+    [
+     "upper_arm.L",
+     14
+    ],
+    [
+     "thumb.L",
+     4
+    ]
+   ]
+  ],
+  "Outfit_Boots": [
+   10,
+   20.5,
+   [
+    [
+     "foot.R",
+     8
+    ],
+    [
+     "shin.R",
+     2
+    ]
+   ]
+  ],
+  "Outfit_Mantle": [
+   20,
+   29.5,
+   [
+    [
+     "shoulder.L",
+     7
+    ],
+    [
+     "shoulder.R",
+     5
+    ],
+    [
+     "upper_arm.L",
+     4
+    ]
+   ]
+  ],
+  "Outfit_Pants": [
+   15,
+   21.0,
+   [
+    [
+     "shin.L",
+     9
+    ],
+    [
+     "thigh.R",
+     5
+    ],
+    [
+     "thigh.L",
+     1
+    ]
+   ]
+  ],
+  "Outfit_Tunic": [
+   66,
+   20.0,
+   [
+    [
+     "upper_arm.R",
+     33
+    ],
+    [
+     "upper_arm.L",
+     10
+    ],
+    [
+     "shoulder.L",
+     8
+    ]
+   ]
+  ],
+  "Outfit_Strap": [
+   2,
+   11.5,
+   [
+    [
+     "shoulder.L",
+     2
+    ]
+   ]
+  ],
+  "Outfit_TunicSkirt": [
+   1,
+   17.0,
+   [
+    [
+     "spine",
+     1
+    ]
+   ]
+  ]
+ }
+}

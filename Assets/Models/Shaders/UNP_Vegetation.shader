@@ -94,35 +94,34 @@ Shader "UNP/Vegetation"
         TEXTURE2D(_Texture);   SAMPLER(sampler_Texture);
         TEXTURE2D(_SnowMask);  SAMPLER(sampler_SnowMask);
 
-        // Vitr - dve vetve podle typu vegetace.
-        // Trava (SecureFoliageBase=1): puvodni chovani - baze drzi, spicky se vlni.
-        // Listy stromu (SecureFoliageBase=0): pomale ohybani + rychle trepetani s vetsi amplitudou,
-        // aby byl pohyb listi na velkych stromech viditelny (na rozdil od puvodniho drobneho posunu).
+        // Poryvy prochazeji svetem; stejne prefaby se proto nehybou v zakrytu.
+        // Barevný, hloubkový a stínový průchod sdílejí stejnou deformaci.
+        float2 _FoliageWindClock; // Editorová izolace pohybu: x=1 zmrazí vítr na čase y.
         float3 ApplyWind(float3 positionOS)
         {
             if (_EnableWind > 0.5)
             {
-                float t = _Time.y * _Speed;
-
+                float3 positionWS = TransformObjectToWorld(positionOS);
+                float t = (_FoliageWindClock.x > 0.5 ? _FoliageWindClock.y : _Time.y) * _Speed;
+                float phase = dot(positionWS.xz, float2(0.035, 0.022) * _WavesScale);
+                float gust = 0.65 + 0.35 * sin(t * 0.55 - phase * 0.7);
+                float sway = sin(t * 1.7 - phase);
+                float3 offset;
                 if (_SecureFoliageBase > 0.5)
                 {
-                    // TRAVA - beze zmeny oproti puvodni verzi
-                    float wind = sin(t * 7.0 + dot(positionOS, float3(1.0, 1.0, 0.0) * _WavesScale * 10.0)) * _Force * 0.5;
-                    float3 windOffset = float3(wind, wind, wind) * 0.05;
-                    positionOS += mul((float3x3)GetWorldToObjectMatrix(), windOffset * saturate(positionOS.y));
+                    float ripple = sin(t * 1.9 + dot(positionWS.xz, float2(0.7, 0.43)));
+                    float bend = (sway + ripple * 0.2) * gust * _Force * 0.035 * saturate(positionOS.y);
+                    offset = float3(bend, -abs(bend) * 0.15, bend * 0.6);
                 }
                 else
                 {
-                    // LISTY STROMU - kombinace pomaleho ohybani a rychleho trepetani jednotlivych listu
-                    float sway = sin(t * 2.2 + dot(positionOS.xz, float2(0.7, 0.5) * _WavesScale * 3.0));
-                    float flutter = sin(t * 8.5 + dot(positionOS, float3(2.7, 1.3, 2.1)))
-                                  + 0.6 * sin(t * 12.0 + positionOS.y * 4.0);
-                    float amp = _Force * 0.5;
-                    float3 windOffset = float3(sway * 1.2 + flutter * 0.5,
-                                               flutter * 0.35,
-                                               sway * 0.9 + flutter * 0.5) * amp * 0.12;
-                    positionOS += mul((float3x3)GetWorldToObjectMatrix(), windOffset);
+                    // Jen jemné pomalé chvění. Subpixelové rychlé pohyby na jemných
+                    // kartách blikají ve stínové mapě. Pohyb nesmí záviset na renderující kameře.
+                    float flutter = sin(t * 2.3 + dot(positionWS, float3(2.7, 1.3, 2.1)));
+                    offset = float3(sway, flutter * 0.05, sway * 0.6 + flutter * 0.07)
+                           * gust * _Force * 0.07;
                 }
+                positionOS += mul((float3x3)GetWorldToObjectMatrix(), offset);
             }
             return positionOS;
         }
@@ -144,7 +143,29 @@ Shader "UNP/Vegetation"
                 snowColor = lerp(float4(0, 0, 0, 0), _SnowColor, snowFactor * (_SnowCoverage * 2.0) * snowMaskValue);
             }
 
-            albedo = saturate(blendedColor * texColor).rgb + snowColor.rgb;
+            half3 foliage = saturate(blendedColor * texColor).rgb;
+            if (_SecureFoliageBase < 0.5)
+            {
+                // Tmavé palety jehličí mají po převodu do lineárního prostoru téměř
+                // černé albedo. Zvedáme odrazivost, ne emisi; skutečný stín zůstává.
+                half tintLuma = dot(blendedColor.rgb, half3(0.2126, 0.7152, 0.0722));
+                half3 leafFloor = blendedColor.rgb * (0.05h / max(tintLuma, 0.001h));
+                // I černý texel uvnitř neprůhledného listu dostane odstín materiálu.
+                // Alfa se nemění, takže mezery mezi listy zůstanou průhledné.
+                foliage = max(foliage, leafFloor);
+            }
+
+            // Paleta zustava citelna, ale oslunene listi neni neonove syte.
+            half luminance = dot(foliage, half3(0.2126, 0.7152, 0.0722));
+            albedo = lerp(luminance.xxx, foliage, 0.82);
+            if (_SecureFoliageBase < 0.5 && luminance > 0.14h)
+            {
+                // 24.10.2026: listí keřů a listnáčů s jasem nad ~0,14 (lineárně) svítilo jako plast.
+                // Jas nad prahem se stlačí, odstín zůstává. Tmavé jehličí se nemění.
+                half capped = 0.14h + (luminance - 0.14h) * 0.45h;
+                albedo *= capped / luminance;
+            }
+            albedo += snowColor.rgb;
             alpha = texColor.a;
         }
         ENDHLSL
@@ -193,6 +214,7 @@ Shader "UNP/Vegetation"
                 float3 normalWS : TEXCOORD2;
                 float3 localPos : TEXCOORD3;
                 half fogFactor : TEXCOORD4;
+                half3 grassTint : TEXCOORD5;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
                 UNITY_VERTEX_OUTPUT_STEREO
             };
@@ -244,6 +266,25 @@ Shader "UNP/Vegetation"
                 o.normalWS = TransformObjectToWorldNormal(v.normalOS);
                 o.uv = v.uv;
                 o.fogFactor = ComputeFogFactor(o.positionCS.z);
+                o.grassTint = half3(1, 1, 1);
+                if (_SecureFoliageBase > 0.5)
+                {
+                    // Jedna stabilní barva na trs, nezávislá na větru a poloze kamery.
+                    // Počítá se ve vertexu, místo sinusů pro každý pixel trávy.
+                    float3 root = TransformObjectToWorld(float3(0, 0, 0));
+                    float3 h = frac(root.xzx * 0.1031);
+                    h += dot(h, h.yzx + 33.33);
+                    float tuft = frac((h.x + h.y) * h.z);
+                    float patch = sin(root.x * 0.15) * sin(root.z * 0.11);
+                    // 24.10.2026: přirozené tmavší i světlejší trsy a větší skvrny svěží/sušší trávy.
+                    // Odstín se posouvá jen jemně – barvu nese materiál, tady jde hlavně o jas.
+                    float patch2 = sin(root.x * 0.043 + 1.7) * sin(root.z * 0.037 - 0.6);
+                    half brightness = 1.0h + (tuft * 2.0h - 1.0h) * max(_ColorVariation, 0.18h) * 1.2h;
+                    brightness *= 1.0h + patch * _ColorVariation * 0.6h;
+                    half dry = saturate(0.5h + 0.5h * patch2) * 0.45h + tuft * 0.15h;
+                    o.grassTint = lerp(half3(0.92, 1.00, 0.94), half3(1.04, 1.00, 0.86), dry) * brightness;
+                }
+
                 // Kolo 26: strom za pasmem mlhy - listi uplne pryc uz ve vertexu (zadne fragmenty).
                 if (_SecureFoliageBase < 0.5 && TreeFogKeep() <= 0.0) o.positionCS = float4(0.0, 0.0, 0.0, 1.0);
                 return o;
@@ -269,14 +310,18 @@ Shader "UNP/Vegetation"
                 // aby uprostred dne nevypadala placata a prepalena.
                 if (_SecureFoliageBase > 0.5)
                 {
-                    // jemny vyskovy gradient - tmavsi u zeme, svetlejsi spicky (mekky AO)
-                    albedo *= lerp(0.78, 1.06, saturate(i.localPos.y));
-                    // nizkofrekvencni variace podle pozice ve svete - rozbije uniformni "koberec"
-                    float variation = sin(i.positionWS.x * 0.35) * sin(i.positionWS.z * 0.29);
-                    albedo *= 1.0 + variation * _ColorVariation;
-                    // lehke odsyceni prepalene zelene
-                    half luma = dot(albedo, half3(0.299, 0.587, 0.114));
-                    albedo = lerp(albedo, half3(luma, luma, luma), _Desaturate);
+                    // 24.10.2026: palety trávy mají neonové barvy (lineární jas 0,7–0,9 a sytá žlutozelená
+                    // špička), na slunci pak tráva „svítí“. Jas se mapuje do rozsahu skutečné vegetace
+                    // a sytost se zkrátí se zachováním odstínu – suchá tráva zůstane žlutavá, svěží zelená.
+                    half luma = dot(albedo, half3(0.2126, 0.7152, 0.0722));
+                    half3 chroma = albedo / max(luma, 0.0001h);
+                    chroma = lerp(half3(1, 1, 1), chroma, 0.62h * (1.0h - _Desaturate * 0.5h));
+                    albedo = chroma * (0.045h + 0.175h * luma);
+                    // Neonově žluté špičky palet do zelenější olivové (ubrat červenou), kořen tmavší.
+                    half tip = saturate(i.localPos.y * 1.6h);
+                    albedo.r *= lerp(0.95h, 0.80h, tip);
+                    albedo *= lerp(0.72h, 1.0h, tip);
+                    albedo *= i.grassTint;
                 }
 
                 // Alpha cutoff (stejne chovani jako puvodni clip())
@@ -289,6 +334,9 @@ Shader "UNP/Vegetation"
                 // Oboustranne listy - normala se otoci pro zadni strany
                 float3 normalWS = NormalizeNormalPerPixel(i.normalWS);
                 normalWS = isFrontFace ? normalWS : -normalWS;
+                // Tenké karty vegetace přijímají světlo oblohy i na rubu.
+                // Normála mířící do země jinak vytvoří černé plochy i mimo vržený stín.
+                normalWS.y = abs(normalWS.y);
                 // Kolo 10: karty listu a stebel maji normalu kolmou na kartu. Na siluete koruny/trsu
                 // se karta vidi z rubu nebo z boku, normala miri od slunce a pixel dostane jen
                 // (tmavy) ambient - z toho cerny lem. Normala se proto primicha k vertikale.
@@ -302,7 +350,8 @@ Shader "UNP/Vegetation"
                 inputData.viewDirectionWS = GetWorldSpaceNormalizeViewDir(i.positionWS);
                 inputData.shadowCoord = TransformWorldToShadowCoord(i.positionWS);
                 inputData.fogCoord = i.fogFactor;
-                inputData.bakedGI = SampleSH(normalWS);
+                inputData.bakedGI = max(SampleSH(normalWS), SampleSH(float3(0, 1, 0))
+                    * (_SecureFoliageBase > 0.5 ? 0.8h : 1.0h));
                 inputData.normalizedScreenSpaceUV = GetNormalizedScreenSpaceUV(i.positionCS);
                 inputData.shadowMask = half4(1, 1, 1, 1);
 
@@ -322,19 +371,32 @@ Shader "UNP/Vegetation"
                 // Nejvic se projevi za usvitu a soumraku, kdy je slunce nizko za travou.
                 Light mainLight = GetMainLight(inputData.shadowCoord);
 
+                // Měkký rozptyl přes tenký list zmírní ostrou hranici N·L = 0.
+                // Zůstává násobený skutečným stínem: koruny a okolní objekty dál stíní.
+                half ndl = dot(normalWS, mainLight.direction);
+                // Tenký list přijímá přímé světlo z obou stran. Opačná normála
+                // má ovlivnit prosvítání, ne vytvořit černou polovinu koruny.
+                half diffuseNdl = _SecureFoliageBase > 0.5 ? ndl : abs(ndl);
+                half wrap = saturate((diffuseNdl + 0.4h) / 1.4h);
+                half scatter = max(0.0h, wrap - saturate(ndl));
+                color.rgb += albedo * mainLight.color.rgb * scatter * (1.0h / PI)
+                           * mainLight.shadowAttenuation * mainLight.distanceAttenuation;
+
                 // Kolo 10: stin na vegetaci neni cerny - listy a trava ve stinu dostanou cast
                 // primeho svetla zpet (rozptyl korunou) a o kus vic oblohy. Stin zustava citelny.
-                half ndlF = saturate(dot(normalWS, mainLight.direction) * 0.5 + 0.5);
+                half ndlF = saturate(diffuseNdl * 0.5 + 0.5);
                 half lost = (1.0 - mainLight.shadowAttenuation) * mainLight.distanceAttenuation;
                 bool grass = _SecureFoliageBase > 0.5;
                 half floorF = grass ? _FolShadowFloorGrass : _FolShadowFloor;
                 half ambF = grass ? _FolAmbientGrass : _FolAmbient;
-                color.rgb += albedo * mainLight.color.rgb * ndlF * lost * floorF;
+                color.rgb += albedo * mainLight.color.rgb * ndlF * lost * floorF
+                           * (grass ? 1.0h : (1.0h / PI));
                 color.rgb += albedo * inputData.bakedGI * ambF;
                 if (_FolDiag > 1.5) color.rgb = albedo * inputData.bakedGI;
                 else if (_FolDiag > 0.5) color.rgb += albedo * mainLight.color.rgb * ndlF * lost;
                 float backLight = saturate(dot(-inputData.viewDirectionWS, mainLight.direction));
-                float trans = pow(backLight, 3.0) * _Translucency;
+                // Krátká tráva nemá svítit stejně silně jako tenké listy korun.
+                float trans = pow(backLight, 3.0) * _Translucency * (grass ? 0.35 : 1.0);
                 color.rgb += albedo * mainLight.color.rgb * trans * mainLight.shadowAttenuation;
 
                 color.rgb = MixFog(color.rgb, inputData.fogCoord);
@@ -344,7 +406,7 @@ Shader "UNP/Vegetation"
             ENDHLSL
         }
 
-        // Stinovy pass (s animaci vetru, aby stiny odpovidaly geometrii)
+        // Stínový průchod sleduje stejný vítr jako viditelná vegetace.
         Pass
         {
             Name "ShadowCaster"
@@ -370,6 +432,8 @@ Shader "UNP/Vegetation"
 
             float3 _LightDirection;
             float3 _LightPosition;
+            float4 _EverlostViewPos;      // poloha hlavní kamery (BiomeAtmosphere), stínový průchod má jinou kameru
+            float4 _EverlostGrassShadow;  // x = začátek, y = konec zkracování stínu trávy (m); y = 0 vypíná
 
             struct Attributes
             {
@@ -396,7 +460,18 @@ Shader "UNP/Vegetation"
                 o.localPos = v.positionOS.xyz;
                 o.uv = v.uv;
 
-                float3 positionWS = TransformObjectToWorld(ApplyWind(v.positionOS.xyz));
+                float3 positionOS = ApplyWind(v.positionOS.xyz);
+                // 24.10.2026: drobná tráva vrhá stín jen blízko hráče. Ve vzdálenějších kaskádách
+                // je stébel menší než texel stínové mapy – kreslí jen blikající šum a tmavé fleky.
+                // Ke konci pásma se stín plynule zkracuje (žádná ostrá hranice), stromy a keře zůstávají.
+                if (_SecureFoliageBase > 0.5 && _EverlostGrassShadow.y > 0.0)
+                {
+                    float3 rootWS = TransformObjectToWorld(float3(0, 0, 0));
+                    float k = saturate((_EverlostGrassShadow.y - distance(rootWS, _EverlostViewPos.xyz))
+                                       / max(_EverlostGrassShadow.y - _EverlostGrassShadow.x, 0.01));
+                    positionOS.y *= k;
+                }
+                float3 positionWS = TransformObjectToWorld(positionOS);
                 float3 normalWS = TransformObjectToWorldNormal(v.normalOS);
 
             #if defined(_CASTING_PUNCTUAL_LIGHT_SHADOW)
@@ -405,6 +480,12 @@ Shader "UNP/Vegetation"
                 float3 lightDirectionWS = _LightDirection;
             #endif
 
+                // Cull Off: bias musí směřovat podle osvětlené strany tenké karty.
+                // Rubová normála jinak posouvá stín opačně a vytváří vlastní tmavé skvrny.
+                normalWS = normalize(normalWS);
+                // Projekce je spojitá i pro hranu vůči slunci. Pouhé převrácení
+                // znaménka normály posouvalo bias skokem z jedné strany karty na druhou.
+                normalWS *= dot(normalWS, lightDirectionWS);
                 o.positionCS = TransformWorldToHClip(ApplyShadowBias(positionWS, normalWS, lightDirectionWS));
             #if UNITY_REVERSED_Z
                 o.positionCS.z = min(o.positionCS.z, UNITY_NEAR_CLIP_VALUE);
@@ -491,8 +572,95 @@ Shader "UNP/Vegetation"
             ENDHLSL
         }
 
-        // Pozn.: DepthNormals pass zamerne odstranen - vegetace se tak neucastni SSAO
-        // (SSAO kolem travy a listi delalo tmava halo). Stiny a depth pass zustavaji.
+        // DepthNormals: SSAO ma zdroj DepthNormals a jeho prepass zaroven plni _CameraDepthTexture.
+        // Bez tohoto passu chybely koruny stromu v hloubkove texture - mlha (ValleyMist) se pak na
+        // listi pocitala podle vzdaleneho terenu za nim a vetve prosvitaly modrym oparem.
+        // Trava se schvalne nekresli: jeji halo v SSAO delalo tmave fleky na terenu (puvodni duvod
+        // odstraneni passu). Listi samo SSAO nevzorkuje (_SCREEN_SPACE_OCCLUSION ve ForwardLit chybi).
+        Pass
+        {
+            Name "DepthNormals"
+            Tags { "LightMode" = "DepthNormals" }
+
+            ZWrite On
+            Cull Off
+
+            HLSLPROGRAM
+            #pragma target 3.5
+            #pragma vertex vert
+            #pragma fragment frag
+            #pragma multi_compile _ LOD_FADE_CROSSFADE
+            #pragma multi_compile_fragment _ _GBUFFER_NORMALS_OCT
+            #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/RenderingLayers.hlsl"
+            #pragma multi_compile_instancing
+
+            #if defined(LOD_FADE_CROSSFADE)
+            #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/LODCrossFade.hlsl"
+            #endif
+            #if defined(_GBUFFER_NORMALS_OCT)
+            #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Packing.hlsl"
+            #endif
+
+            struct Attributes
+            {
+                float4 positionOS : POSITION;
+                float3 normalOS : NORMAL;
+                float2 uv : TEXCOORD0;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float2 uv : TEXCOORD0;
+                float3 localPos : TEXCOORD1;
+                float3 normalWS : TEXCOORD2;
+                UNITY_VERTEX_INPUT_INSTANCE_ID
+            };
+
+            Varyings vert(Attributes v)
+            {
+                Varyings o;
+                UNITY_SETUP_INSTANCE_ID(v);
+                UNITY_TRANSFER_INSTANCE_ID(v, o);
+                o.localPos = v.positionOS.xyz;
+                o.uv = v.uv;
+                o.positionCS = TransformObjectToHClip(ApplyWind(v.positionOS.xyz));
+                o.normalWS = TransformObjectToWorldNormal(v.normalOS);
+                if (_SecureFoliageBase > 0.5) o.positionCS = float4(0.0, 0.0, 0.0, 1.0);   // tráva ne (viz výše)
+                return o;
+            }
+
+            void frag(Varyings i, bool isFrontFace : SV_IsFrontFace, out half4 outNormalWS : SV_Target0
+            #ifdef _WRITE_RENDERING_LAYERS
+                , out uint outRenderingLayers : SV_Target1
+            #endif
+            )
+            {
+                UNITY_SETUP_INSTANCE_ID(i);
+                half3 albedo;
+                half alpha;
+                GetSurfaceColor(i.uv, i.localPos, albedo, alpha);
+                clip(alpha - _AlphaCutoff);
+                #if defined(LOD_FADE_CROSSFADE)
+                    LODFadeCrossFade(i.positionCS);
+                #endif
+                float3 normalWS = normalize(i.normalWS) * (isFrontFace ? 1.0 : -1.0);
+                normalWS.y = abs(normalWS.y);
+                normalWS = normalize(lerp(normalWS, float3(0, 1, 0), 0.5));
+            #if defined(_GBUFFER_NORMALS_OCT)
+                float2 octNormalWS = PackNormalOctQuadEncode(normalWS);
+                float2 remappedOctNormalWS = saturate(octNormalWS * 0.5 + 0.5);
+                outNormalWS = half4(PackFloat2To888(remappedOctNormalWS), 0.0);
+            #else
+                outNormalWS = half4(normalWS, 0.0);
+            #endif
+            #ifdef _WRITE_RENDERING_LAYERS
+                outRenderingLayers = EncodeMeshRenderingLayer();
+            #endif
+            }
+            ENDHLSL
+        }
     }
 
     Fallback Off

@@ -953,6 +953,9 @@ namespace Orivilon.World.Generation
             }
             columns.Clear();
 
+            // Mapa údolní mlhy čte spline LUT builderu (24.10.2026) – dojet před uvolněním.
+            CompleteMistField();
+
             // Hydrologie se uvolňuje AŽ TADY, ale ještě PŘED buildery: její joby čtou spline
             // LUT, které patří builderu, takže opačné pořadí by sáhlo do uvolněné paměti.
             ReleaseSearchHydro();
@@ -1341,7 +1344,7 @@ namespace Orivilon.World.Generation
             List<Orivilon.World.Spawning.EcoPlacement> list;
             e.proxyApprox = false;
             if (e.lod >= 1 && ProxyAudit) AuditStoreApprox(e, sp, b);
-            if (e.lod >= 1 && ExactTreeProxies)
+            if (e.lod >= 1 && e.lod <= Orivilon.World.Spawning.TreeProxies.ExactMaxLod && ExactTreeProxies)
             {
                 if (!TryExactTrees(e.coord, e.lod, out list))
                 {
@@ -4671,6 +4674,10 @@ namespace Orivilon.World.Generation
                     artWaterMaterial = new Material(waterMaterial) { name = waterMaterial.name + " (art)" };
                     if (artWaterMaterial.HasProperty("_FoamColor")) artWaterMaterial.SetColor("_FoamColor", ArtFoamColor);
                     if (artWaterMaterial.HasProperty("_FoamDistance")) artWaterMaterial.SetFloat("_FoamDistance", ArtFoamDistance);
+                    // 24.10.2026: tyrkysově modrá místo syté námořnické modři a silnější odraz oblohy.
+                    if (artWaterMaterial.HasProperty("_ShallowColor")) artWaterMaterial.SetColor("_ShallowColor", ArtWaterShallow);
+                    if (artWaterMaterial.HasProperty("_DeepColor")) artWaterMaterial.SetColor("_DeepColor", ArtWaterDeep);
+                    if (artWaterMaterial.HasProperty("_FresnelColor")) artWaterMaterial.SetColor("_FresnelColor", ArtWaterFresnel);
                     ApplyWaterSpec();
                 }
                 return artWaterMaterial;
@@ -4679,6 +4686,9 @@ namespace Orivilon.World.Generation
         private Material artWaterMaterial;
         public static Color ArtFoamColor = new Color(0.78f, 0.90f, 0.96f, 1f);
         public static float ArtFoamDistance = 0.9f;
+        public static Color ArtWaterShallow = new Color(0.22f, 0.50f, 0.55f, 0.80f);
+        public static Color ArtWaterDeep = new Color(0.09f, 0.28f, 0.40f, 0.93f);
+        public static Color ArtWaterFresnel = new Color(0.85f, 0.92f, 1.0f, 0.6f);
 
         /// <summary>
         /// Kolo 9: odlesk slunce na hladině. Původně SpecPower 200 / síla 0,6: na flat-shaded

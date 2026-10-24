@@ -401,6 +401,8 @@ namespace Orivilon.Multiplayer
             var guestWorld = CreateGuestWorldData(worldName, seed, worldSeed);
             GameManager.selectedWorld = guestWorld;
 
+            timeSyncSinceWorldState = false;
+
             // Ulož pending state – aplikuje se po načtení herní scény
             pendingState = new ReceivedWorldState
             {
@@ -491,23 +493,28 @@ namespace Orivilon.Multiplayer
             reader.ReadValueSafe(out Vector3 pos);
             reader.ReadValueSafe(out Quaternion rot);
 
+            var pose = TravelerNetworkPose.Read(reader);
             // Broadcast ostatním klientům (ne zpět odesílateli)
-            BroadcastToAllClients_PlayerPosition(senderId, pos, rot, exclude: senderId);
+            BroadcastToAllClients_PlayerPosition(senderId, pos, rot, exclude: senderId, pose: pose);
 
             // Vytvoř nebo aktualizuj RemotePlayer na hostu
             var rp = MultiplayerManager.Instance?.GetOrCreateRemotePlayer(senderId);
             rp?.SetTargetTransform(pos, rot);
+            pose.Apply(rp);
         }
 
-        private void OnPlayerPositionBcast(ulong _, FastBufferReader reader)
+        private void OnPlayerPositionBcast(ulong sourceId, FastBufferReader reader)
         {
+            if (sourceId != NetworkManager.ServerClientId) return;
             reader.ReadValueSafe(out ulong  senderId);
             reader.ReadValueSafe(out Vector3 pos);
             reader.ReadValueSafe(out Quaternion rot);
 
+            var pose = TravelerNetworkPose.Read(reader);
             // Vytvoř nebo aktualizuj RemotePlayer (první zpráva ho inicializuje)
             var rp = MultiplayerManager.Instance?.GetOrCreateRemotePlayer(senderId);
             rp?.SetTargetTransform(pos, rot);
+            pose.Apply(rp);
         }
 
         private void OnPlayerName(ulong senderId, FastBufferReader reader)
@@ -576,13 +583,14 @@ namespace Orivilon.Multiplayer
                 // Host: broadcast přímo klientům
                 if (NetworkManager.Singleton?.IsServer == true)
                     BroadcastToAllClients_PlayerPosition(
-                        NetworkManager.Singleton.LocalClientId, pos, rot);
+                        NetworkManager.Singleton.LocalClientId, pos, rot, pose: TravelerNetworkPose.Capture());
                 return;
             }
 
-            using var writer = new FastBufferWriter(32, Allocator.Temp);
+            using var writer = new FastBufferWriter(160, Allocator.Temp);
             writer.WriteValueSafe(pos);
             writer.WriteValueSafe(rot);
+            TravelerNetworkPose.Capture().Write(writer);
             NetworkManager.Singleton.CustomMessagingManager.SendNamedMessage(
                 NetworkMessages.PlayerPosition,
                 NetworkManager.ServerClientId,
@@ -666,12 +674,13 @@ namespace Orivilon.Multiplayer
             }
         }
 
-        private void BroadcastToAllClients_PlayerPosition(ulong playerId, Vector3 pos, Quaternion rot, ulong exclude = ulong.MaxValue)
+        private void BroadcastToAllClients_PlayerPosition(ulong playerId, Vector3 pos, Quaternion rot, ulong exclude = ulong.MaxValue, TravelerNetworkPose pose = default)
         {
-            using var writer = new FastBufferWriter(44, Allocator.Temp);
+            using var writer = new FastBufferWriter(160, Allocator.Temp);
             writer.WriteValueSafe(playerId);
             writer.WriteValueSafe(pos);
             writer.WriteValueSafe(rot);
+            pose.Write(writer);
 
             foreach (var cid in NetworkManager.Singleton.ConnectedClientsIds)
             {
@@ -700,8 +709,10 @@ namespace Orivilon.Multiplayer
             foreach (var b in state.placedBuildings)
                 SpawnBuilding(b);
 
-            // 3) Synchronizuj herní čas (počáteční snímek; průběžně ho pak drží Everlost.Time)
-            ApplyHostTime(state.timeOfDay, null);
+            // 3) Synchronizuj herní čas. Snímek je z okamžiku joinu; když mezitím (během načítání) dorazil novější
+            //    čas hosta (Everlost.Time), platí ten – starý snímek by čas na chvíli vrátil (třeba zpět do noci).
+            if (timeSyncSinceWorldState) ApplyToSunIfReady();
+            else ApplyHostTime(state.timeOfDay, null);
 
             // 4) Pokud klient nemá vlastní save data, spawni ho na pozici hosta
             if (state.hostSpawnPosition != Vector3.zero)

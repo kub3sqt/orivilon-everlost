@@ -40,6 +40,8 @@ namespace Orivilon.Multiplayer
         public const string InventoryTxn        = "Everlost.InvTxn";       // C→S (loot, craft, spotřeba)
         public const string InventoryState      = "Everlost.InvState";     // S→C (účet klienta + potvrzené seq)
         public const string LootResult          = "Everlost.LootRes";      // S→C (verdikt nároku na loot: seq, hash, ok)
+        public const string PlayerNeedsState    = "Everlost.NeedsState";   // S→C (uložené zdraví/hlad/žízeň klienta v hostově světě)
+        public const string PlayerNeedsReport   = "Everlost.NeedsRep";     // C→S (aktuální zdraví/hlad/žízeň klienta)
     }
 
     /// <summary>

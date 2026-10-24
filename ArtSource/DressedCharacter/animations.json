@@ -1,0 +1,47 @@
+{
+  "clips": [
+    {
+      "name": "Idle",
+      "file": "Idle.bin",
+      "vertices": 175527,
+      "frames": 16,
+      "duration": 2.0
+    },
+    {
+      "name": "Walk",
+      "file": "Walk.bin",
+      "vertices": 175527,
+      "frames": 16,
+      "duration": 1.0666666666666667
+    },
+    {
+      "name": "Run",
+      "file": "Run.bin",
+      "vertices": 175527,
+      "frames": 16,
+      "duration": 0.8
+    },
+    {
+      "name": "Punch",
+      "file": "Punch.bin",
+      "vertices": 175527,
+      "frames": 16,
+      "duration": 0.8
+    },
+    {
+      "name": "Slash",
+      "file": "Slash.bin",
+      "vertices": 175527,
+      "frames": 16,
+      "duration": 1.0
+    },
+    {
+      "name": "Kick",
+      "file": "Kick.bin",
+      "vertices": 175527,
+      "frames": 16,
+      "duration": 1.0
+    }
+  ],
+  "source_actions_unchanged": true
+}

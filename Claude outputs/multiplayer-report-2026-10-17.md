@@ -1,6 +1,6 @@
 # Multiplayer – dokončení (Claude, 17.10.2026)
 
-> **Aktualizace kola 2 je v sekci „Kolo 2“ níže.** Ta nahrazuje úschovu dropů, otisk hesla SHA-256 i Multiplayer panel z kola 1 a doplňuje mezery. Multiplayer **není hotový**: zbývá phantom loot (obejití autority) a Steam end-to-end.
+> **Aktualizace kola 3 je v sekci „Kolo 3“ níže.** Phantom loot je zavřený (host ověřuje skutečnou existenci objektu stejným osazovačem), uložení světa je transakce s obnovou po pádu (ověřeno SIGKILL hosta na každé hranici), fyzika dropů je opravená (10/10 opakování) a nadpis umí češtinu. Kolo 2 níže nahrazuje úschovu dropů, otisk hesla SHA-256 i Multiplayer panel z kola 1. Multiplayer **není celkově hotový**: chybí Steam end-to-end test (druhý účet) a pohyb hráče zůstává klientský.
 
 Bez commitu/stagingu. Cizí rozpracované změny zachovány. Steam lobby zůstává (žádné Unity Services), NGO + CustomMessagingManager, žádná RPC.
 
@@ -370,9 +370,156 @@ Steam end-to-end cesta zůstává neprovedená.
   - testy a QA mosty: `MultiplayerChecks`, `DropPlayQA`, `MpQaBridge`
   - scéna `MainMenu.unity` (přes Editor)
 
-## Mezery z kola 1 (stav po kole 2)
+## Kolo 3 (17.–19.10.2026) – phantom loot, konzistence po pádu, fyzika dropů, čeština v nadpisu
 
-Ověřeno v kole 2 a níže už neplatí: dva klienti současně, pauza P, těžba s plným inventářem, opakované požadavky po síti, ztráta úschovy při výpadku, biomové teleporty klienta.
+**Stav:** Všechny čtyři potvrzené mezery z Kola 2 jsou opravené a ověřené v reálných procesech:
+- phantom loot je zavřený;
+- uložení světa je transakce s obnovou po pádu;
+- příčina flaky kontroly dropů je nalezená a opravená;
+- nadpisové písmo umí češtinu.
+
+Nic nestagováno ani necommitnuto mnou. Uživatel 18.10. commitnul rozpracovaný stav (f814f76), ve kterém je většina kódu kola 3. Necommitnuté zůstávají jen poslední opravy dropů (`DroppedItem`, `ItemDropService`, `DropPlayQA`). Cizí práce na postavě (Traveler, ValleyMist, URP nastavení) zůstala netknutá.
+
+**Zbývá:**
+- Steam end-to-end (jeden účet);
+- klientský pohyb (mimo zadání).
+
+### Výchozí stav – prokázané selhání starého kódu
+- **Phantom:** nárok na sousední buňku na její deterministické poloze host přijal (`loot log×3 stick×15`).
+- **Pád:** hned po nároku (bez uložení) byl na disku hosta registr zničených objektů už zapsaný (+4 hashe), účet klienta ne (`lastSeq` 25 na disku × 31 v paměti). Pád by tak nechal zničené stromy bez lootu.
+- Důkazy jsou v `_reports/mpqa/kolo3_baseline/`.
+
+### 1. Ověření skutečné existence objektu – `VoxelTerrain.LootValidation.cs` (nový)
+- **Host si sloupec postaví TOUTÉŽ cestou jako streamer** pro LOD0 osazení:
+  - `ScheduleColumn` s hydrologií (`SearchHydroRef` – i odpojené regiony daleko od hosta) a švem LOD0,
+  - povrchové chunky přes `ScheduleChunk` (s hostovými terénními úpravami),
+  - raster kolizních meshů + `SetSeamDelta`,
+  - mřížka hladin `WaterSurface.Build`.
+- Na tom pustí **tentýž** `EcologyPlacer.Build` se seedem světa. Druhý generátor nevzniká, výsledkem je jen množina klíčů a jejich přesných poloh.
+- **Vlastní builder** (1 scratch slot), parametry, paleta i úpravy se kopírují z LOD0 builderu (`CopyStateFrom`). Streamer tím nepřichází o sloty a sdílená data běžícího jobu se nepřepíšou.
+- **Cache 24 sloupců**, zneplatněná změnou terénních úprav (`VoxelEdits.Revision`). Nanejvýš jedna stavba za snímek, ostatní nároky čekají ve frontě.
+- **Nárok** (`NetworkWorldSync.Ledger`):
+  - fronta v pořadí přijetí;
+  - verdikt projde jen pro existující umístění (vrstva i druh, všechny vrstvy osazovače včetně útvarů, ker a drobností/pickupů);
+  - pak se kontroluje zničení (registr, souběh), dosah 24 m vodorovně od těla klienta k OVĚŘENÉ poloze objektu a nástroj v účtu.
+  - Druh se bere z ověřovacího osazení, ne ze statického `ObjectSpawner.Instance`.
+  - **Opravená chyba Kola 2:** v buildovém hostu `ObjectSpawner.Instance` chybí, takže tam byla veškerá klientská těžba zamítnuta jako `unknown object` (odhaleno testem s hostem v dev buildu).
+- **Starý spawner** (kód < 4096) se zamítá. Ověřeno: `EcoProps` je jediná aktivní cesta (nikde se nepřepíná) a `Endless Terrain` je ve scéně Game neaktivní.
+- **Klient nic nezničí ani nepřipíše před verdiktem:**
+  - strom/kámen zůstane stát, pickup (i instancovaný) zůstane ležet;
+  - verdikt chodí zprávou `Everlost.LootRes`;
+  - kladný verdikt objekt zničí, záporný ho nechá těžitelný;
+  - na cestě je vždy nejvýš jeden nárok na hash.
+- Holé `ObjectDestroyed` od klienta host ignoruje (dřív s ním šlo ničit cizí zdroje bez nároku).
+
+### 2. Společná commit hranice uložení – `SaveSystem/SaveTransaction.cs` (nový)
+- **Průběh `SaveEverything`:**
+  - všechny soubory světa (world_data, terénní úpravy, registr zničených, player.json s inventářem hosta, dropped_items.json s dropy a účty klientů, Arcanum) se zapíší jako `*.txn` s flush na disk;
+  - commit bod = atomické přejmenování manifestu `save_commit.json`;
+  - pak přesun na cíle a smazání manifestu.
+- **Obnova** před prvním čtením světa:
+  - s manifestem roll-forward (idempotentní, opakovatelná i po pádu během obnovy);
+  - bez manifestu se nedokončené `*.txn` a `manifest.tmp` zahodí;
+  - nečitelný manifest = nic nepřepisovat (jediná kopie) a nahlásit.
+- **Registr zničených objektů se už nezapisuje při každé těžbě**, jen v uložení, ve stejném commitu jako loot, inventář a dropy. Po pádu se tak vrátí obě strany: objekt znovu stojí a loot zmizí. Ověřeno, že objekt jde znovu vytěžit a zisk se připíše jednou.
+- **Klient přebírá registr hosta celý** (náhrada, ne sjednocení), takže po obnově hosta nevidí zničené objekty, které u hosta zase existují.
+- **Kompatibilita:** názvy ani formáty souborů se nemění. Starší save (`DropQA5` z 17.10., kopie) se načetl se 14 dropy a s inventářem.
+
+### 3. Fyzika dropů (reprodukováno 2/4 → příčiny ve hře i v testu)
+- **Chyby hry:**
+  - zmrazení ve vzduchu po 5 s letu (pád z útesu): teď se zastaví jen s oporou zespodu v tomto fyzikálním kroku (normála kontaktu nahoru) a před zmrazením dosedne `SweepTest` na povrch;
+  - bez kontaktu nejdéle 20 s, pak se položí na zem pod sebou;
+  - pojistka „propad“ dřív vracela předmět na místo vyhození ve vzduchu; teď ho položí na zem pod tím místem;
+  - spawn kvádru rohem v balvanu (TryFindPose ověřuje kouli) PhysX zaklínil ve vzduchu (diagnostika: mezera 1,37–1,67 m nad zemí, průnik do `SM_Balvan_Velky_Rock`); teď se nový drop po vzniku vysune ze světa podle skutečného tvaru (`ComputePenetration`).
+- **Chyby testu:**
+  - paprsek ze středu nepoznal oporu přes hranu ani strmý svah; test teď hledá oporu podle tvaru collideru;
+  - kroky začínaly pevnou pauzou i během načítání; teď čekají na hratelný stav (`0 Await ready`) a na dosednutí (`1b Await settle` + most `waitfile`).
+- **Další příčiny nalezené opakováním (19.10.):**
+  - zmrazení „still“ bez opory zespodu: kláda zaklíněná bokem mezi balvanem a jiným dropem visela 1,2–1,7 m nad zemí (průnik jen vodorovný). Teď „still“ vyžaduje oporu zespodu; stojící předmět bez opory po 1 s dosedne tvarem collideru dolů („wedge“);
+  - opora z jiného, ještě se kutálejícího dropu: zmrazení na něm nechalo kládu viset 9 m nad svahem, když podložka odjela. Jako opora se teď počítá jen statický nebo už kinematický collider;
+  - dosednutí sweepem (moje oprava z kola 3) mohlo předmět protáhnout pod povrch na švu dvou chunků, protože sweep přehlíží collidery, ve kterých předmět už je. Posun se teď přijme jen tehdy, když nad novým středem není zem.
+- **Výsledek po finálních opravách:** 10/10 úplných opakování po sobě (DropR81–90: Drop, dosednutí 13/13 na zemi, pickup, plný inventář, přebytek těžby, uložení). Předtím s částečnými opravami 4/4, 4/6, 8/8 a 7/8; každé selhání mělo v diagnostice konkrétní příčinu výše.
+- Po opravách znovu `Multiplayer checks` 10/10 a `Inventory checks` 21/21. Log opakování: `_reports/mpqa/kolo3-drop-reps-k6f-k6j.txt`.
+- Poslední opravy dropů nejsou v dev buildu `a16`. LAN a crash testy výše běžely před nimi; dotýkají se jen lokální fyziky dosednutí, síťový formát se nemění.
+
+### 4. Font a QA šum
+- Nadpisové písmo `vipnagorgialla` je statický TMP asset s 98 znaky ASCII, zdrojové OTF má celou češtinu.
+- Z TÉHOŽ OTF jsem se stejnými parametry (59 pt, padding 5, SDFAA, 512) upekl statický fallback `vipnagorgialla CZ.asset` s 55 znaky (česká abeceda, ä ö ü ô ĺ ľ ŕ, „“ ‚‘ … – — ° ×) a zařadil ho do fallbacků přes Editor API (`CzechFontFallback`).
+- Všech 34 kontrolovaných českých znaků kreslí rodina vipnagorgialla (`r3_dialog_czech_1080.png`). Nadpis dialogu má jeden řádek s výpustkou.
+- Šum `Instantiating material…/Destroy…` v Console způsoboval můj vlastní edit-mode test celého vizuálu vzdáleného hráče. Test teď ověřuje jen jmenovku (`RemotePlayerController.CreateNameLabel`) a šum zmizel.
+
+### Testy Kola 3 (skutečně provedeno)
+
+**Kompilace a kontroly:**
+- Kompilace bez chyb, dev buildy `a11–a16` Succeeded.
+- `Multiplayer checks` 10/10, nově pád na každé hranici uložení v editoru (staged:1/2, zkrácený soubor, manifest-tmp ± zkrácení, manifest, applied:1/2, done), opakovaná obnova, pád během obnovy a poškozený manifest.
+- `Inventory checks` 21/21, Inventory QA OK (znovu i po finálních opravách dropů).
+
+**Shoda ověřovací cesty se živým osazením** (`mp lootverify`):
+- 1635/1635 položek v 16 sloupcích lesa, 51/51 u spawnu (editor) a 1600/1600 v hostu z dev buildu;
+- 0 chybí, 0 jiná poloha;
+- stavba sloupce průměrně 24–31 ms, max 65 ms.
+
+**Host (Editor) + 2 klienti, LAN:**
+
+| Scénář | Výsledek |
+|---|---|
+| Legitimní těžba 1,5 km od hosta (host region nemá načtený), plný inventář | `loot`, přebytek do dropů |
+| Opakovaný nárok | `already taken` |
+| 4 prázdné sousední buňky na jejich deterministických polohách | `no such object` ×4 |
+| Jiný druh v téže buňce / jiný chunk | `no such object` |
+| Nárok z 24,2 m | `far` |
+| **Souběžný nárok dvou klientů na TENTÝŽ strom** (signál grantem oběma najednou, oba odeslali v téže sekundě) | A `loot log×2 stick×11`, B `already taken`; replay obou ignorován; strom zničen jednou |
+
+**Host v samostatném procesu (dev build) – skutečné násilné ukončení (SIGKILL) na každé hranici a obnova v novém procesu:**
+
+| Bod | Před pádem (v paměti) | Po obnově |
+|---|---|---|
+| C0 klient vytěžil strom (+ pickup) v regionu načteném hostem, host zabit BEZ uložení | zničeno 2, účet log 2 + stone 1 | zničeno 0, účet jen sekery → oboustranně starší uložení; strom zpět a klient ho znovu vytěžil jednou (C1) |
+| C1 pád uprostřed zápisu (`staged:2`) | zničeno 3, hostův inventář log 5, účet stone 5 | předchozí uložení (0 / bez lootu) |
+| C2 zkrácený rozepsaný soubor (`staged:3 trunc`) | zničeno 1, log 5, stone 5 | předchozí uložení |
+| C3 zkrácený manifest (`manifest-tmp trunc`) | zničeno 1, log 2 stick 11, stone 5 | předchozí uložení |
+| C4 pád hned po commitu (`manifest`), soubory nepřesunuté | zničeno 1, log 2 stick 11, stone 5 | — |
+| C5 pád BĚHEM obnovy (`applied:1` při načtení) | — | proces zabit uprostřed přesunu |
+| C6 obnova po C5 | — | dokončeno („přesunuto 3“): zničeno 1, log 2 stick 11, stone 5 = stav C4; pak pád `applied:2` (zničeno 2, log 6 stick 22, stone 10) |
+| C7/C8 obnova a dvě další načtení | — | zničeno 2, log 6 stick 22, stone 10; běžné uložení i opakované načtení beze změny |
+
+Součet „zničené objekty ↔ loot v inventáři hosta ↔ účty klientů“ je v každém bodě buď celý starý, nebo celý nový. Smíšený stav nenastal.
+
+Logy: `_reports/mpqa/kolo3-crash-C2-C8-autoperf.log`, `kolo3-concurrency-autoperf.log`, `client-autoperf.log`.
+
+### Zbývající omezení (přesně)
+- **Steam end-to-end neprovedeno**, vše výše je LAN nebo syntetické.
+- **Pohyb hráče je klientský.** Vzdálenost k objektu se měří od nahlášené polohy těla; existence objektu a druh jsou ale ověřené hostem.
+- **Pád hosta vrací hru k poslednímu uložení** (F5, menu, ukončení). Hra nemá automatické ukládání, takže při dlouhé session bez uložení se po pádu ztratí víc postupu, ale vždy konzistentně.
+- **Ověření předpokládá, že sousedé sloupce jsou LOD0** (hráč stojí u objektu). Osazení na šev podle návrhu nezávisí, ověřeno shodou 100 %.
+- **Po změně terénních úprav** se cache zahodí celá (globální revize).
+- **Klient, kterému spadne spojení** (uspaný Mac), hraje dál v guest světě offline. Co tam vytěží, platí jen lokálně a host to po reconnectu srovná podle účtu. Pro hostovu autoritu to neškodí, ale přechod do menu by byl čistší.
+- **Klient po obnově hosta** neuvidí strom v už postaveném sloupci, dokud se sloupec znovu nepostaví (registr se nahradí, ale hotové osazení se nepřestaví).
+
+### Soubory Kola 3
+- **Nové:**
+  - `World/Generation/VoxelTerrain.LootValidation.cs`
+  - `SaveSystem/SaveTransaction.cs`
+  - `Editor/UiRefresh/CzechFontFallback.cs` (menu Tools/Everlost/UI/Czech glyphs for title font)
+  - asset `TextMesh Pro/Fonts/vipnagorgialla CZ.asset`
+- **Změněné:**
+  - `NetworkWorldSync.Ledger` (fronta nároků, `LootRes`), `NetworkWorldSync`, `NetworkData`
+  - `HarvestableObject`, `PickupItem`, `ObjectSpawner.Pickup`, `ObjectSpawner.Ecology`, `ObjectSpawner`
+  - `VoxelChunkBuilder` (`CopyStateFrom`), `VoxelEdits` (`Revision`), `VoxelTerrain` (dispose)
+  - `SaveSystem`, `ItemDropService` (transakce, `Depenetrate`), `ArcanumProgress`, `DroppedItem`
+  - `MultiplayerDialog` (nadpis), `RemotePlayerController` (`CreateNameLabel`), `SteamLobbyManager` (QA trasa i v dev buildu)
+  - `AutoPerf`, `MpQaOps` (dev only), `MpQaBridge`, `RemoteBridge` (`waitfile`), `MultiplayerChecks`, `DropPlayQA`
+  - font `vipnagorgialla.asset` (fallback přes Editor API)
+- **QA artefakty:**
+  - dev buildy `~/Builds/macOS-diag/Everlost MPQA a11–a16`
+  - QA světy `DropR*`, `LootQA1/2`, `InvQA10`, `MPQA2`, `DropQA5-k3copy` a `qa-perf/mphost-CrashQA` v persistentDataPath
+  - skripty a logy v `_reports/mpqa/`; uživatelské světy nedotčeny
+- ProjectSettings ani balíčky jsem neměnil. Změny `ProjectSettings/*`, URP assetů, shaderů, Traveler/ValleyMist, `TreeProxies` a pose ve `NetworkWorldSync` jsou cizí práce a zůstaly netknuté.
+
+## Mezery z kola 1 (stav po kole 3)
+
+Ověřeno v kolech 2 a 3 a níže už neplatí: phantom loot, nekonzistence po pádu hosta, flaky Drop QA, dva klienti současně, pauza P, těžba s plným inventářem, opakované požadavky po síti, ztráta úschovy při výpadku, biomové teleporty klienta.
 
 
 **Žádný skutečný Steam end-to-end test.** Je potřeba druhý Steam účet/stroj. Na stejném účtu Steam P2P nejde, proto vše výše šlo přes LAN trasu NGO. Neověřeno zůstává:

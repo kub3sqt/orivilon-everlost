@@ -5573,7 +5573,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 349931088}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.9945219, y: 0, z: 0, w: -0.10452851}
+  m_LocalRotation: {x: 0.96498036, y: 0.24059665, z: -0.025287738, w: -0.10142357}
   m_LocalPosition: {x: -649.7488, y: 0, z: 778.625}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
@@ -33523,6 +33523,7 @@ MonoBehaviour:
   crosshairDefault: {fileID: 1444162642}
   crosshairPickup: {fileID: 499213664}
   toolAnimator: {fileID: 1726675903}
+  pickupAssistRadius: 1.5
 --- !u!114 &1515133342
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -33648,6 +33649,7 @@ MonoBehaviour:
   mantleApexRise: 0.25
   mantleClearanceRadius: 0.3
   climbTopProbeDrop: 0.6
+  groundSlopeLimit: 55
 --- !u!114 &1515133348
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -38773,7 +38775,7 @@ RectTransform:
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 164.67067, y: 50}
+  m_SizeDelta: {x: 169.68001, y: 50}
   m_Pivot: {x: 0, y: 0}
 --- !u!114 &1729325834
 MonoBehaviour:
@@ -43736,7 +43738,7 @@ Light:
   m_LightShadowCasterMode: 2
   m_AreaSize: {x: 0.5, y: 0.5}
   m_BounceIntensity: 1
-  m_ColorTemperature: 4500
+  m_ColorTemperature: 2500
   m_UseColorTemperature: 1
   m_BoundingSphereOverride: {x: 0, y: 0, z: 0, w: 0}
   m_UseBoundingSphereOverride: 0
@@ -43755,7 +43757,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1869704448}
   serializedVersion: 2
-  m_LocalRotation: {x: 0.10452847, y: 0, z: 0, w: 0.9945219}
+  m_LocalRotation: {x: 0.10142353, y: 0.025287729, z: 0.24059665, w: 0.96498036}
   m_LocalPosition: {x: -649.7488, y: 0, z: 778.625}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0

@@ -29,15 +29,29 @@ namespace Orivilon.World.Objects
         private const float MaxAirTime = 20f;
         private float lastContact = -1f;
 
-        private void OnCollisionEnter(Collision c) => lastContact = Time.time;
-        private void OnCollisionStay(Collision c) => lastContact = Time.time;
+        // Kontakt v tomto/předchozím fyzikálním kroku (Time.fixedTime) – odskakující předmět se dotýká jen občas
+        // a nesmí se zmrazit uprostřed odskoku.
+        // Jen OPORA zespodu (normála kontaktu míří nahoru) – dotyk stěny/útesu při pádu se nepočítá, jinak by se
+        // předmět zmrazil přilepený na svislé stěně.
+        private void OnCollisionEnter(Collision c) => NoteContact(c);
+        private void OnCollisionStay(Collision c) => NoteContact(c);
+        private void NoteContact(Collision c)
+        {
+            // Opora z jiného ještě se pohybujícího dropu se nepočítá: zmrazení na kutálejícím se předmětu
+            // nechalo kládu viset 9 m nad svahem, když podložka odjela dál (Drop QA, kolo MP 3).
+            var other = c.rigidbody;
+            if (other != null && !other.isKinematic) return;
+            for (int i = 0; i < c.contactCount; i++)
+                if (c.GetContact(i).normal.y > 0.3f) { lastContact = Time.fixedTime; return; }
+        }
 
         public bool CanPickUp => Time.time >= pickupAllowedAt;
         public bool Settled => settled;
 
-        /// <summary>Diagnostika (QA): proč předmět dosedl – „still“, „timeout“, „fall“, „init“, „net“.</summary>
+        /// <summary>Diagnostika (QA): proč předmět dosedl – „still“, „wedge“, „timeout“, „air“, „fall“, „init“, „net“.</summary>
         public string SettleReason { get; private set; } = "";
         public float SettledAfter { get; private set; }
+        public float SettledAt { get; private set; }
 
         // ── Multiplayer (kolo MP 17.10.2026, viz NetworkWorldSync.Drops) ──
         /// <summary>Síťové ID přidělené hostem (u hosta při vytvoření, u klienta převzaté).</summary>
@@ -125,7 +139,13 @@ namespace Orivilon.World.Objects
             if (transform.position.y < spawnPos.y - 6f &&
                 !Physics.Raycast(transform.position, Vector3.down, 60f, GroundMask, QueryTriggerInteraction.Ignore))
             {
-                transform.position = spawnPos;
+                // Kolo MP 3: místo vyhození leží ve vzduchu (před hráčem) – položit na zem pod ním, je-li tam
+                // collider; jinak (collider odstreamovaný) zůstat kinematicky na místě vyhození jako dřív.
+                var col = GetComponent<Collider>();
+                float half = col != null ? col.bounds.extents.y : 0.3f;
+                if (Physics.Raycast(spawnPos + Vector3.up * 2f, Vector3.down, out RaycastHit g, 120f, GroundMask, QueryTriggerInteraction.Ignore))
+                    transform.position = g.point + Vector3.up * half;
+                else transform.position = spawnPos;
                 Settle(true, "fall");
                 return;
             }
@@ -133,8 +153,22 @@ namespace Orivilon.World.Objects
             bool still = rb.linearVelocity.sqrMagnitude < 0.04f && rb.angularVelocity.sqrMagnitude < 0.04f;
             stillTime = still ? stillTime + Time.fixedDeltaTime : 0f;
             float age = Time.time - spawnTime;
-            if (stillTime > 0.3f) Settle(true, "still");
-            else if (age > MaxFlightTime && Time.time - lastContact < 0.25f) Settle(true, "timeout");
+            bool supported = Time.fixedTime - lastContact <= Time.fixedDeltaTime * 1.01f;
+            if (stillTime > 0.3f && supported) Settle(true, "still");
+            else if (stillTime > 1f)
+            {
+                // Kolo MP 3: stojí, ale bez opory zespodu – zaklíněný bokem mezi balvanem a jiným dropem
+                // (Drop QA: kláda 1,2–1,7 m nad zemí, průnik jen vodorovný). Spát/ztratit callbacky může i
+                // předmět ležící na zemi, proto se jen dosedne tvarem collideru dolů, je-li pod ním mezera.
+                Settle(true, SnapDown(3f) ? "wedge" : "still");
+            }
+            else if (age > MaxFlightTime && Time.fixedTime - lastContact <= Time.fixedDeltaTime * 1.01f)
+            {
+                // Kontakt byl, ale v tomto kroku může předmět odskakovat (pár cm nad svahem) – dosednout tvarem
+                // collideru dolů na povrch, teprve pak zmrazit.
+                SnapDown(2f);
+                Settle(true, "timeout");
+            }
             else if (age > MaxAirTime)
             {
                 // Pojistka bez kontaktu: položit na nejbližší zem pod předmětem (jinak zpět na místo vyhození).
@@ -145,6 +179,24 @@ namespace Orivilon.World.Objects
                 else transform.position = spawnPos;
                 Settle(true, "air");
             }
+        }
+
+        /// <summary>
+        /// Dosednutí tvarem collideru dolů (nanejvýš maxDist). Sweep přehlíží collidery, ve kterých předmět už
+        /// je (dotek svahu, šev dvou chunků), a mohl by ho tak protáhnout pod povrch – posun se proto přijme jen
+        /// tehdy, když nad novým středem není žádná zem. Jinak zůstane, kde je.
+        /// </summary>
+        private bool SnapDown(float maxDist)
+        {
+            if (!rb.SweepTest(Vector3.down, out RaycastHit hit, maxDist, QueryTriggerInteraction.Ignore) || hit.distance <= 0.02f) return false;
+            var col = GetComponent<Collider>();
+            if (col == null) return false;
+            float step = hit.distance - 0.01f;
+            Vector3 c = col.bounds.center + Vector3.down * step;
+            float up = col.bounds.extents.y + 2f;
+            if (Physics.Raycast(c + Vector3.up * up, Vector3.down, up, GroundMask, QueryTriggerInteraction.Ignore)) return false;
+            transform.position += Vector3.down * step;
+            return true;
         }
 
         private static int groundMask;
@@ -182,6 +234,7 @@ namespace Orivilon.World.Objects
             settled = true;
             SettleReason = reason;
             SettledAfter = Time.time - spawnTime;
+            SettledAt = Time.time;
             if (rb != null)
             {
                 if (!rb.isKinematic) { rb.linearVelocity = Vector3.zero; rb.angularVelocity = Vector3.zero; }

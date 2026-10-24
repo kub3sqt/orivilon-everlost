@@ -1,0 +1,134 @@
+{
+ "Mine": {
+  "Body": [
+   65,
+   23.5,
+   [
+    [
+     "shin.L",
+     11
+    ],
+    [
+     "upper_arm.R",
+     10
+    ],
+    [
+     "upper_arm.L",
+     9
+    ]
+   ]
+  ],
+  "Outfit_Belt": [
+   8,
+   23.0,
+   [
+    [
+     "thigh.L",
+     6
+    ],
+    [
+     "thigh.R",
+     2
+    ]
+   ]
+  ],
+  "Outfit_BeltBuckle": [
+   6,
+   21.0,
+   [
+    [
+     "spine",
+     6
+    ]
+   ]
+  ],
+  "Outfit_Boots": [
+   37,
+   1.5,
+   [
+    [
+     "foot.R",
+     17
+    ],
+    [
+     "foot.L",
+     15
+    ],
+    [
+     "shin.R",
+     4
+    ]
+   ]
+  ],
+  "Outfit_Mantle": [
+   15,
+   18.5,
+   [
+    [
+     "shoulder.L",
+     10
+    ],
+    [
+     "upper_arm.L",
+     5
+    ]
+   ]
+  ],
+  "Outfit_Pants": [
+   75,
+   22.0,
+   [
+    [
+     "shin.L",
+     22
+    ],
+    [
+     "shin.R",
+     21
+    ],
+    [
+     "thigh.L",
+     20
+    ]
+   ]
+  ],
+  "Outfit_Strap": [
+   2,
+   0.0,
+   [
+    [
+     "thigh.R",
+     2
+    ]
+   ]
+  ],
+  "Outfit_Tunic": [
+   37,
+   14.5,
+   [
+    [
+     "upper_arm.L",
+     14
+    ],
+    [
+     "shoulder.L",
+     12
+    ],
+    [
+     "upper_arm.R",
+     8
+    ]
+   ]
+  ],
+  "Outfit_TunicSkirt": [
+   18,
+   23.0,
+   [
+    [
+     "hips",
+     18
+    ]
+   ]
+  ]
+ }
+}

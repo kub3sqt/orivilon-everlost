@@ -123,7 +123,7 @@ namespace Orivilon.Core
 
         private void Update()
         {
-            if (!SceneLoader.IsLoading && Input.GetKeyDown(KeyCode.F3))
+            if (!SceneLoader.IsLoading && !Orivilon.UI.Refresh.SettingsScreen.BlocksInput && Input.GetKeyDown(KeyCode.F3))
                 SetToggled(!toggled);
 
             bool want = toggled && GameplayVisible();

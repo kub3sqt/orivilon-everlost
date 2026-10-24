@@ -109,6 +109,39 @@ namespace Orivilon.Multiplayer
         private bool   hostStarted;     // NGO host start was attempted for the current lobby
         private bool   clientStep;      // ClientJoinStep owns the scene load (Update must not load it raw)
         private bool   joinFailed;
+        private string joinFailMessage;   // konkrétní důvod selhání vstupu do lobby (jinak obecná hláška)
+
+        // Odmítnutí hostem přes data lobby (23.10.2026, viz MultiplayerManager.Reject): klíč rej_<moje SteamID>,
+        // hodnota „důvod|pořadí“. Bere se jen změna oproti hodnotě při vstupu do lobby (starý pokus neplatí).
+        private string rejectKey, rejectBaseline, rejectSeen;
+        private int rejectSeq;
+
+        /// <summary>Host: zveřejní důvod odmítnutí pro daného hráče v datech lobby. False = není lobby.</summary>
+        public bool PublishJoinRejection(ulong steamId, string reason)
+        {
+            if (!currentLobby.HasValue || steamId == 0 || !SteamClient.IsValid) return false;
+            currentLobby.Value.SetData("rej_" + steamId, reason + "|" + (++rejectSeq));
+            return true;
+        }
+
+        /// <summary>Host: hráč byl schválen – starý důvod odmítnutí pryč.</summary>
+        public void ClearJoinRejection(ulong steamId)
+        {
+            if (currentLobby.HasValue && steamId != 0 && SteamClient.IsValid) currentLobby.Value.DeleteData("rej_" + steamId);
+        }
+
+        /// <summary>Klient: nový důvod odmítnutí od hosta (z dat lobby), nebo null.</summary>
+        private string PollLobbyRejection()
+        {
+            if (rejectKey == null || !currentLobby.HasValue || !SteamClient.IsValid) return rejectSeen;
+            string r = currentLobby.Value.GetData(rejectKey) ?? "";
+            if (r.Length > 0 && r != rejectBaseline)
+            {
+                int bar = r.LastIndexOf('|');
+                rejectSeen = bar > 0 ? r.Substring(0, bar) : r;
+            }
+            return rejectSeen;
+        }
 
 #if UNITY_EDITOR || DEVELOPMENT_BUILD
         /// <summary>QA only (editor; kolo MP 3 i development build kvůli testům pádu hosta v samostatném procesu):
@@ -139,7 +172,9 @@ namespace Orivilon.Multiplayer
 
         // ── Heslo a pozvánky (kolo MP 17.10.2026) ────────────────────────────
         /// <summary>Verze síťového protokolu v datech lobby (jiná verze = nejde připojit).</summary>
-        public const string ProtocolVersion = "2";
+        /// <para>3 (23.10.2026): host ověřuje Steam identitu přímo ze Steamu a důvod odmítnutí posílá i přes lobby.
+        /// Host verze 2 odmítal každého klienta přes Steam, proto se verze 2 a 3 vzájemně nepouštějí (jasná hláška).</para>
+        public const string ProtocolVersion = "3";
         private string pendingJoinPassword = "";
         private ulong pendingInviteLobby;
         private bool pendingInviteLocked;
@@ -183,7 +218,7 @@ namespace Orivilon.Multiplayer
                     ulong.TryParse(args[i + 1], out ulong lobbyId) && lobbyId != 0)
                 {
                     Debug.Log($"[SteamLobbyManager] +connect_lobby {lobbyId} – připojuji se z příkazové řádky.");
-                    JoinLobby(lobbyId);
+                    BeginJoin(lobbyId, null);
                     break;
                 }
             }
@@ -217,7 +252,9 @@ namespace Orivilon.Multiplayer
             {
                 ulong id = pendingInviteLobby;
                 pendingInviteLobby = 0;
-                StartJoinOrPrompt(id, pendingInviteLocked, pendingInviteHost);
+                // Zkontrolované ve hře → rovnou heslo / join; pozvánka z doby načítání → kontrola teď.
+                if (pendingInviteChecked) ContinueJoin(id, pendingInviteLocked, pendingInviteHost);
+                else BeginJoin(id, pendingInviteHost);
             }
 
             // Klient: jakmile dorazí WorldState (NetworkWorldSync nastaví
@@ -439,6 +476,8 @@ namespace Orivilon.Multiplayer
             var loader = SceneLoader.Instance;
             clientStep = true;
             joinFailed = false;
+            joinFailMessage = null;
+            rejectKey = null; rejectSeen = null;
             var before = GameManager.selectedWorld;
             SceneLoader.NetworkWorldPending = true;
             SceneLoader.NetworkStage = "Joining lobby…";
@@ -446,24 +485,36 @@ namespace Orivilon.Multiplayer
             begin();
 
             float until = Time.unscaledTime + 30f;
-            bool started = false;
+            bool started = false, everConnected = false;
             string fail = null;
             while (true)
             {
                 var w = GameManager.selectedWorld;
                 if (w != null && !ReferenceEquals(w, before)) break;        // host's world state arrived
                 var nm = NetworkManager.Singleton;
+                string lobbyReject = PollLobbyRejection();
+                if (nm != null && nm.IsConnectedClient) everConnected = true;
                 if (clientJoining)
                 {
                     started = true;
                     SceneLoader.NetworkStage = nm != null && nm.IsConnectedClient ? "Receiving world…" : "Connecting to host…";
                 }
-                if (joinFailed) { fail = "Couldn't join this lobby. It may have closed or be full."; break; }
+                if (joinFailed) { fail = joinFailMessage ?? "Couldn't join this lobby. It may have closed or be full."; break; }
                 if (started && (nm == null || !nm.IsListening))
                 {
-                    // Host odmítl (heslo, plno, verze) – NGO drží důvod do dalšího startu.
+                    // Host odmítl (heslo, plno, verze, identita). Přes LAN důvod nese NGO; přes Steam se zpráva s důvodem
+                    // ztratí při zavření spojení, proto i z dat lobby (host odmítnutí o chvíli odkládá, aby data dorazila).
                     string reason = nm != null ? nm.DisconnectReason : null;
-                    fail = JoinGate.Describe(reason) ?? "Lost the connection to the host.";
+                    if (JoinGate.Describe(reason) == null && lobbyReject == null && lobbyId != 0)
+                    {
+                        // Data lobby mohou dorazit o chvilku později než konec spojení.
+                        for (float t = 0f; t < 1.5f && lobbyReject == null; t += Time.unscaledDeltaTime) { yield return null; lobbyReject = PollLobbyRejection(); }
+                    }
+                    if (JoinGate.Describe(reason) == null && lobbyReject != null) reason = lobbyReject;
+                    fail = JoinGate.Describe(reason)
+                        ?? (everConnected ? "Lost the connection to the host."
+                            : "The host closed the connection before you joined. Make sure you both have the same version of Everlost, then try again.");
+                    Debug.LogWarning("[SteamLobbyManager] Join selhal: NGO důvod '" + (nm != null ? nm.DisconnectReason : "-") + "', lobby '" + (lobbyReject ?? "-") + "'.");
                     if (JoinGate.IsPasswordReason(reason)) { RetryLobbyId = lobbyId != 0 ? lobbyId : ulong.MaxValue; RetryError = fail; RetryHost = hostName; }
                     break;
                 }
@@ -611,13 +662,21 @@ namespace Orivilon.Multiplayer
         /// <summary>Join s heslem (prázdné = bez hesla). Heslo se drží jen v paměti do vstupu do lobby.</summary>
         public void JoinLobby(ulong lobbyId, string password, string hostName = null)
         {
-            if (!SteamClient.IsValid) { Status = "Steam není připraven."; return; }
+            // Po neúspěšném pokusu Facepunch transport při ukončení NGO vypíná i SteamClient (obnoví se do 2 s).
+            // Další pokus hned po návratu do menu proto nesmí tiše skončit – Steam se zkusí nahodit hned.
+            if (!SteamClient.IsValid) TryInitSteam();
+            if (!SteamClient.IsValid)
+            {
+                Status = "Steam isn't running or isn't signed in. Start Steam and try again.";
+                return;
+            }
             pendingJoinPassword = password ?? "";
 
             // From the menu the join runs inside the loading screen (shown before any lobby/connection work).
             if (SceneLoader.Instance != null && !SceneLoader.IsLoading &&
                 SceneManager.GetActiveScene().name != gameSceneName)
             {
+                JoinLoadingStarts++;
                 SceneLoader.Instance.LoadGameDelayed(ClientJoinStep(() => JoinLobbyCore(lobbyId), lobbyId, hostName));
                 return;
             }
@@ -632,23 +691,142 @@ namespace Orivilon.Multiplayer
         {
             string host = PlayerNames.Sanitize(lobby.GetData("host"), 0);
             if (string.IsNullOrEmpty(lobby.GetData("host"))) host = null;
-            if (SceneManager.GetActiveScene().name == gameSceneName || SceneLoader.IsLoading)
+            if (SceneLoader.IsLoading)
             {
+                // Uprostřed načítání nic nepřerušujeme – pozvánka počká na menu (tam proběhne kontrola lobby).
                 pendingInviteLobby = lobby.Id.Value;
-                pendingInviteLocked = lobby.GetData("locked") == "1";
+                pendingInviteChecked = false;
                 pendingInviteHost = host;
                 pendingInviteAt = Time.unscaledTime + 1f;
-                if (!SceneLoader.IsLoading && GameManager.instance != null)
-                    GameManager.instance.OnMainMenuButtonClicked();
                 return;
             }
-            StartJoinOrPrompt(lobby.Id.Value, lobby.GetData("locked") == "1", host);
+            // Ve hře i v menu nejdřív kontrola dat lobby (bez loadingu a bez StartClient); ve hře se svět opouští
+            // (s uložením) až když je jasné, že join může začít.
+            BeginJoin(lobby.Id.Value, host, lobby);
         }
 
-        private void StartJoinOrPrompt(ulong lobbyId, bool locked, string host)
+        // ── Kontrola lobby před joinem (23.10.2026) ──────────────────────────────────────────────────────────
+        // Jediný vstup joinu z menu (seznam kamarádů), Steam overlaye i +connect_lobby. Nejdřív se načtou data lobby
+        // (Lobby.Refresh, bez herního loading screenu a bez StartClient): verze, plno, zamčení. Zamčený svět → rovnou
+        // dialog hesla, teprve po potvrzení skutečný loading/join; nezamčený → rovnou skutečný loading/join.
+        // „locked“ je jen UX – heslo i Steam identitu dál ověřuje host (MultiplayerManager.ApproveConnection).
+        private Coroutine preflight;
+        private bool pendingInviteChecked;
+
+        /// <summary>Hráčovi srozumitelná zpráva o joinu, který nezačal (menu ji ukáže v seznamu kamarádů).</summary>
+        public static event Action<string> JoinMessage;
+
+        /// <summary>QA/diagnostika: kolikrát začal skutečný join (loading s ClientJoinStep) a poslední průběh kontroly.</summary>
+        public static int JoinLoadingStarts { get; private set; }
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+        /// <summary>QA: další OnLobbyEntered patří vlastní testovací lobby (mp qalobby), ne joinu.</summary>
+        public static bool QaSkipNextLobbyEnter;
+#endif
+        public static string PreflightTrace { get; private set; } = "";
+
+        public bool PreflightRunning => preflight != null;
+
+        public void BeginJoin(ulong lobbyId, string hostName, Lobby? known = null)
         {
-            if (locked && PasswordRequired != null) { PasswordRequired(lobbyId, host, null); return; }
+            if (lobbyId == 0) return;
+            if (preflight != null) StopCoroutine(preflight);
+            preflight = StartCoroutine(PreflightJoin(lobbyId, hostName, known));
+        }
+
+        private IEnumerator PreflightJoin(ulong lobbyId, string hostName, Lobby? known)
+        {
+            bool inGame = SceneManager.GetActiveScene().name == gameSceneName;
+            PreflightTrace = "start " + lobbyId + (inGame ? " (ve hře)" : "");
+            if (!SteamClient.IsValid) TryInitSteam();
+            if (!SteamClient.IsValid) { preflight = null; JoinNotice("Steam isn't running or isn't signed in. Start Steam and try again.", inGame); yield break; }
+
+            Status = "Checking the world…";
+            Lobby lobby = known ?? new Lobby(new SteamId { Value = lobbyId });
+            if (!IsMember(lobby)) lobby.Refresh();
+            float until = Time.unscaledTime + 6f;
+            while (string.IsNullOrEmpty(lobby.GetData("everlost")) && string.IsNullOrEmpty(lobby.GetData("worldName")) && Time.unscaledTime < until)
+                yield return null;
+            preflight = null;
+
+            string v = lobby.GetData("v");
+            string host = PlayerNames.Sanitize(lobby.GetData("host"), 0);
+            if (string.IsNullOrEmpty(host)) host = hostName;
+            bool locked = lobby.GetData("locked") == "1";
+            PreflightTrace += " | data everlost='" + lobby.GetData("everlost") + "' v='" + v + "' locked=" + locked + " members " + lobby.MemberCount + "/" + lobby.MaxMembers;
+
+            string fail = null;
+            if (string.IsNullOrEmpty(lobby.GetData("everlost")) && string.IsNullOrEmpty(lobby.GetData("worldName")))
+                fail = "Couldn't read this world's details from Steam. It may have closed – refresh and try again.";
+            else if (v != ProtocolVersion)
+                fail = "The host runs a different version of Everlost (host: " + (string.IsNullOrEmpty(v) ? "older" : "v" + v) + ", you: v" + ProtocolVersion + "). Both players need the same game update.";
+            else if (lobby.MaxMembers > 0 && lobby.MemberCount >= lobby.MaxMembers)
+                fail = "This world is full.";
+            if (fail != null) { PreflightTrace += " → chyba"; JoinNotice(fail, inGame); yield break; }
+
+            if (inGame && SceneManager.GetActiveScene().name == gameSceneName)
+            {
+                // Join ze hry: svět se bezpečně uloží a opustí (cesta tlačítka Main Menu), join pokračuje v menu.
+                pendingInviteLobby = lobbyId;
+                pendingInviteChecked = true;
+                pendingInviteLocked = locked;
+                pendingInviteHost = host;
+                pendingInviteAt = Time.unscaledTime + 1f;
+                PreflightTrace += " → ve hře: uložit a do menu";
+                if (GameManager.instance != null) GameManager.instance.OnMainMenuButtonClicked();
+                yield break;
+            }
+            ContinueJoin(lobbyId, locked, host);
+        }
+
+        /// <summary>Po kontrole: zamčený svět → dialog hesla (žádný loading ani StartClient), jinak skutečný join.</summary>
+        private void ContinueJoin(ulong lobbyId, bool locked, string host)
+        {
+            if (locked)
+            {
+                PreflightTrace += " → dialog hesla";
+                Status = "This world is password protected.";
+                if (!RequestPassword(lobbyId, host, null))
+                    JoinNotice("This world is password protected. Open Multiplayer to enter the password.", false);
+                return;
+            }
+            PreflightTrace += " → join";
             JoinLobby(lobbyId, "", host);
+        }
+
+        private bool IsMember(Lobby lobby)
+        {
+            if (!currentLobby.HasValue || currentLobby.Value.Id.Value != lobby.Id.Value) return false;
+            return true;
+        }
+
+        /// <summary>Výzva k heslu. Když seznam kamarádů v menu ještě nikdy nebyl otevřený, otevře ho (tím se přihlásí).</summary>
+        private bool RequestPassword(ulong lobbyId, string host, string error)
+        {
+            if (PasswordRequired == null) EnsureMultiplayerMenu();
+            if (PasswordRequired == null) return false;
+            PasswordRequired(lobbyId, host, error);
+            return true;
+        }
+
+        private void JoinNotice(string text, bool inGame)
+        {
+            Status = text;
+            Debug.LogWarning("[SteamLobbyManager] Join nezačal: " + text);
+            if (inGame && SceneManager.GetActiveScene().name == gameSceneName)
+            {
+                // Ve hře zůstává svět běžet; zpráva jde do herního chatu (zobrazí se i se zavřenou konzolí).
+                GameConsole.Instance?.Print("<color=#ff9a8a>" + text + "</color>");
+                return;
+            }
+            if (JoinMessage == null) EnsureMultiplayerMenu();
+            JoinMessage?.Invoke(text);
+        }
+
+        private static void EnsureMultiplayerMenu()
+        {
+            var ui = Orivilon.UI.Menu.FriendsListUI.Current != null ? Orivilon.UI.Menu.FriendsListUI.Current
+                : FindFirstObjectByType<Orivilon.UI.Menu.FriendsListUI>(FindObjectsInactive.Include);
+            if (ui != null && !ui.IsOpen) ui.Open();
         }
 
         private async void JoinLobbyCore(ulong lobbyId)
@@ -697,6 +875,10 @@ namespace Orivilon.Multiplayer
 
         private void OnLobbyEntered(Lobby lobby)
         {
+#if UNITY_EDITOR || DEVELOPMENT_BUILD
+            // QA (mp qalobby create): vstup do vlastní testovací lobby není join klienta.
+            if (QaSkipNextLobbyEnter) { QaSkipNextLobbyEnter = false; return; }
+#endif
             currentLobby = lobby;
 
             // Host vstupuje do vlastní lobby – nic dalšího nedělej.
@@ -710,7 +892,33 @@ namespace Orivilon.Multiplayer
                 return;
             }
 
+            // Verze hosta z dat lobby: jiná verze se ani nepřipojuje (NGO by spojení zavřel bez vysvětlení).
+            string v = lobby.GetData("v");
+            if (lobby.GetData("everlost") != "1" || v != ProtocolVersion)
+            {
+                joinFailMessage = lobby.GetData("everlost") != "1"
+                    ? "This world has closed or isn't an Everlost world any more."
+                    : "The host runs a different version of Everlost (host: " + (string.IsNullOrEmpty(v) ? "older" : "v" + v)
+                      + ", you: v" + ProtocolVersion + "). Both players need the same game update.";
+                Debug.LogWarning("[SteamLobbyManager] Join zrušen: jiná verze protokolu hosta (" + (string.IsNullOrEmpty(v) ? "-" : v) + " ≠ " + ProtocolVersion + ").");
+                joinFailed = true;
+                return;
+            }
+
+            // Host mezitím zamkl svět a heslo nemáme: nespojovat se (host by stejně odmítl) – zpět s výzvou k heslu.
+            if (lobby.GetData("locked") == "1" && string.IsNullOrEmpty(pendingJoinPassword))
+            {
+                joinFailMessage = "The host has just set a password for this world. Enter it to join.";
+                RetryLobbyId = lobby.Id.Value; RetryError = joinFailMessage; RetryHost = PlayerNames.Sanitize(lobby.GetData("host"), 0);
+                Debug.LogWarning("[SteamLobbyManager] Join zrušen: svět se mezitím zamkl heslem.");
+                joinFailed = true;
+                return;
+            }
+
             SteamId hostId = lobby.Owner.Id;
+            rejectKey = "rej_" + SteamClient.SteamId.Value;
+            rejectBaseline = lobby.GetData(rejectKey) ?? "";
+            rejectSeen = null;
             Status = $"V lobby. Připojuji se k hostovi {lobby.Owner.Name}…";
             Debug.Log($"[SteamLobbyManager] Vstup do lobby {lobby.Id.Value}, host {hostId.Value}.");
 
@@ -756,9 +964,16 @@ namespace Orivilon.Multiplayer
             yield break;
         }
 
+        public bool PublishJoinRejection(ulong steamId, string reason) => false;
+        public static event System.Action<string> JoinMessage { add { } remove { } }
+        public static int JoinLoadingStarts => 0;
+        public static string PreflightTrace => "";
+        public bool PreflightRunning => false;
+        public void BeginJoin(ulong lobbyId, string hostName) { }
+        public void ClearJoinRejection(ulong steamId) { }
         public void JoinLobby(ulong lobbyId) { }
         public void JoinLobby(ulong lobbyId, string password, string hostName = null) { }
-        public const string ProtocolVersion = "2";
+        public const string ProtocolVersion = "3";
         public static event System.Action<ulong, string, string> PasswordRequired { add { } remove { } }
         public static ulong RetryLobbyId => 0;
         public static string RetryError => null;

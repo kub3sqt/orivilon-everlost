@@ -13,7 +13,19 @@ MonoBehaviour:
   m_Name: Stick
   m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
   id: everlost:stick
-  icon: {fileID: 21300000, guid: e2065879f60f0cd498cea197b61ed7be, type: 3}
+  icon: {fileID: 21300000, guid: 07b5640ee452c4e9285e594302778945, type: 3}
   itemName: Stick
   description: Very usefull piece of wood, might seem tiny and brittle but you could
     chop trees with these.. quite literally
+  stackable: 1
+  maxStack: 64
+  handPrefab: {fileID: 492565362457395684, guid: 998d2342588fa4485bda0f12dcb121b9,
+    type: 3}
+  handPositionOffset: {x: 0, y: 0, z: 0}
+  handRotationOffset: {x: 0, y: 0, z: 0}
+  handScale: {x: 1, y: 1, z: 1}
+  toolType: 0
+  isFood: 0
+  foodRestore: 0
+  waterRestore: 0
+  countsAs: {fileID: 0}

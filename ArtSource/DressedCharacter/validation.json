@@ -1,0 +1,13 @@
+{
+  "original_vertices_unchanged": true,
+  "actions_preserved": [
+    "Idle",
+    "Kick",
+    "Punch",
+    "Run",
+    "Slash",
+    "Walk"
+  ],
+  "clothing_objects": 50,
+  "original_vertex_count": 164880
+}

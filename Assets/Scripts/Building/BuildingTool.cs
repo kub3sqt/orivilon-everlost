@@ -378,8 +378,8 @@ namespace Orivilon.Building
         {
             for (int i = 0; i < selectedPiece.costItems.Length; i++)
             {
+                // Spotřebu hlásí RemoveItem po skutečně odebraných itemech (druhy dřeva platí za Log) – MP klient: i u hosta.
                 RemoveItem(selectedPiece.costItems[i], selectedPiece.costAmounts[i]);
-                Orivilon.Multiplayer.MpLedger.ReportConsume(selectedPiece.costItems[i], selectedPiece.costAmounts[i]);   // MP klient: i u hosta
                 InventoryUI.RefreshAll();
             }
         }
@@ -395,7 +395,7 @@ namespace Orivilon.Building
             int count = 0;
             foreach (var slot in InventoryData.Instance.Slots)
             {
-                if (!slot.IsEmpty && slot.item.id == item.id)
+                if (!slot.IsEmpty && InventoryItemData.Satisfies(slot.item, item.id))
                     count += slot.amount;
             }
             return count;
@@ -412,11 +412,13 @@ namespace Orivilon.Building
         {
             foreach (var slot in InventoryData.Instance.Slots)
             {
-                if (slot.IsEmpty || slot.item.id != item.id) continue;
+                if (slot.IsEmpty || !InventoryItemData.Satisfies(slot.item, item.id)) continue;
 
                 int remove = Mathf.Min(slot.amount, amount);
+                string takenId = slot.item.id;
                 slot.amount -= remove;
                 amount -= remove;
+                Orivilon.Multiplayer.MpLedger.ReportConsume(takenId, remove);   // skutečný item (např. dubové poleno), ne jen cenový
 
                 if (slot.amount <= 0) slot.Clear();
                 if (amount <= 0) break;

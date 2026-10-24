@@ -30,6 +30,9 @@ namespace Orivilon.Inventory.Inventory
         private static int gestureButton = -1;
         private static SlotRef hovered;
 
+        /// <summary>Probíhá gesto (stisk tlačítka nad slotem až do uvolnění) – tooltip se během něj schová.</summary>
+        public static bool GestureActive => gesture != Gesture.None;
+
         // Split (vanilla quick-craft): pořadí slotů a původní obsah pro přepočet bez ztrát.
         private static readonly List<SlotRef> splitSlots = new List<SlotRef>(16);
         private static readonly List<InventorySlotData> splitOrig = new List<InventorySlotData>(16);
@@ -131,7 +134,10 @@ namespace Orivilon.Inventory.Inventory
                 }
                 else if (r.IsOutput)
                 {
-                    changed = InventoryActions.LeftClick(r);
+                    // 23.10.2026: Shift+LMB na výstup = Craft All do inventáře i s itemem na kurzoru (dřív se s plným
+                    // kurzorem zkoušel jen craft NA kurzor, který u jiného itemu nic neudělal). Kurzor zůstává beze změny.
+                    if (shift) { var moved = InventoryActions.QuickMove(r); if (moved != null) { lastQuickMoved = moved; changed = true; } }
+                    else changed = InventoryActions.LeftClick(r);
                     gesture = Gesture.Consumed;
                 }
                 else

@@ -1,0 +1,104 @@
+{
+ "Swim": {
+  "Body": [
+   22,
+   19.0,
+   [
+    [
+     "shin.L",
+     5
+    ],
+    [
+     "shin.R",
+     5
+    ],
+    [
+     "spine",
+     4
+    ]
+   ]
+  ],
+  "Outfit_Mantle": [
+   14,
+   1.0,
+   [
+    [
+     "shoulder.L",
+     4
+    ],
+    [
+     "shoulder.R",
+     4
+    ],
+    [
+     "shoulder_helper.L",
+     3
+    ]
+   ]
+  ],
+  "Outfit_Strap": [
+   1,
+   0.0,
+   [
+    [
+     "shoulder.L",
+     1
+    ]
+   ]
+  ],
+  "Outfit_Tunic": [
+   30,
+   4.5,
+   [
+    [
+     "upper_arm.L",
+     8
+    ],
+    [
+     "upper_arm.R",
+     8
+    ],
+    [
+     "spine",
+     8
+    ]
+   ]
+  ],
+  "Outfit_Pants": [
+   48,
+   16.5,
+   [
+    [
+     "shin.L",
+     18
+    ],
+    [
+     "shin.R",
+     18
+    ],
+    [
+     "thigh.R",
+     8
+    ]
+   ]
+  ],
+  "Outfit_TunicSkirt": [
+   4,
+   18.5,
+   [
+    [
+     "spine",
+     2
+    ],
+    [
+     "thigh.L",
+     1
+    ],
+    [
+     "thigh.R",
+     1
+    ]
+   ]
+  ]
+ }
+}

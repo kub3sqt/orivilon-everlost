@@ -15,6 +15,57 @@ namespace Orivilon.EditorTools
     /// </summary>
     internal static class LodRingChecks
     {
+        [MenuItem("Tools/Everlost/Validate long view")]
+        internal static void RunLongView()
+        {
+            const BindingFlags flags = BindingFlags.Instance | BindingFlags.NonPublic;
+            var root = new GameObject("Long view check") { hideFlags = HideFlags.HideAndDontSave };
+            root.SetActive(false);
+            var previous = VoxelTerrain.instance;
+            float fadeEnd = Orivilon.World.Spawning.ObjectSpawner.TreeFadeEnd;
+            try
+            {
+                var sun = root.AddComponent<Orivilon.SunRotation>();
+                var resolve = typeof(Orivilon.SunRotation).GetMethod("ResolveBaseFogDistances", flags);
+                VoxelTerrain.instance = null;
+                object[] args = { 0f, 0f };
+                resolve.Invoke(sun, args); // Slunce vzniklo ještě před terénem.
+                var terrain = root.AddComponent<VoxelTerrain>();
+                terrain.voxelSize = 1f;
+                terrain.lodRing = 4;
+                terrain.lodCount = 5;
+                VoxelTerrain.instance = terrain;
+                resolve.Invoke(sun, args);
+                if (Mathf.Abs((float)args[1] - terrain.ViewDistance * 0.88f) > 0.01f)
+                    throw new Exception("Mlha se po pozdním vzniku terénu nenavázala na dohled.");
+                Orivilon.World.Spawning.ObjectSpawner.TreeFadeEnd = 1000f;
+                for (int levels = 1; levels <= 5; levels++)
+                for (int ring = 2; ring <= 8; ring++)
+                {
+                    terrain.lodCount = levels;
+                    terrain.lodRing = ring;
+                    int lod = Mathf.Min(levels - 1, Orivilon.World.Spawning.TreeProxies.MaxLod);
+                    float reach = terrain.ChunkSpan * (lod == 0 ? terrain.renderDistance : (1 << lod) * ring);
+                    float end = Orivilon.World.Spawning.ObjectSpawner.EffectiveTreeFadeEnd;
+                    if (end <= 0f || end >= reach || end > 1000f)
+                        throw new Exception("Stromy přesahují pokrytí při LOD " + levels + ", ring " + ring);
+                }
+                TestReport.Write("LongViewChecks", "PASS: pozdní terén naváže mlhu; 35 nastavení skryje stromy před hranicí pokrytí.");
+                Debug.Log("[LongViewChecks] PASS");
+            }
+            catch (Exception ex)
+            {
+                TestReport.Write("LongViewChecks", "FAIL: " + (ex.InnerException ?? ex).Message);
+                Debug.LogError("[LongViewChecks] FAIL: " + (ex.InnerException ?? ex).Message);
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(root);
+                VoxelTerrain.instance = previous;
+                Orivilon.World.Spawning.ObjectSpawner.TreeFadeEnd = fadeEnd;
+            }
+        }
+
         private static int LegacyFirstBad(int ring, float span0)
         {
             for (int rd = 1; rd <= 16; rd++) if (LegacyHasOverlap(5, ring, rd, span0)) return rd;
@@ -148,4 +199,93 @@ namespace Orivilon.EditorTools
             catch (System.Exception) { }
         }
     }
+
+    // Izolace časových příčin stínového shimmeru v testovacím Play světě.
+    [InitializeOnLoad]
+    internal static class ShadowMotionChecks
+    {
+        private static Orivilon.SunRotation sun;
+        private static Orivilon.Player.FirstPersonController player;
+        private static Rigidbody body;
+        private static bool prepared, pausedBefore, playerEnabledBefore, kinematicBefore;
+        private static readonly int WindClock = Shader.PropertyToID("_FoliageWindClock");
+
+        static ShadowMotionChecks()
+        {
+            EditorApplication.playModeStateChanged += state =>
+            {
+                if (state == PlayModeStateChange.ExitingPlayMode) Restore();
+            };
+        }
+
+        private static void Apply(bool freezeSun, bool freezeWind)
+        {
+            if (!Application.isPlaying) throw new InvalidOperationException("Shadow QA vyžaduje Play v testovacím světě.");
+            if (!prepared)
+            {
+                sun = UnityEngine.Object.FindFirstObjectByType<Orivilon.SunRotation>();
+                player = UnityEngine.Object.FindFirstObjectByType<Orivilon.Player.FirstPersonController>();
+                if (sun == null || player == null) throw new InvalidOperationException("Chybí slunce nebo hráč.");
+                pausedBefore = sun.paused;
+                playerEnabledBefore = player.enabled;
+                body = player.rb;
+                if (body != null) { kinematicBefore = body.isKinematic; body.isKinematic = true; }
+                player.enabled = false;
+                prepared = true;
+            }
+            sun.paused = freezeSun;
+            Shader.SetGlobalVector(WindClock, freezeWind ? new Vector4(1f, Time.time, 0f, 0f) : Vector4.zero);
+        }
+
+        // Cílená úprava aktivního URP assetu přes Editor, bez přepisu YAML.
+        [MenuItem("Tools/Everlost/Rendering/Use detailed soft shadows")]
+        private static void ApplyDetailedSoftShadows()
+        {
+            if (Application.isPlaying) throw new InvalidOperationException("Nastavení stínů se ukládá pouze mimo Play.");
+            // Editor může mít jinou kvalitu než profil načítaný SettingsManagerem ve hře.
+            string settingsPath = System.IO.Path.Combine(Application.persistentDataPath, "settings.json");
+            var settings = System.IO.File.Exists(settingsPath)
+                ? JsonUtility.FromJson<Orivilon.UI.Settings.SettingsData>(System.IO.File.ReadAllText(settingsPath))
+                : new Orivilon.UI.Settings.SettingsData();
+            int level = Mathf.Clamp(settings.qualityLevel, 0, QualitySettings.names.Length - 1);
+            var pipeline = QualitySettings.GetRenderPipelineAssetAt(level) as UnityEngine.Rendering.Universal.UniversalRenderPipelineAsset;
+            if (pipeline == null) throw new InvalidOperationException("Herní profil nemá URP asset.");
+            var serialized = new SerializedObject(pipeline);
+            serialized.Update();
+            var quality = serialized.FindProperty("m_SoftShadowQuality");
+            int high = Array.IndexOf(quality.enumNames, "High");
+            if (high < 0) throw new InvalidOperationException("URP nenabízí kvalitu měkkých stínů High.");
+            Undo.RecordObject(pipeline, "Detailní měkké stíny vegetace");
+            serialized.FindProperty("m_ShadowCascadeCount").intValue = 4;
+            serialized.FindProperty("m_Cascade4Split").vector3Value = new Vector3(0.05f, 0.20f, 0.50f);
+            quality.enumValueIndex = high;
+            serialized.ApplyModifiedPropertiesWithoutUndo();
+            EditorUtility.SetDirty(pipeline);
+            AssetDatabase.SaveAssetIfDirty(pipeline);
+            string report = AssetDatabase.GetAssetPath(pipeline) + ": cascades 4, splits 0.05/0.20/0.50, soft High, resolution "
+                + pipeline.mainLightShadowmapResolution + ", distance " + pipeline.shadowDistance;
+            TestReport.Write("ShadowQualitySettings", report);
+            Debug.Log("[ShadowQualitySettings] " + report);
+        }
+
+        [MenuItem("Tools/Everlost/Shadow QA/Normal")]
+        private static void Normal() => Apply(false, false);
+        [MenuItem("Tools/Everlost/Shadow QA/Freeze sun")]
+        private static void FreezeSun() => Apply(true, false);
+        [MenuItem("Tools/Everlost/Shadow QA/Freeze wind")]
+        private static void FreezeWind() => Apply(false, true);
+        [MenuItem("Tools/Everlost/Shadow QA/Freeze both")]
+        private static void FreezeBoth() => Apply(true, true);
+        [MenuItem("Tools/Everlost/Shadow QA/Restore")]
+        private static void Restore()
+        {
+            Shader.SetGlobalVector(WindClock, Vector4.zero);
+            if (!prepared) return;
+            if (sun != null) sun.paused = pausedBefore;
+            if (body != null) body.isKinematic = kinematicBefore;
+            if (player != null) player.enabled = playerEnabledBefore;
+            prepared = false;
+        }
+    }
+
 }

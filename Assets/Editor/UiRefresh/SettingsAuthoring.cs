@@ -19,6 +19,8 @@ namespace Orivilon.UI.Refresh.EditorTools
     ///   menu – MainMenu: builds SettingsFrame + SettingsScreen prefabs, places the screen over the main-menu
     ///          canvas, rewires the "Settings" link, adds the play-mode selected markers + mode line.
     ///   game – Game: places the SettingsScreen prefab next to the pause menu and rewires the pause "Settings" tab.
+    ///   keys – SettingsScreen prefab: key binding rows (KeyBindings.Actions) + fixed-keys note / Reset keys under
+    ///          Controls, cloned from the existing stepper row so they look exactly like the other rows.
     /// </summary>
     public static class SettingsAuthoring
     {
@@ -40,6 +42,7 @@ namespace Orivilon.UI.Refresh.EditorTools
                     case "visual": return Visual();
                     case "bridge": return Bridge();
                     case "subtitle": return SubtitleFix();
+                    case "keys": return Keys();
                     default: return "ERR settingsui: unknown step " + step;
                 }
             }
@@ -596,6 +599,80 @@ namespace Orivilon.UI.Refresh.EditorTools
             EditorSceneManager.MarkSceneDirty(game);
             if (!EditorSceneManager.SaveScene(game)) throw new System.Exception("saving Game failed");
             return report.ToString();
+        }
+
+        // ── key bindings (Controls) ──────────────────────────────────────────
+
+        /// <summary>
+        /// Clones the "Invert mouse Y" stepper row (same background, label, fonts, hover) once per bindable
+        /// action and turns its "&gt;" text button into the key button spanning the value area; the old value
+        /// text and "&lt;" go. A last row carries the fixed-keys note and a "Reset keys" text button.
+        /// The scenes use the prefab, so MainMenu and the pause menu both get the rows.
+        /// </summary>
+        private static string Keys()
+        {
+            var hover = PolishAuthoring.EnsureHoverStyle();
+            var sp = PrefabUtility.LoadPrefabContents(ScreenPath);
+            try
+            {
+                var screen = sp.GetComponent<SettingsScreen>();
+                var content = screen.scroll != null ? screen.scroll.content : null;
+                if (content == null) throw new System.Exception("Settings content not found");
+                if (content.Find("Row_key.sprint") != null) return "ERR settingsui keys: already applied";
+                var template = content.Find("Row_invertY");
+                var after = content.Find("Row_fov");
+                if (template == null || after == null) throw new System.Exception("template rows not found");
+                int index = after.GetSiblingIndex() + 1;
+
+                Button Convert(SettingRow r, string name, string text)
+                {
+                    var b = r.next;
+                    b.name = name;
+                    var br = (RectTransform)b.transform;
+                    br.anchorMin = Vector2.zero; br.anchorMax = Vector2.one; br.pivot = new Vector2(0.5f, 0.5f);
+                    br.offsetMin = new Vector2(64f, 7f); br.offsetMax = new Vector2(-64f, -7f);
+                    var lbl = b.GetComponentInChildren<TMP_Text>(true);
+                    lbl.text = text; lbl.fontSize = r.value.fontSize; lbl.alignment = TextAlignmentOptions.Center;
+                    Object.DestroyImmediate(r.prev.gameObject);
+                    Object.DestroyImmediate(r.value.gameObject);
+                    r.prev = null; r.next = null; r.value = lbl;
+                    EditorUtility.SetDirty(lbl);
+                    return b;
+                }
+
+                int made = 0;
+                foreach (var act in Orivilon.UI.Settings.KeyBindings.Actions)
+                {
+                    var go = Object.Instantiate(template.gameObject, content);
+                    go.name = "Row_" + act.key;
+                    go.transform.SetSiblingIndex(index++);
+                    var r = go.GetComponent<SettingRow>();
+                    r.key = act.key; r.label.text = act.name;
+                    var b = Convert(r, "Bind", "-");
+                    var ring = NewImage("Listening", b.transform, hover.slotOutline, hover.slotOutlineColor, true);
+                    ring.raycastTarget = false; ring.pixelsPerUnitMultiplier = 1f;
+                    Stretch(ring.rectTransform); ring.rectTransform.offsetMin = new Vector2(-2f, -2f); ring.rectTransform.offsetMax = new Vector2(2f, 2f);
+                    ring.gameObject.SetActive(false);
+                    r.bind = b; r.listening = ring.gameObject;
+                    EditorUtility.SetDirty(r); EditorUtility.SetDirty(r.label);
+                    made++;
+                }
+
+                var info = Object.Instantiate(template.gameObject, content);
+                info.name = "Row_keysInfo";
+                info.transform.SetSiblingIndex(index);
+                var ir = info.GetComponent<SettingRow>();
+                ir.label.text = "Fixed: F5 camera, 1–8 hotbar, Esc menu";
+                ir.label.color = Muted;
+                var reset = Convert(ir, "ResetKeys", "Reset keys");
+                Object.DestroyImmediate(ir);   // not a setting – SettingsScreen only knows the button
+                screen.resetKeysButton = reset;
+                EditorUtility.SetDirty(screen);
+
+                PrefabUtility.SaveAsPrefabAsset(sp, ScreenPath);
+                return "settingsui keys ok (rows " + made + " + note/reset, after Row_fov)";
+            }
+            finally { PrefabUtility.UnloadPrefabContents(sp); }
         }
 
         // ── Game ─────────────────────────────────────────────────────────────

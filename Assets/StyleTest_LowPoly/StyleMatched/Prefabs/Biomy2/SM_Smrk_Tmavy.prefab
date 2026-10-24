@@ -107,7 +107,7 @@ MonoBehaviour:
   requiredTool: 1
   maxHealth: 5
   drops:
-  - item: {fileID: 11400000, guid: d959e2e8034fa7a499bf256acfc590e2, type: 2}
+  - item: {fileID: 11400000, guid: 6f945aa866c144b8486629553e66ca7f, type: 2}
     minAmount: 2
     maxAmount: 5
     chance: 1

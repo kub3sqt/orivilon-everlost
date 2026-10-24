@@ -54,7 +54,7 @@ namespace Orivilon.World.Generation
         /// <summary>Objedná přesná data pro všechny LOD0 sloupce pod hrubým sloupcem (idempotentní).</summary>
         private void RequestExactTrees(int2 coord, int lod)
         {
-            if (!ExactTreeProxies || lod < 1 || lod > TreeProxies.MaxLod) return;
+            if (!ExactTreeProxies || lod < 1 || lod > TreeProxies.ExactMaxLod) return;
             int k = 1 << lod;
             for (int dz = 0; dz < k; dz++)
             for (int dx = 0; dx < k; dx++)
@@ -145,7 +145,7 @@ namespace Orivilon.World.Generation
         private bool TryExactTrees(int2 coord, int lod, out List<EcoPlacement> list)
         {
             list = null;
-            if (!ExactTreeProxies || lod < 1 || lod > TreeProxies.MaxLod) return false;
+            if (!ExactTreeProxies || lod < 1 || lod > TreeProxies.ExactMaxLod) return false;
             int k = 1 << lod;
             for (int dz = 0; dz < k; dz++)
             for (int dx = 0; dx < k; dx++)
@@ -167,7 +167,7 @@ namespace Orivilon.World.Generation
             {
                 if (n >= 4) break;
                 ColumnEntry e = kv.Value;
-                if (!e.proxyApprox || !e.published || e.lod < 1) continue;
+                if (!e.proxyApprox || !e.published || e.lod < 1 || e.lod > TreeProxies.ExactMaxLod) continue;
                 if (!TreeProxies.Has(TreeProxies.Key(e.coord.x, e.coord.y, e.lod))) { e.proxyApprox = false; continue; }
                 if (!TryExactTrees(e.coord, e.lod, out List<EcoPlacement> list)) { RequestExactTrees(e.coord, e.lod); continue; }
                 TreeProxies.Add(TreeProxies.Key(e.coord.x, e.coord.y, e.lod), VoxelProps.SpawnerAsset, list);

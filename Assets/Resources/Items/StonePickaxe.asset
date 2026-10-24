@@ -13,12 +13,12 @@ MonoBehaviour:
   m_Name: StonePickaxe
   m_EditorClassIdentifier: Axegen::Axegen.InventoryItemData
   id: everlost:stone_pickaxe
-  icon: {fileID: 21300000, guid: 3df5ed4073cece743a24e66c09f29666, type: 3}
+  icon: {fileID: 21300000, guid: 2ffaec01e6ac146b89d5aa174285bc6b, type: 3}
   itemName: Stone Pickaxe
   description: Used to gather hard resources from rocks
   stackable: 0
   maxStack: 1
-  handPrefab: {fileID: 919132149155446097, guid: 49e4e1eda58767e47a604fcd1c36b512,
+  handPrefab: {fileID: 8606156664252390183, guid: 822b6eeb1240a494193829ae94edd0e3,
     type: 3}
   handPositionOffset: {x: 0.64, y: 0, z: -0.1}
   handRotationOffset: {x: -15, y: 260, z: 0}

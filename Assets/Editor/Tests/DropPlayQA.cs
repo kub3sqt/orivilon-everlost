@@ -170,6 +170,27 @@ namespace Orivilon.EditorTools
 
         private static bool D_IsOutside(Vector2 p) => InventoryDragDistributor.IsOutsidePanels(p);
 
+        /// <summary>Diagnostika: collidery do 0,5 m od předmětu (jméno, trigger, vrstva, průnik bez posunu a s posunem dolů).</summary>
+        private static string D_Around(DroppedItem d)
+        {
+            var col = d.GetComponent<Collider>();
+            var sb = new StringBuilder(col.GetType().Name + " ext " + col.bounds.extents + " rot " + d.transform.eulerAngles);
+            int gm = Physics.DefaultRaycastLayers & ~(1 << LayerMask.NameToLayer("Player")) & ~(1 << LayerMask.NameToLayer("Pickup"));
+            if (Physics.Raycast(col.bounds.center, Vector3.down, out RaycastHit gh, 50f, gm, QueryTriggerInteraction.Ignore))
+                sb.Append(" | mezera spodek→zem ").Append((gh.distance - col.bounds.extents.y).ToString("0.000")).Append(" m (").Append(gh.collider.name).Append(')');
+            float age = Time.time - d.SettledAt;
+            sb.Append(" | dosedl před ").Append(age.ToString("0.0")).Append(" s: ");
+            foreach (var o in Physics.OverlapBox(col.bounds.center, col.bounds.extents + Vector3.one * 0.5f, Quaternion.identity, ~0, QueryTriggerInteraction.Collide))
+            {
+                if (o == col) continue;
+                bool p0 = Physics.ComputePenetration(col, col.transform.position, col.transform.rotation, o, o.transform.position, o.transform.rotation, out Vector3 d0, out float s0);
+                bool p1 = Physics.ComputePenetration(col, col.transform.position + Vector3.down * 0.06f, col.transform.rotation, o, o.transform.position, o.transform.rotation, out Vector3 d1, out float s1);
+                sb.Append(o.name).Append(o.isTrigger ? "[T]" : "").Append(" L").Append(o.gameObject.layer)
+                  .Append(p0 ? " pen0 " + s0.ToString("0.00") + " n" + d0.y.ToString("0.00") : "").Append(p1 ? " pen6 " + s1.ToString("0.00") + " n" + d1.y.ToString("0.00") : " -").Append("; ");
+            }
+            return sb.ToString();
+        }
+
         /// <summary>0 = bez opory, 1 = leží na terénu/objektu světa, 2 = leží na jiném dropu (hromádka).</summary>
         private static int D_Support(DroppedItem d)
         {
@@ -183,7 +204,12 @@ namespace Orivilon.EditorTools
             {
                 if (o == col) continue;
                 if (!Physics.ComputePenetration(col, col.transform.position + down, col.transform.rotation, o, o.transform.position, o.transform.rotation, out Vector3 dir, out float dist)) continue;
-                if (dir.y <= 0.05f) continue;   // jen opora zespodu (vytlačení nahoru), ne boční dotek stěny
+                // Opora zespodu: vytlačení nahoru, nebo (strmý svah – nejkratší vytlačení je vodorovné) dotek už v
+                // klidové poloze s normálou mířící nahoru. Boční dotek svislé stěny se nepočítá.
+                bool below = dir.y > 0.05f;
+                if (!below && Physics.ComputePenetration(col, col.transform.position + Vector3.down * 0.005f, col.transform.rotation, o, o.transform.position, o.transform.rotation, out Vector3 n0, out float _))
+                    below = n0.y > 0.3f;
+                if (!below) continue;
                 if (o.GetComponent<DroppedItem>() != null) { if (res == 0) res = 2; }
                 else return 1;
             }
@@ -308,7 +334,7 @@ namespace Orivilon.EditorTools
                 {
                     case 1: grounded++; break;
                     case 2: grounded++; piled++; break;
-                    default: Log("bez opory: " + d.Pickup.itemData.id + " @" + d.transform.position + " dosedl " + d.SettleReason + " po " + d.SettledAfter.ToString("0.0") + " s"); break;
+                    default: Log("bez opory: " + d.Pickup.itemData.id + " @" + d.transform.position + " dosedl " + d.SettleReason + " po " + d.SettledAfter.ToString("0.0") + " s | okolí: " + D_Around(d)); break;
                 }
                 foreach (var r in d.GetComponentsInChildren<Renderer>()) if (r.isVisible) { visible++; break; }
             }

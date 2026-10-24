@@ -1,0 +1,238 @@
+<title>Everlost Traveler Viewer</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: plátno s postavou vlevo/nahoře, řídicí panel jako „pracovní list“ animátora vpravo/dole */
+:root {
+  --bg: #e9e6df; --panel: #f6f4ef; --fg: #2b2620; --muted: #6f665b; --line: #d6d0c4;
+  --accent: #b5532a; --accent-fg: #fffaf4; --chip: #ece7dd; --stage: #c9c3b8;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #1d1b18; --panel: #26231f; --fg: #ece6dc; --muted: #a59a8b; --line: #3a352e;
+  --accent: #e07a48; --accent-fg: #1d1b18; --chip: #312d27; --stage: #2e2b26; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #1d1b18; --panel: #26231f; --fg: #ece6dc; --muted: #a59a8b; --line: #3a352e;
+  --accent: #e07a48; --accent-fg: #1d1b18; --chip: #312d27; --stage: #2e2b26; color-scheme: dark }
+html, body { height: 100%; }
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); font-size: 15px; }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 14px; height: 100%; box-sizing: border-box;
+  padding-block: 14px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.stage { position: relative; min-width: 0; min-height: 320px; background: var(--stage); border-radius: 10px; overflow: hidden; }
+.stage canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+.hud { position: absolute; left: 12px; bottom: 12px; right: 12px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+  font-family: var(--f-mono); font-size: 12px; color: var(--fg); pointer-events: none; }
+.hud span { background: color-mix(in srgb, var(--panel) 82%, transparent); padding: 4px 8px; border-radius: 6px; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--f-mono); color: var(--muted); }
+aside { min-width: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; overflow-y: auto;
+  display: flex; flex-direction: column; gap: 18px; }
+h1 { font-size: 19px; margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.sub { margin: 4px 0 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
+.group { display: flex; flex-direction: column; gap: 8px; }
+.label { font-size: 11px; text-transform: uppercase; letter-spacing: .09em; color: var(--muted); font-weight: 700; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; }
+button { font: inherit; font-size: 14px; color: var(--fg); background: var(--chip); border: 1px solid var(--line); border-radius: 7px;
+  padding: 7px 11px; cursor: pointer; }
+button:hover { border-color: var(--muted); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+.clip { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.clip button { text-align: left; display: flex; flex-direction: column; gap: 1px; }
+.clip small { font-family: var(--f-mono); font-size: 11px; opacity: .8; }
+input[type=range] { width: 100%; accent-color: var(--accent); }
+.toggles label { display: flex; align-items: center; gap: 8px; font-size: 14px; cursor: pointer; }
+.toggles input { accent-color: var(--accent); width: 16px; height: 16px; }
+.facts { font-family: var(--f-mono); font-size: 12px; line-height: 1.6; color: var(--muted); margin: 0; }
+.facts b { color: var(--fg); font-weight: 500; }
+.note { font-size: 13px; line-height: 1.5; color: var(--muted); margin: 0; }
+@media (max-width: 760px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
+  aside { overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+
+<div class="app">
+  <div class="stage" id="stage">
+    <div class="loading" id="loading">Načítám model…</div>
+    <div class="hud" aria-live="polite"><span id="hudClip">Idle</span><span id="hudFrame">snímek 0 / 0</span><span id="hudSpeed">1×</span></div>
+  </div>
+  <aside>
+    <div>
+      <h1>Everlost – cestovatel <span style="font-weight:400;opacity:.6">v004</span></h1>
+      <p class="sub">Skutečný model z Blenderu (GLB) se zapečenými klipy. Táhni myší pro otáčení, kolečkem přibliž.</p>
+    </div>
+    <div class="group">
+      <div class="label">Klip</div>
+      <div class="clip" id="clips"></div>
+    </div>
+    <div class="group">
+      <div class="label">Přehrávání</div>
+      <div class="row" id="speeds"></div>
+      <div class="row"><button id="play" aria-pressed="true">Pauza</button><button id="prev">◀ snímek</button><button id="next">snímek ▶</button></div>
+      <input type="range" id="scrub" min="0" max="1000" value="0" aria-label="Pozice v klipu">
+    </div>
+    <div class="group toggles">
+      <div class="label">Zobrazení</div>
+      <label><input type="checkbox" id="tOutfit" checked> Oblečení (vypnuto = bílé tělo)</label>
+      <label><input type="checkbox" id="tTravel" checked> Pohyb vpřed u chůze/běhu (kontrola klouzání)</label>
+      <label><input type="checkbox" id="tProxy" checked> Kmen a zem u nástrojů</label>
+      <label><input type="checkbox" id="tSkel"> Kostra</label>
+    </div>
+    <div class="group">
+      <div class="label">Kamera</div>
+      <div class="row" id="cams"></div>
+    </div>
+    <div class="group">
+      <div class="label">Data klipu</div>
+      <p class="facts" id="facts"></p>
+    </div>
+    <p class="note">Klipy jsou in-place; „Pohyb vpřed“ posouvá postavu doporučenou rychlostí, aby šlo vidět, že stojná noha stojí a chůze nejde pozpátku. Náhled nemění čas ani osy: +Z ve viewe­ru = dopředu (Unity +Z).</p>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+const GLB_B64 = "__GLB_BASE64__";
+const CLIP_INFO = {
+  Idle: { fps: 30, frames: 60, speed: 0, note: 'neutrální postoj (jen pro náhled)' },
+  Walk: { fps: 30, frames: 28, speed: 0.60, stride: 0.56, note: 'krok 0,28 m, kadence 120 kroků/min · v002: brašna vzadu na boku, paže dál od těla' },
+  Run:  { fps: 30, frames: 18, speed: 1.85, stride: 1.11, note: 'letová fáze 2,5 snímku na krok · v004: lem tuniky jde se stehny, nemizí' },
+  Chop: { fps: 30, frames: 40, speed: 0, tool: 'Tool_Axe', proxy: 'PROXY_Trunk', contact: 21, note: 'boční zásek do kmene, kontakt ostří f21 · v004: čepice přehozu drží na rukávu, pomocné kosti ramene a zápěstí' },
+  Mine: { fps: 30, frames: 40, speed: 0, tool: 'Tool_Pickaxe', proxy: 'PROXY_GroundPatch', contact: 22, note: 'úder hrotem do země f22 · v004: širší postoj, ruce před koleny – neprocházejí nohou' },
+  Swim: { fps: 30, frames: 36, speed: 0, swim: 0.75, note: 'prsa, hladina ≈ 0,80 m nad rootem · v004: plynulý žabí kop, paže ve splývání níž, rukáv bez rubu v ohbí ramene' },
+};
+const ORDER = ['Idle', 'Walk', 'Run', 'Chop', 'Mine', 'Swim'];
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const stage = document.getElementById('stage');
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+stage.prepend(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(30, 1, 0.05, 100);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0.75, 0); controls.enableDamping = true;
+scene.add(new THREE.HemisphereLight(0xfff4e6, 0x5a5146, 0.6));
+const sun = new THREE.DirectionalLight(0xffffff, 0.95);
+sun.position.set(-2.5, 4.5, 3.5); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
+Object.assign(sun.shadow.camera, { left: -2, right: 2, top: 2, bottom: -2, near: 0.5, far: 12 });
+scene.add(sun); scene.add(sun.target);
+// šachovnicová podlaha 10 cm – zviditelní klouzání chodidel
+function checker(a, b) {
+  const c = document.createElement('canvas'); c.width = c.height = 64; const g = c.getContext('2d');
+  g.fillStyle = a; g.fillRect(0, 0, 64, 64); g.fillStyle = b; g.fillRect(0, 0, 32, 32); g.fillRect(32, 32, 32, 32);
+  const t = new THREE.CanvasTexture(c); t.wrapS = t.wrapT = THREE.RepeatWrapping; t.repeat.set(30, 30);
+  t.magFilter = THREE.NearestFilter; t.encoding = THREE.sRGBEncoding; return t;
+}
+const floorMat = new THREE.MeshStandardMaterial({ roughness: 0.95 });
+const floor = new THREE.Mesh(new THREE.PlaneGeometry(6, 6), floorMat);
+floor.rotation.x = -Math.PI / 2; floor.receiveShadow = true; scene.add(floor);
+function applyTheme() {
+  scene.background = new THREE.Color(css('--stage'));
+  floorMat.map = checker(css('--line'), css('--stage')); floorMat.needsUpdate = true;
+}
+applyTheme();
+matchMedia('(prefers-color-scheme: dark)').addEventListener('change', applyTheme);
+new MutationObserver(applyTheme).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
+let model, mixer, actions = {}, current = 'Idle', speed = 1, playing = true, nodes = {}, skel, rootStart = new THREE.Vector3();
+const clock = new THREE.Clock();
+function b64ToBuf(b64) { const s = atob(b64); const u = new Uint8Array(s.length); for (let i = 0; i < s.length; i++) u[i] = s.charCodeAt(i); return u.buffer; }
+new THREE.GLTFLoader().parse(b64ToBuf(GLB_B64), '', gltf => {
+  model = gltf.scene; scene.add(model);
+  model.traverse(o => { nodes[o.name] = o; if (o.isMesh) { o.castShadow = true; o.receiveShadow = true; } });
+  skel = new THREE.SkeletonHelper(model); skel.visible = false; scene.add(skel);
+  mixer = new THREE.AnimationMixer(model);
+  gltf.animations.forEach(c => { actions[c.name] = mixer.clipAction(c); });
+  document.getElementById('loading').hidden = true;
+  buildUI(); select('Walk');
+}, err => { document.getElementById('loading').textContent = 'Model se nepodařilo načíst: ' + err; });
+
+function vis(name, v) { const n = nodes[name]; if (n) n.visible = v; }
+function refreshVisibility() {
+  const outfit = document.getElementById('tOutfit').checked;
+  Object.keys(nodes).forEach(n => {
+    if (n.startsWith('Outfit_') || n === 'Body' || n === 'Body_Head') vis(n, outfit);
+  });
+  vis('Body_White', !outfit);
+  const info = CLIP_INFO[current] || {};
+  ['Tool_Axe', 'Tool_Pickaxe'].forEach(t => vis(t, info.tool === t));
+  const showProxy = document.getElementById('tProxy').checked;
+  ['PROXY_Trunk', 'PROXY_GroundPatch'].forEach(p => vis(p, showProxy && info.proxy === p));
+  skel.visible = document.getElementById('tSkel').checked;
+}
+function select(name) {
+  current = name;
+  Object.values(actions).forEach(a => a.stop());
+  const a = actions[name]; if (!a) return;
+  a.reset(); a.setLoop(THREE.LoopRepeat); a.play();
+  model.position.set(0, 0, 0);
+  document.querySelectorAll('#clips button').forEach(b => b.setAttribute('aria-pressed', b.dataset.clip === name));
+  const i = CLIP_INFO[name] || {};
+  const lines = [`<b>${name}</b> · ${i.frames} snímků @ ${i.fps} fps = ${(i.frames / i.fps).toFixed(2)} s`];
+  if (i.speed) lines.push(`rychlost <b>${i.speed.toFixed(2)} m/s</b> · délka dvojkroku ${i.stride.toFixed(2)} m`);
+  if (i.swim) lines.push(`doporučená rychlost plavání ${i.swim.toFixed(2)} m/s`);
+  if (i.contact) lines.push(`kontaktní snímek f${i.contact}`);
+  lines.push(i.note);
+  document.getElementById('facts').innerHTML = lines.join('<br>');
+  document.getElementById('hudClip').textContent = name;
+  refreshVisibility();
+}
+function setSpeed(s) {
+  speed = s; mixer.timeScale = playing ? s : 0;
+  document.querySelectorAll('#speeds button').forEach(b => b.setAttribute('aria-pressed', Number(b.dataset.s) === s));
+  document.getElementById('hudSpeed').textContent = s + '×';
+}
+const CAMS = { 'Zepředu': [0, 0.9, 4.2], 'Z boku': [4.2, 0.9, 0], 'Zezadu': [0, 0.9, -4.2], '3/4': [3.0, 1.4, 3.0], 'Shora': [0.01, 5, 0.3] };
+function setCam(k) { const p = CAMS[k]; const off = model ? model.position : new THREE.Vector3(); camera.position.set(p[0] + off.x, p[1], p[2] + off.z); controls.target.set(off.x, 0.75, off.z); }
+function buildUI() {
+  const clips = document.getElementById('clips');
+  ORDER.forEach(n => { if (!actions[n]) return; const b = document.createElement('button'); b.dataset.clip = n;
+    const i = CLIP_INFO[n]; b.innerHTML = `${n}<small>${i.frames} f · ${(i.frames / i.fps).toFixed(2)} s</small>`;
+    b.onclick = () => select(n); clips.appendChild(b); });
+  const sp = document.getElementById('speeds');
+  [1, 0.5, 0.25].forEach(s => { const b = document.createElement('button'); b.dataset.s = s; b.textContent = s + '×'; b.onclick = () => setSpeed(s); sp.appendChild(b); });
+  const cams = document.getElementById('cams');
+  Object.keys(CAMS).forEach(k => { const b = document.createElement('button'); b.textContent = k; b.onclick = () => setCam(k); cams.appendChild(b); });
+  ['tOutfit', 'tProxy', 'tSkel'].forEach(id => document.getElementById(id).onchange = refreshVisibility);
+  document.getElementById('play').onclick = e => { playing = !playing; e.target.textContent = playing ? 'Pauza' : 'Přehrát';
+    e.target.setAttribute('aria-pressed', playing); mixer.timeScale = playing ? speed : 0; };
+  const step = d => { playing = false; const p = document.getElementById('play'); p.textContent = 'Přehrát'; p.setAttribute('aria-pressed', false);
+    mixer.timeScale = 0; const a = actions[current]; const fps = CLIP_INFO[current].fps; const dur = a.getClip().duration;
+    a.time = ((Math.round(a.time * fps) + d) / fps + dur) % dur; mixer.update(0); };
+  document.getElementById('prev').onclick = () => step(-1);
+  document.getElementById('next').onclick = () => step(1);
+  document.getElementById('scrub').oninput = e => { const a = actions[current]; a.time = a.getClip().duration * e.target.value / 1000;
+    playing = false; mixer.timeScale = 0; document.getElementById('play').textContent = 'Přehrát'; mixer.update(0); };
+  setSpeed(1); setCam('3/4');
+}
+function resize() { const r = stage.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(r.height, 1); camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(stage); resize();
+let travelX = 0;
+renderer.setAnimationLoop(() => {
+  const dt = clock.getDelta();
+  if (mixer) {
+    mixer.update(dt);
+    const a = actions[current]; const info = CLIP_INFO[current];
+    if (a) {
+      const dur = a.getClip().duration; const f = Math.floor((a.time % dur) * info.fps + 1e-4);
+      document.getElementById('hudFrame').textContent = `snímek ${f} / ${info.frames}`;
+      if (playing) document.getElementById('scrub').value = Math.round(1000 * (a.time % dur) / dur);
+      // pohyb vpřed: +Z (Unity forward). Kamera se veze s postavou, podlaha stojí.
+      const travel = document.getElementById('tTravel').checked && info.speed;
+      if (travel && playing) { const dz = info.speed * dt * speed; model.position.z += dz; camera.position.z += dz; controls.target.z += dz;
+        if (model.position.z > 2.5) { model.position.z -= 5; camera.position.z -= 5; controls.target.z -= 5; } }
+      if (!travel && model.position.z !== 0) { camera.position.z -= model.position.z; controls.target.z -= model.position.z; model.position.z = 0; }
+    }
+  }
+  controls.update();
+  renderer.render(scene, camera);
+});
+</script>

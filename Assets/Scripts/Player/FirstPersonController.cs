@@ -544,12 +544,39 @@ namespace Orivilon.Player
 
         /// <summary>Diagnostika (/perf groundtest): simulovaný vstup chůze. Nula = běžný vstup.</summary>
         public static Vector2 DebugMove;
+        /// <summary>Diagnostika (QA chůze ve svahu): sprint bez klávesy, stejně jako DebugMove nahrazuje osy.</summary>
+        public static bool DebugSprint;
 
         /// <summary>Poslední přečtený úmysl hráče. Plní se v <c>Update</c>, čte ve <c>FixedUpdate</c>.</summary>
         private MoveIntent intent = MoveIntent.None;
+        /// <summary>Záměr pohybu z tohoto snímku (osy x = úkrok, y = vpřed/vzad) – pro avatar (couvání podle záměru, ne podle odrazů).</summary>
+        public Vector2 MoveInput => intent.Move;
 
-        /// <summary>Syrový výsledek raycastu dolů. Stav si ho vykládá, nespoléhá se na něj přímo.</summary>
+        /// <summary>Syrový výsledek sondy země. Stav si ho vykládá, nespoléhá se na něj přímo.</summary>
         private bool groundProbe;
+
+        /// <summary>
+        /// Nejprudší sklon (°), který je ještě zem. Strmější plocha se nepočítá – hráč z ní sjede
+        /// a nevyleze po ní (na skály je lezení). Sonda: SphereCast spodní koulí kapsle.
+        /// </summary>
+        [Tooltip("Nejprudší pochozí sklon ve stupních.")]
+        public float groundSlopeLimit = 55f;
+        /// <summary>Normála a svislá mezera pod kapslí z poslední sondy (svět).</summary>
+        private Vector3 groundNormal = Vector3.up;
+        private float groundGap;
+        /// <summary>Po skoku se zem chvíli nehledá (jinak by ji sonda v prvním snímku ještě viděla).</summary>
+        private float jumpGroundLockUntil;
+        /// <summary>Diagnostika (QA): počet přechodů země → vzduch bez skoku a zrušených vymrštění kolizí.</summary>
+        public static int DebugGroundLossCount, DebugLaunchCancels;
+        /// <summary>Diagnostika (QA chůze): poslední objekt, na který vedení po terénu vedlo výstup &gt; 0,3 r, a výška výstupu.</summary>
+        public static string DebugFollowObj = "-", DebugBlockObj = "-", DebugLoss = "-"; public static float DebugFollowRise, DebugLastReach, DebugLastAway;
+        /// <summary>Svislá rychlost, kterou motor naposledy přikázal na zemi (pro rozpoznání vymrštění kolizí).</summary>
+        private float lastCommandedVy;
+        private const float LaunchTolerance = 4f;
+        private float physPrevVy; private PlayerMoveState physPrevState;
+
+        /// <summary>Součet vodorovných normál strmých (nepochozích) ploch, kterých se kapsle dotýká – z OnCollisionStay.</summary>
+        private Vector3 steepContactSum, steepContactLast; private float steepContactTime = -10f;
 
         /// <summary>Přepnuté létání (klávesa F). Samo o sobě ještě není stav.</summary>
         private bool flightRequested;
@@ -677,6 +704,15 @@ namespace Orivilon.Player
             // Collider bývá na kořeni, ale u složeného prefabu klidně o úroveň níž.
             bodyCollider = GetComponent<Collider>();
             if (bodyCollider == null) bodyCollider = GetComponentInChildren<Collider>();
+            // Kapsle hráče bez tření (jen za běhu, jen tahle kapsle): ve vzduchu motor tlačí hráče
+            // vodorovně do překážky a třením o ni se kapsle zasekla ve vzduchu (QA: 3,5 s „visení" po skoku
+            // proti skále). Na zemi o pohybu i stání na svahu rozhoduje motor (vedení po terénu), ne tření.
+            if (bodyCollider != null && bodyCollider.sharedMaterial == null)
+                bodyCollider.sharedMaterial = new PhysicsMaterial("PlayerCapsule (runtime)")
+                {
+                    dynamicFriction = 0f, staticFriction = 0f,
+                    frictionCombine = PhysicsMaterialCombine.Minimum, bounceCombine = PhysicsMaterialCombine.Minimum
+                };
 
             playerCamera.fieldOfView = fov;
             originalScale = transform.localScale;
@@ -699,6 +735,7 @@ namespace Orivilon.Player
         /// </summary>
         void Start()
         {
+            TravelerAvatar.AttachLocal(this);
             if (lockCursor)
             {
                 Cursor.lockState = CursorLockMode.Locked;
@@ -970,6 +1007,47 @@ namespace Orivilon.Player
             VoxelTerrain terrain = VoxelTerrain.instance;
             if (terrain != null && terrain.IsTeleporting) return;
 
+            // Zem se vyhodnotí i ve fyzikálním kroku (pohyb běží tady, ne ve snímku): přechod
+            // země ↔ vzduch se projeví hned, ne až v příštím Update.
+            if (!mantling && (moveState == PlayerMoveState.Grounded || moveState == PlayerMoveState.Airborne))
+            {
+                // Náraz do boule/kamene při běhu po zemi dává řešiči kolizí svislou rychlost navíc (až
+                // +20 m/s), která hráče vystřelí. Na zemi a bez skoku se přebytek nad tím, co motor
+                // naposledy přikázal, zahodí – vedení po terénu pak hráče převede přes překážku.
+                if (moveState == PlayerMoveState.Grounded && Time.time >= jumpGroundLockUntil)
+                {
+                    Vector3 v0 = rb.linearVelocity;
+                    float allowed = Mathf.Max(0f, lastCommandedVy) + LaunchTolerance;
+                    if (v0.y > allowed) { rb.linearVelocity = new Vector3(v0.x, Mathf.Max(0f, lastCommandedVy), v0.z); DebugLaunchCancels++; }
+                }
+                // Totéž ve vzduchu: sonda u paty skály vyhodnotí strmou plochu (není zem), hráč je chvíli „ve vzduchu"
+                // a náraz do skály ho vystřelil až +33 m/s a 7–13 m vysoko (QA svah s kameny). Ve vzduchu nic jiného
+                // rychlost nahoru nepřidává – skok a odraz od stěny mají zámek jumpGroundLockUntil.
+                // Pozor: stav mohl na vzduch přepnout už Update (CheckGround) mezi fyzikálními kroky – rozhoduje stav,
+                // ve kterém běžel minulý krok (QA: úkrok po svahu, náraz do skály +54 m/s a 25 m výšky).
+                else if (moveState == PlayerMoveState.Airborne && Time.time >= jumpGroundLockUntil &&
+                         (physPrevState == PlayerMoveState.Airborne || physPrevState == PlayerMoveState.Grounded))
+                {
+                    Vector3 v0 = rb.linearVelocity;
+                    float basis = physPrevState == PlayerMoveState.Grounded ? lastCommandedVy : physPrevVy;
+                    float allowed = Mathf.Max(0f, basis) + LaunchTolerance;
+                    if (v0.y > allowed) { rb.linearVelocity = new Vector3(v0.x, Mathf.Max(0f, basis), v0.z); DebugLaunchCancels++; }
+                }
+                physPrevVy = rb.linearVelocity.y;
+                groundProbe = ProbeGround(moveState == PlayerMoveState.Grounded);
+                if (moveState == PlayerMoveState.Grounded && !groundProbe) { DebugGroundLossCount++; SetState(PlayerMoveState.Airborne); }
+                else if (moveState == PlayerMoveState.Airborne && groundProbe && !WantsSwim()) SetState(PlayerMoveState.Grounded);
+            }
+
+            physPrevState = moveState;
+
+            // Kontakty ze strmými plochami z minulého kroku (OnCollisionStay) – pro motor tohoto kroku.
+            // Kontakt se drží ještě 0,1 s: po odrazu od stěny kolize jeden krok chybí a motor by do ní znovu vrazil plnou
+            // rychlostí (cyklus náraz–odraz).
+            if (steepContactSum.sqrMagnitude > 1e-6f) { steepContactLast = steepContactSum; steepContactTime = Time.time; }
+            else if (Time.time - steepContactTime > 0.1f) steepContactLast = Vector3.zero;
+            steepContactSum = Vector3.zero;
+
             ApplyGravity();
 
             // Vytažení na římsu je řízený pohyb, ne reakce na vstup – dokud běží,
@@ -1019,7 +1097,7 @@ namespace Orivilon.Player
                 move,
                 Input.GetKey(jumpKey),
                 Input.GetKey(crouchKey),
-                Input.GetKey(sprintKey));
+                Input.GetKey(sprintKey) || DebugSprint);
 
             // Let má vlastní klávesy (Space/LeftShift) a ty se nesmí míchat s plaváním:
             // klávesa dřepu je ve výchozím nastavení stejná jako sprint.
@@ -1240,6 +1318,20 @@ namespace Orivilon.Player
                 rb.linearDamping = baseLinearDamping;
             }
 
+            if (previous == PlayerMoveState.Grounded && next == PlayerMoveState.Airborne)
+                DebugLoss = string.Format(System.Globalization.CultureInfo.InvariantCulture, "why{0} gap {1:0.00} reach {2:0.00} away {3:0.0}", DebugProbeReason, groundGap, DebugLastReach, DebugLastAway);
+            if (previous == PlayerMoveState.Grounded && next == PlayerMoveState.Airborne && rb != null && Time.time >= jumpGroundLockUntil)
+            {
+                // Ztráta země bez skoku: svislou rychlost, kterou vedení po terénu přikázalo pro výstup na hranu
+                // (u 30 m/s až ~50 m/s na jeden krok), si hráč do vzduchu nenese – jinak za kamenem nebo hranou
+                // odletěl 19 m vysoko (QA svah, gait_001836). Ponechá se jen stoupání po rovině poslední země.
+                Vector3 v = rb.linearVelocity;
+                Vector3 gn = groundNormal;
+                float planeVy = gn.y > 0.2f ? -(gn.x * v.x + gn.z * v.z) / gn.y : 0f;
+                float cap = Mathf.Max(0f, planeVy);
+                if (v.y > cap) { rb.linearVelocity = new Vector3(v.x, cap, v.z); DebugLaunchCancels++; }
+            }
+
             if (previous == PlayerMoveState.Climbing)
             {
                 // Rozdělané vytažení se ruší spolu se stavem – jinak by MantleMotor
@@ -1335,9 +1427,16 @@ namespace Orivilon.Player
             if (grounded && rb.linearVelocity.magnitude > 0.1f)
                 StepClimb();
 
-            // Přilepení k zemi: bez něj hráč po nerovnostech terénu nadskakuje.
-            if (grounded && rb.linearVelocity.y <= 0f)
-                rb.linearVelocity = new Vector3(rb.linearVelocity.x, -2f, rb.linearVelocity.z);
+            // Na zemi se svislá rychlost neodvozuje z gravitace, ale z terénu: pohyb vede po rovině
+            // země (stejná vodorovná rychlost jako dřív) a mezera pod kapslí se dorovná přitažením.
+            // Dřív motor tlačil vodorovně do svahu, kolize hráče vystřelila po rampě nahoru
+            // (při sprintu do 22 m/s) a na každém hřbetu odlétl – to bylo to „poskakování".
+            if (grounded && !playerCanMove)
+            {
+                Vector3 v0 = rb.linearVelocity;
+                lastCommandedVy = GroundFollowVy(v0.x, v0.z);
+                rb.linearVelocity = new Vector3(v0.x, lastCommandedVy, v0.z);
+            }
 
             if (!playerCanMove) return;
 
@@ -1346,11 +1445,20 @@ namespace Orivilon.Player
 
             Vector3 targetVelocity =
                 transform.TransformDirection(new Vector3(intent.Move.x, 0f, intent.Move.y)) * speed;
+            targetVelocity = WithoutSteepPush(targetVelocity);
+            if (!grounded) targetVelocity = KeepSteepSlide(targetVelocity);
 
             Vector3 velocityChange = targetVelocity - rb.linearVelocity;
             velocityChange.x = Mathf.Clamp(velocityChange.x, -maxVelocityChange, maxVelocityChange);
             velocityChange.z = Mathf.Clamp(velocityChange.z, -maxVelocityChange, maxVelocityChange);
             velocityChange.y = 0f;
+            if (grounded)
+            {
+                Vector3 v1 = rb.linearVelocity;
+                float nx = v1.x + velocityChange.x, nz = v1.z + velocityChange.z;
+                lastCommandedVy = GroundFollowVy(nx, nz);
+                velocityChange.y = lastCommandedVy - v1.y;
+            }
 
             if (sprinting && intent.HasPlanarInput)
             {
@@ -1362,6 +1470,95 @@ namespace Orivilon.Player
             }
 
             rb.AddForce(velocityChange, ForceMode.VelocityChange);
+        }
+
+        /// <summary>
+        /// Strmé plochy (sklon nad groundSlopeLimit, ale ne svislá stěna/převis) v kontaktu s kapslí. Motor do nich
+        /// netlačí: kolize by vodorovný tlak převedla na pohyb vzhůru a hráč by po nepochozí skále vyšplhal
+        /// (QA: ve vzduchu u skály 80° až +13 m/s nahoru). Na skály je lezení (ClimbMotor).
+        /// </summary>
+        private void OnCollisionStay(Collision collision)
+        {
+            int n = collision.contactCount;
+            for (int i = 0; i < n; i++)
+            {
+                Vector3 nn = collision.GetContact(i).normal;
+                // Strmé plochy i svislé stěny (kmen, bok skály, mírný převis). Svislé dřív chyběly: sprint do kmene
+                // pak každý krok narazil a odrazil se (vh 1–12 m/s, animace couvala – QA gait_003515).
+                if (nn.y > -0.3f && Vector3.Angle(nn, Vector3.up) > groundSlopeLimit)
+                {
+                    steepContactSum += new Vector3(nn.x, 0f, nn.z);
+                    DebugBlockObj = collision.collider.name + "@" + collision.collider.gameObject.layer;
+                }
+            }
+        }
+
+        /// <summary>Odebere z vodorovné cílové rychlosti složku mířící do strmých ploch z posledního fyzikálního kroku.</summary>
+        private Vector3 WithoutSteepPush(Vector3 target)
+        {
+            Vector3 w = steepContactLast;
+            if (w.sqrMagnitude < 1e-6f) return target;
+            w.Normalize();
+            float into = Vector3.Dot(new Vector3(target.x, 0f, target.z), -w);
+            if (into > 0f) target += w * into;
+            return target;
+        }
+
+        /// <summary>
+        /// Ve vzduchu u strmé plochy (nepochozí svah, skála) motor nebrzdí vodorovný pohyb směrem od plochy – gravitace hráče
+        /// sveze dolů. Dřív brzdění vzdušného ovládání (bez vstupu cíl 0) drželo kapsli na 65° svahu a hráč po ní jen
+        /// pomalu klouzal ve vzdušné póze (QA: 1,5 s a déle při ~5 m/s).
+        /// </summary>
+        private Vector3 KeepSteepSlide(Vector3 target)
+        {
+            Vector3 w = steepContactLast;
+            if (w.sqrMagnitude < 1e-6f) return target;
+            w.Normalize();
+            Vector3 v = rb.linearVelocity;
+            float vOut = v.x * w.x + v.z * w.z, tOut = target.x * w.x + target.z * w.z;
+            if (vOut > tOut) target += w * (vOut - tOut);
+            return target;
+        }
+
+        /// <summary>
+        /// Svislá rychlost, která drží hráče na zemi. Výška terénu se zjistí sondou v místě, kam hráč
+        /// za tento fyzikální krok dojde (vodorovně), a kapsle se tam dovede: na hřbetu dolů, před
+        /// boulí nahoru dřív, než do ní kolize narazí (náraz do boule dřív vymrštil až +15 m/s).
+        /// Pochozí sklon se hlídá i v cíli – do strmé stěny se nevede, tam rozhoduje kolize.
+        /// Bez zásahu sondy (strom, okraj světa) zůstává vedení po rovině země z poslední sondy.
+        /// </summary>
+        private float GroundFollowVy(float vx, float vz)
+        {
+            float dt = Time.fixedDeltaTime;
+            Vector3 n = groundNormal;
+            float plane = n.y > 0.2f ? -(n.x * vx + n.z * vz) / n.y : 0f;
+            float fallback = plane + (groundGap > 0.01f && groundGap < 2f * Mathf.Max(0.05f, bodyCollider != null ? bodyCollider.bounds.extents.x : 1f) ? -groundGap * 0.6f / dt : 0f);
+            if (bodyCollider == null) return fallback;
+
+            Bounds b = bodyCollider.bounds;
+            var cap = bodyCollider as CapsuleCollider;
+            float r = cap != null
+                ? cap.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.z))
+                : Mathf.Min(b.extents.x, b.extents.z);
+            r = Mathf.Clamp(r, 0.05f, b.extents.y);
+            float step = new Vector2(vx, vz).magnitude * dt;
+            if (step < 0.001f) return fallback;
+            float tanLimit = Mathf.Tan(groundSlopeLimit * Mathf.Deg2Rad);
+            float maxRise = step * tanLimit + 0.2f * r;
+            float maxDrop = step * tanLimit + 0.5f * r;
+            float castR = r * 0.97f;
+            Vector3 c1 = new Vector3(b.center.x + vx * dt, b.min.y + r + maxRise + r * 0.5f, b.center.z + vz * dt);
+            int mask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+            if (!Physics.SphereCast(c1, castR, Vector3.down, out RaycastHit hit, maxRise + r * 0.5f + r + maxDrop, mask, QueryTriggerInteraction.Ignore))
+                return fallback;
+            if (hit.collider.transform.IsChildOf(transform) || hit.normal.y < 0.2f) return fallback;
+            if (Vector3.Angle(hit.normal, Vector3.up) > groundSlopeLimit) return plane;   // stěna: nevést nahoru
+            // Spodek kapsle v cíli (koule poloměru r na ploše s normálou hit.normal):
+            float sphereCenterY = c1.y - hit.distance + (r - castR) / hit.normal.y;   // střed koule r při dotyku plochy
+            float bottomTarget = sphereCenterY - r;
+            float dy = bottomTarget - b.min.y;
+            if (dy > 0.3f * r) { DebugFollowObj = hit.collider.name + "@" + hit.collider.gameObject.layer; DebugFollowRise = dy; }
+            return Mathf.Clamp(dy / dt, -maxDrop / dt, maxRise / dt);
         }
 
         /// <summary>
@@ -1446,6 +1643,7 @@ namespace Orivilon.Player
                 // mezi dvěma stěnami komína.
                 rb.AddForce(wallNormal * climbJumpOffPower + Vector3.up * (jumpPower * 0.5f),
                             ForceMode.Impulse);
+                jumpGroundLockUntil = Time.time + 0.2f;   // odraz nahoru není náraz (viz rušení vymrštění ve FixedUpdate)
 
                 SetState(PlayerMoveState.Airborne);
                 return;
@@ -1574,24 +1772,106 @@ namespace Orivilon.Player
         #endregion
 
         /// <summary>
-        /// Detekuje přítomnost země pod hráčem raycastem dolů.
-        /// Hráč je považován za přistálého pouze pokud raycast zasáhne zem
-        /// a vertikální rychlost je záporná nebo nulová (padání nebo stání).
+        /// Sonda země (Update i FixedUpdate). Dřív: paprsek ze středu těla jen 0,5 m pod chodidla a zem
+        /// se znovu uznala JEN při svislé rychlosti ≤ 0. Při chůzi do svahu má hráč kladnou svislou
+        /// rychlost (jde po rampě nahoru), takže po prvním drobném odlepení zůstal ve stavu Airborne
+        /// i s chodidly na zemi – bez přilepení, se zvýšenou gravitací, a animace přešla do skoku.
+        /// Teď: SphereCast spodní koulí kapsle, pochozí sklon, a místo svislé rychlosti se posuzuje
+        /// rychlost podél NORMÁLY země (po svahu je ~0, při skoku kladná). Držení země má větší
+        /// dosah než její získání (hystereze), aby přechod přes hřbet neodlepil hráče od terénu.
         /// </summary>
         private void CheckGround()
         {
-            Vector3 origin = transform.position;
-            float distance = 2.5f;
+            groundProbe = ProbeGround(moveState == PlayerMoveState.Grounded);
+        }
 
-            bool hit = Physics.Raycast(origin, Vector3.down, out RaycastHit _, distance);
+        /// <summary>Diagnostika: proč sonda zem neuznala (0 ok, 1 nic pod, 2 strmé, 3 daleko, 4 od země, 5 skok, 6 vlastní). </summary>
+        public int DebugProbeReason { get; private set; }
+        /// <summary>Poslední čas, kdy sonda zem uznala (krátká milost na jednosnímkové výpadky).</summary>
+        private float lastGroundTime = -10f;
+        /// <summary>
+        /// Krátká milost pro DRŽENÍ země: jeden-dva fyzikální kroky, kdy sonda pod hráčem trefí např.
+        /// kořen/kámen se strmou normálou nebo je mezera těsně nad dosahem. Neplatí po skoku, ani když
+        /// hráč od země opravdu odlétá (rychlost podél normály), ani pro velkou mezeru (hrana, pád).
+        /// </summary>
+        private const float GroundGrace = 0.06f;
 
-            // Původní podmínka zachovaná doslova: zem se uzná až když hráč nestoupá,
-            // ale jednou uznaná drží, dokud paprsek něco vidí. Výsledek jde do
-            // groundProbe – o tom, jestli hráč SKUTEČNĚ stojí, rozhoduje až stav
-            // (ve vodě ani při letu se zem nepočítá, i kdyby ji paprsek viděl).
-            groundProbe = hit && (groundProbe || rb == null || rb.linearVelocity.y <= 0f);
+        private bool ProbeGround(bool holding)
+        {
+            bool ok = ProbeGroundRaw(holding, out float reach, out float away, out float jumpSpeed);
+            DebugLastReach = reach; DebugLastAway = away;
+            if (ok) { lastGroundTime = Time.time; DebugProbeReason = 0; return true; }
+            if (holding && DebugProbeReason != 5 && Time.time - lastGroundTime < GroundGrace
+                && groundGap < reach * 2f && away < 0.6f * Mathf.Max(1f, jumpSpeed))
+                return true;
+            return false;
+        }
 
-            Debug.DrawRay(origin, Vector3.down * distance, hit ? Color.green : Color.red);
+        private bool ProbeGroundRaw(bool holding, out float reach, out float away, out float jumpSpeed)
+        {
+            reach = 0f; away = 0f; jumpSpeed = 1f;
+            if (bodyCollider == null || rb == null)
+            {
+                bool rayHit = Physics.Raycast(transform.position, Vector3.down, 2.5f);
+                DebugProbeReason = rayHit ? 0 : 1;
+                return rayHit;
+            }
+            if (Time.time < jumpGroundLockUntil) { DebugProbeReason = 5; return false; }
+
+            Bounds b = bodyCollider.bounds;
+            var cap = bodyCollider as CapsuleCollider;
+            float r = cap != null
+                ? cap.radius * Mathf.Max(Mathf.Abs(transform.lossyScale.x), Mathf.Abs(transform.lossyScale.z))
+                : Mathf.Min(b.extents.x, b.extents.z);
+            r = Mathf.Clamp(r, 0.05f, b.extents.y);
+            Vector3 center = new Vector3(b.center.x, b.min.y + r, b.center.z);
+            float lift = r * 0.5f, castR = r * 0.97f;
+
+            Vector3 v = rb.linearVelocity;
+            float vh = new Vector2(v.x, v.z).magnitude;
+            jumpSpeed = jumpPower / Mathf.Max(0.01f, rb.mass);
+            // Držení: kolik může terén pod hráčem za jeden fyzikální krok „utéct" na hřbetu (~48° zlom).
+            // Získání při pádu: zem do jednoho fyzikálního kroku pod kapslí se uzná předem, takže doskok
+            // nekončí hlubokým zanořením a odrazem řešiče (dřív po pádu z výšky odskok až +30 m/s).
+            // + odraz řešiče: když hráče boule kolizí nadhodí (kladná svislá), mezera za ten krok naroste
+            // o v.y·dt – motor ji v dalším kroku srovná, sonda ji proto nesmí vyložit jako hranu.
+            reach = holding
+                ? Mathf.Clamp(vh * Time.fixedDeltaTime * 1.1f + 0.1f * r, 0.15f * r, 1.5f * r) + Mathf.Max(0f, v.y) * Time.fixedDeltaTime * 1.5f
+                : Mathf.Max(0.12f * r, -v.y * Time.fixedDeltaTime * 1.1f);
+
+            int mask = Physics.DefaultRaycastLayers & ~(1 << gameObject.layer);
+            if (!Physics.SphereCast(center + Vector3.up * lift, castR, Vector3.down, out RaycastHit hit,
+                    lift + r + reach, mask, QueryTriggerInteraction.Ignore))
+            { DebugProbeReason = 1; groundGap = 0f; return false; }
+            if (hit.collider.transform.IsChildOf(transform)) { DebugProbeReason = 6; return false; }
+
+            Vector3 n = hit.normal;
+            // Široká koule u paty skály/kmene zachytí nejdřív jeho strmý bok, i když hráč stojí na pochozím terénu
+            // (QA: na svahu s kameny „ve vzduchu" a v pádové póze). Pak rozhoduje úzká sonda pod středem.
+            if (n.y < 0.05f || Vector3.Angle(n, Vector3.up) > groundSlopeLimit)
+            {
+                float narrowR = r * 0.35f;
+                if (Physics.SphereCast(center + Vector3.up * lift, narrowR, Vector3.down, out RaycastHit h2,
+                        lift + r + reach, mask, QueryTriggerInteraction.Ignore)
+                    && !h2.collider.transform.IsChildOf(transform)
+                    && h2.normal.y >= 0.05f && Vector3.Angle(h2.normal, Vector3.up) <= groundSlopeLimit)
+                { hit = h2; castR = narrowR; n = h2.normal; }
+            }
+            if (n.y < 0.05f) { DebugProbeReason = 2; return false; }
+            float gap = (hit.distance - lift) - (r - castR) / n.y;
+            groundGap = Mathf.Max(0f, gap);
+
+            // Rychlost od země (podél normály): chůze po svahu ~0, skok/vymrštění kladná.
+            away = Vector3.Dot(v, n);
+            if (Vector3.Angle(n, Vector3.up) > groundSlopeLimit) { DebugProbeReason = 2; return false; }
+            groundNormal = n;
+            if (gap > reach) { DebugProbeReason = 3; return false; }
+            // „Od země" rozhoduje jen při získávání země (dopad). Při držení ne: běh přes hřbet pochozího terénu má
+            // vůči nové (sklopené) normále velkou složku „od“ (QA sprint 40 m/s: 25 m/s) a hráč dřív zbytečně
+            // odlétl 0,3–0,5 s. Skok i odraz mají zámek jumpGroundLockUntil, vymrštění kolizí ruší FixedUpdate.
+            // Skutečnou hranu (sráz) pozná dosah: terén spadne víc, než stihne vedení po rovině 55° za krok.
+            if (!holding && away >= 0.25f * Mathf.Max(1f, jumpSpeed)) { DebugProbeReason = 4; return false; }
+            return true;
         }
 
         /// <summary>
@@ -1604,6 +1884,7 @@ namespace Orivilon.Player
             if (moveState != PlayerMoveState.Grounded) return;
 
             rb.AddForce(0f, jumpPower, 0f, ForceMode.Impulse);
+            jumpGroundLockUntil = Time.time + 0.2f;
 
             // Odlepení se musí promítnout hned: jinak by CheckGround ve stejném snímku
             // zem ještě viděl a GroundAirMotor by nově získanou svislou rychlost
@@ -1707,7 +1988,10 @@ namespace Orivilon.Player
                 {
                     float slope = Vector3.Angle(lowerHit.normal, Vector3.up);
 
-                    if (slope < 60f)
+                    // Pochozí svah (≤ groundSlopeLimit) už řeší vedení po rovině země – impuls nahoru tam
+                    // dřív přidával k vymrštění na hřbetech. Původní horní mez 60° zůstává (strmější
+                    // stěny se nepřelézají).
+                    if (slope > groundSlopeLimit && slope < 60f)
                     {
                         rb.AddForce(Vector3.up * stepSmooth, ForceMode.VelocityChange);
                     }

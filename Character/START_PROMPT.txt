@@ -1,0 +1,11 @@
+Vytvoř pro Everlost novou 3D postavu od základu s workflow character artisty, riggera a animátora. Nejdřív bílý hladký model bez oblečení podle reference, potom kvalitní rig a animace chůze, běhu, bočního kácení sekerou, kopání krumpáčem a plavání, a nakonec pevný defaultní cestovatelský skin. Chci skutečné editovatelné Blender soubory a přehratelné 3D náhledy, ne jen plán ani generované obrázky.
+
+Pracovní projekt je /Users/kub3sqt/Everlost URP. Všechny výstupy i pracovní soubory ukládej výhradně do nové složky /Users/kub3sqt/Everlost URP/Character. Do hry zatím nic nenasazuj, neměň Assets ani scény a zachovej cizí rozpracované změny.
+
+Nejdřív si přečti celé zadání:
+/Users/kub3sqt/Everlost URP/Character/BRIEF_FOR_CLAUDE.md
+
+A použij přiložený pracovní skill:
+/Users/kub3sqt/Everlost URP/Character/skills/character-production/SKILL.md
+
+Vizuálně otevři reference v Character/references. Ověř dostupné Blender nástroje, vhodné skilly a pluginy, použij je podle skutečných možností. Pracuj po etapách s kontrolou siluety, deformací, celých pohybových cyklů a průniků nástrojů; starší pokusy v ArtSource nepřebírej jako hotové řešení. Konkrétní předchozí chyby a kritéria kvality jsou v briefu. Pokračuj přes všechny etapy, průběžně ukládej milníky a skutečně kontroluj výsledek. Na konci ukaž reálný model a animace a uveď, co bylo ověřeno a co ještě potřebuje doladit.

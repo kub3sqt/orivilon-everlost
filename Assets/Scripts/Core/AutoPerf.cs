@@ -98,6 +98,21 @@ namespace Orivilon.Core
                 }
                 // waitinv <id> <n> [s] – čeká, až má klient v inventáři přesně n kusů (synchronizace s hostem).
                 // waitdrop <id> [s] – čeká na ležící drop daného itemu (oba klienti pak sbírají současně).
+                // waitsun day|night [s] – čeká, až je u tohoto procesu den (míra noci ≈ 0) / noc (≈ 1); 22.10.2026, synchronizace času.
+                if (line.StartsWith("waitsun "))
+                {
+                    string[] p = line.Split(' ');
+                    bool day = p[1] == "day";
+                    float lim = p.Length > 2 ? float.Parse(p[2], CultureInfo.InvariantCulture) : 60f;
+                    float t0 = Time.realtimeSinceStartup; bool ok = false;
+                    while (!ok && Time.realtimeSinceStartup - t0 < lim)
+                    {
+                        ok = day ? Orivilon.SunRotation.nightBlendStatic < 0.01f : Orivilon.SunRotation.nightBlendStatic > 0.99f;
+                        if (!ok) yield return null;
+                    }
+                    Log(line + (ok ? " → ok po " : " → TIMEOUT po ") + (Time.realtimeSinceStartup - t0).ToString("0.0", CultureInfo.InvariantCulture) + " s | " + MpQaOps.Run("sun"));
+                    continue;
+                }
                 if (line.StartsWith("waitfull"))
                 {
                     string[] p = line.Split(' ');

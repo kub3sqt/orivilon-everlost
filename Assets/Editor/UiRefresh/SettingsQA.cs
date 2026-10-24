@@ -45,10 +45,36 @@ namespace Orivilon.UI.Refresh.EditorTools
                     foreach (var r in scr.GetComponentsInChildren<SettingRow>(true))
                         if (r.key == a[1] && r.slider != null) r.slider.value = float.Parse(a[2], System.Globalization.CultureInfo.InvariantCulture);
                     break;
+                case "listen": scr?.BeginListen(a[1]); break;
+                case "bind": if (scr != null) scr.TryBind(a[1], (KeyCode)System.Enum.Parse(typeof(KeyCode), a[2])); break;
+                case "resetkeys": scr?.ResetKeys(); break;
+                case "scroll": if (scr != null && scr.scroll != null) { Canvas.ForceUpdateCanvases(); scr.scroll.verticalNormalizedPosition = float.Parse(a[1], System.Globalization.CultureInfo.InvariantCulture); } break;
+                case "keys": return "settings keys: " + Keys(scr, sm);
                 case "state": break;
                 default: return "ERR settings " + args;
             }
             return "settings " + args + ": " + State(scr, sm);
+        }
+
+        /// <summary>Key rows (working copy + shown text), saved keys and the live consumers.</summary>
+        public static string Keys(SettingsScreen scr, SettingsManager sm)
+        {
+            var sb = new StringBuilder();
+            if (scr != null)
+            {
+                sb.Append("listening '").Append(scr.ListeningFor).Append("' status '").Append(scr.statusText != null ? scr.statusText.text : "-").Append("' rows:");
+                foreach (var r in scr.GetComponentsInChildren<SettingRow>(true))
+                    if (r.bind != null) sb.Append(' ').Append(r.key.Substring(4)).Append('=').Append(r.value != null ? r.value.text : "-").Append(r.listening != null && r.listening.activeSelf ? "*" : "");
+                if (scr.Working != null) { sb.Append(" | work:"); foreach (var a in KeyBindings.Actions) sb.Append(' ').Append(a.get(scr.Working)); }
+            }
+            if (sm != null) { sb.Append(" | saved:"); foreach (var a in KeyBindings.Actions) sb.Append(' ').Append(a.get(sm.Current)); sb.Append(" v").Append(sm.Current.version); }
+            sb.Append(" | live: interact ").Append(KeyBindings.Interact).Append(" inv ").Append(KeyBindings.Inventory).Append(" save ").Append(KeyBindings.QuickSave);
+            var fpc = Object.FindFirstObjectByType<Orivilon.Player.FirstPersonController>();
+            if (fpc != null) sb.Append(" fpc sprint ").Append(fpc.sprintKey).Append(" jump ").Append(fpc.jumpKey).Append(" crouch ").Append(fpc.crouchKey).Append(" zoom ").Append(fpc.zoomKey).Append(" fly ").Append(fpc.flightKey).Append(" enabled ").Append(fpc.enabled);
+            sb.Append(" | cursor ").Append(Cursor.lockState).Append(' ').Append(Cursor.visible).Append(" timeScale ").Append(Time.timeScale);
+            var gm = Orivilon.Core.GameManager.instance;
+            if (gm != null) sb.Append(" paused ").Append(gm.IsPaused).Append(" menuOpen ").Append(gm.isMenuOpen);
+            return sb.ToString();
         }
 
         public static string State(SettingsScreen scr, SettingsManager sm)

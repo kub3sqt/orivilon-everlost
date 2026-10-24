@@ -226,6 +226,7 @@ namespace Orivilon.EditorTools
             if (line.StartsWith("settingsbak ")) { outFn(Orivilon.UI.Refresh.EditorTools.SettingsQA.Backup(line.Substring(12).Trim(), false)); return true; }
             if (line.StartsWith("settingsrestore ")) { outFn(Orivilon.UI.Refresh.EditorTools.SettingsQA.Backup(line.Substring(16).Trim(), true)); return true; }
             if (line == "settingsfile") { outFn(Orivilon.UI.Refresh.EditorTools.SettingsQA.FileText()); return true; }
+            if (line.StartsWith("menupolish ")) { outFn(Orivilon.UI.Refresh.EditorTools.MenuPolishAuthoring.Run(line.Substring(11).Trim())); return true; }
             if (line.StartsWith("menufix ")) { outFn(Orivilon.UI.Refresh.EditorTools.SteamMacFix.Run(line.Substring(8).Trim())); return true; }
             if (line.StartsWith("compassui ")) { outFn(Orivilon.UI.Refresh.EditorTools.CompassAuthoring.Run(line.Substring(10).Trim())); return true; }
             if (MpQaBridge.TryRun(line, outFn)) return true;   // MP 17.10.2026

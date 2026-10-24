@@ -121,7 +121,6 @@ namespace Orivilon
         [SerializeField, Range(0.5f, 0.98f)] private float fogEndFraction = 0.88f;
 
         private Orivilon.World.Generation.VoxelTerrain terrain;
-        private bool terrainSearched;
 
         [Header("Stíny (dosah do mlhy)")]
         [Tooltip("Automaticky nastavit dosah stínů (URP Max Distance) až k mlze.")]
@@ -137,6 +136,22 @@ namespace Orivilon
 
         /// <summary>Výška slunce nad obzorem, -1..1 (0 = obzor). Ponecháno pro případnou kompatibilitu.</summary>
         public static float sunHeightStatic = 0f;
+
+        /// <summary>Náklon denní dráhy slunce (°). 0 = původní dráha přes zenit.</summary>
+        public static float SunTiltDeg = 28f;
+
+        /// <summary>Krok otočení stínového světla (°); mezi kroky stojí stínová mapa. 0 = plynule.</summary>
+        public static float ShadowStepDeg = 0f;
+
+        /// <summary>Plynulý směr slunce/měsíce pro oblohu (kotouč se nesmí posouvat po krocích).</summary>
+        public static Vector3 SkySunForward = Vector3.down, SkyMoonForward = Vector3.up;
+
+        /// <summary>Soumraková mlha přimíchaná k té ze scény – světlejší broskvový opar místo tmavě hnědé.</summary>
+        public static Color DuskFogArt = new Color(0.86f, 0.56f, 0.42f, 1f);
+        public static float DuskFogArtWeight = 0.65f;
+
+        /// <summary>Měsíc ze scény svítí polovinou slunce – noc pak vypadá jako modře tónovaný den.</summary>
+        public static float MoonIntensityScale = 0.7f;
 
         /// <summary>
         /// Odstín mlhy podle biomu. Násobí barvu mlhy spočítanou z denní doby; bílá = beze změny.
@@ -280,6 +295,19 @@ namespace Orivilon
             Debug.Log($"SunRotation: OKAMŽITĚ načten čas {timeOfDay:F2} ({GetTimeString()})");
         }
 
+        /// <summary>
+        /// Obnoví čas a pauzu ze savu světa (22.10.2026). Volá GameManager při načtení světa hosta/singleplayeru;
+        /// klient čas nikdy nebere ze svého savu, převezme hostův (<see cref="ApplyNetworkTime"/>).
+        /// </summary>
+        public void LoadSavedState(float savedTime, bool savedPaused)
+        {
+            if (float.IsNaN(savedTime) || float.IsInfinity(savedTime)) return;
+            paused = savedPaused;
+            SetTime(Mathf.Repeat(savedTime, 24f));
+            isTimeLoaded = true;
+            Debug.Log($"SunRotation: obnoven uložený čas {GetTimeString()}{(paused ? " (pauza)" : "")}");
+        }
+
         /// <summary>Pokud nebyl čas načten externě, použije výchozí hodnotu a označí systém jako inicializovaný.</summary>
         private void Start()
         {
@@ -311,7 +339,8 @@ namespace Orivilon
             try
             {
                 ResolveFogDistances(out float shadowNear, out _);
-                prop.SetValue(rp, shadowNear + shadowsBeyondFogStart);
+                // Dálkový opar nesmí roztáhnout stínové mapy přes celý horizont.
+                prop.SetValue(rp, Mathf.Min(shadowNear + shadowsBeyondFogStart, 200f));
             }
             catch (System.Exception e)
             {
@@ -331,7 +360,8 @@ namespace Orivilon
             // Klávesové zkratky nesmí reagovat, když vstup patří někomu jinému (psaní do
             // konzole, načítání scény, pauza nebo otevřené menu). Bez téhle stráže psalo
             // „light" v chatu baterkou.
-            bool inputBlocked = Core.SceneLoader.InputBlocked || Core.GameConsole.IsOpen;
+            bool inputBlocked = Core.SceneLoader.InputBlocked || Core.GameConsole.IsOpen
+                || UI.Refresh.SettingsScreen.BlocksInput;   // Nastavení (i čekání na novou klávesu)
             if (!inputBlocked && Input.GetKeyDown(KeyCode.L))
             {
                 isLightOpen = !isLightOpen;
@@ -346,6 +376,10 @@ namespace Orivilon
                 paused = !paused;
             }
             if (paused) return;
+
+            // Během načítání světa čas stojí (22.10.2026): uložený čas se má obnovit přesně, ne posunutý
+            // o dobu generování terénu. Klientovi čas řídí host, ten plyne dál (srovná ho synchronizace).
+            if (Core.SceneLoader.IsLoading && !NetworkDriven) return;
 
             // Klávesy Z a T na posun času tu BÝVALY a byly to dvě chyby najednou:
             // T zároveň otevírá konzoli, takže každé psaní do chatu poskočilo o hodinu
@@ -374,12 +408,34 @@ namespace Orivilon
 
             // Rotace: slunce vychází na začátku svítání a zapadá na konci soumraku (oblouk nad obzorem).
             float sunAngle = ComputeSunAngle(timeOfDay);
-            sunHeightStatic = Mathf.Sin(sunAngle * Mathf.Deg2Rad);
+
+            // 24.10.2026: dráha je skloněná o SunTiltDeg (jako ve středních šířkách) – v poledne
+            // slunce nestojí kolmo nad hlavou, stíny mají délku a tvary terénu čitelné stínování.
+            // Východ a západ zůstávají na obzoru ve stejných časech.
+            Quaternion tilt = Quaternion.AngleAxis(SunTiltDeg, Vector3.forward);
+            Quaternion sunRot = tilt * Quaternion.Euler(sunAngle, 0f, 0f);
+            Quaternion moonRot = tilt * Quaternion.Euler(sunAngle + 180f, 0f, 0f);
+            sunHeightStatic = -(sunRot * Vector3.forward).y;
 
             if (sunTransform != null)
-                sunTransform.localRotation = Quaternion.Euler(sunAngle, 0f, 0f);
+            {
+                Quaternion parent = sunTransform.parent != null ? sunTransform.parent.rotation : Quaternion.identity;
+                SkySunForward = parent * sunRot * Vector3.forward;
+                // Stínová mapa se při plynulém otáčení slunce přerasterizuje každý snímek a hrany
+                // stínů „tečou“ (chvění). Světlo se proto otočí až po kroku ShadowStepDeg; kotouč
+                // na obloze jde plynule přes SkySunForward. Skok času (/time, načtení) projde hned.
+                if (!Application.isPlaying || ShadowStepDeg <= 0f
+                    || Quaternion.Angle(sunTransform.localRotation, sunRot) >= ShadowStepDeg)
+                    sunTransform.localRotation = sunRot;
+            }
             if (moonTransform != null)
-                moonTransform.localRotation = Quaternion.Euler(sunAngle + 180f, 0f, 0f);
+            {
+                Quaternion parent = moonTransform.parent != null ? moonTransform.parent.rotation : Quaternion.identity;
+                SkyMoonForward = parent * moonRot * Vector3.forward;
+                if (!Application.isPlaying || ShadowStepDeg <= 0f
+                    || Quaternion.Angle(moonTransform.localRotation, moonRot) >= ShadowStepDeg)
+                    moonTransform.localRotation = moonRot;
+            }
 
             if (driveLighting && Application.isPlaying)
             {
@@ -451,8 +507,10 @@ namespace Orivilon
             if (_moonLight != null)
             {
                 _moonLight.enabled = true;
-                _moonLight.intensity = _moonBaseIntensity * nightBlend * LightDamp;
-                _moonLight.color = moonColor;
+                _moonLight.intensity = _moonBaseIntensity * nightBlend * LightDamp * MoonIntensityScale;
+                // Slabě chladné měsíční světlo zachová barvy krajiny; sytá modř
+                // v kombinaci s nočním ambientem dělala z vody neonovou plochu.
+                _moonLight.color = Color.Lerp(moonColor, Color.white, 0.55f);
                 _moonLight.shadows = nightBlend > 0.6f ? LightShadows.Soft : LightShadows.None;
             }
 
@@ -479,7 +537,7 @@ namespace Orivilon
             if (driveFog && RenderSettings.fog)
             {
                 Color fog = Color.Lerp(nightFogColor, dayFogColor, dayFactor);
-                fog = Color.Lerp(fog, duskFogColor, twilight);
+                fog = Color.Lerp(fog, Color.Lerp(duskFogColor, DuskFogArt, DuskFogArtWeight), twilight);
 
                 // Odstín podle biomu. Násobení (ne lerp) schválně: zachová rozdíl mezi dnem
                 // a nocí i západem slunce, jen celou škálu posune do teplejší nebo studenější
@@ -531,15 +589,14 @@ namespace Orivilon
             float range = Mathf.Clamp(BiomeFogRange, 0.5f, 2f);
             near *= range;
             far *= range;
+            if (terrain != null) far = Mathf.Min(far, terrain.ViewDistance * 0.92f);
             near = Mathf.Min(near * Mathf.Clamp(BiomeFogNearScale, 0.5f, 2f), far * 0.8f);
         }
 
         /// <summary>
-        /// Kolo 30: výšková mlha. Z vrcholu se dosah mlhy plynule natáhne k dohledu terénu, v údolí
-        /// (<see cref="VistaFactor"/> = 0) zůstane biomová. Dohled se bere přímo z terénu, ne z
-        /// <see cref="ResolveBaseFogDistances"/> – tam je jednorázově zachycený odkaz, který se po
-        /// startu přes menu nenajde, a základní mlha proto stojí na 150–450 m (stav, na kterém je
-        /// naladěná nálada i pásmo stromů z kola 26; nemění se).
+        /// Výšková mlha: z vrcholu se dosah plynule natáhne k dohledu terénu,
+        /// v údolí (VistaFactor = 0) zůstane biomový. Statický odkaz funguje i po
+        /// startu přes menu, kdy terén vznikne později než slunce.
         /// </summary>
         private static void ApplyVista(ref float near, ref float far)
         {
@@ -562,12 +619,9 @@ namespace Orivilon
             far = fogEndDistance;
             if (!fogFromViewDistance) return;
 
-            // Hledá se jednou. Streamer se během scény nemění a hledání v Update by bylo drahé.
-            if (!terrainSearched)
-            {
-                terrainSearched = true;
-                terrain = Orivilon.World.Generation.VoxelTerrain.instance;
-            }
+            // Menu může spustit slunce dřív než Awake terénu. Statický odkaz je levný;
+            // neúspěšné první hledání nesmí zamknout dohled na náhradních 450 m.
+            if (terrain == null) terrain = Orivilon.World.Generation.VoxelTerrain.instance;
 
             if (terrain == null) return;
 

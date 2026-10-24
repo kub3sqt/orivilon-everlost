@@ -95,11 +95,49 @@ namespace Orivilon.Player
         {
             InitializePreciseValues();
             SyncExternalValueChanges();
-            HandleNeedsDrain();
-            HandleHealing();
+            // Během načítání světa (a čekání na terén) hráč nehraje – žádný úbytek ani regenerace,
+            // jinak by se uložený stav posunul ještě před tím, než hráč do světa vstoupí.
+            if (!Orivilon.Core.SceneLoader.IsLoading)
+            {
+                HandleNeedsDrain();
+                HandleHealing();
+            }
             PublishRoundedValues();
             UpdateUI();
         }
+
+        /// <summary>PlayerNeeds hráče (na objektu hráče, jinak první ve scéně).</summary>
+        public static PlayerNeeds Find(GameObject player)
+        {
+            PlayerNeeds n = player != null ? player.GetComponentInChildren<PlayerNeeds>(true) : null;
+            return n != null ? n : FindFirstObjectByType<PlayerNeeds>();
+        }
+
+        /// <summary>Aktuální přesné hodnoty pro uložení (22.10.2026).</summary>
+        public bool TryGetState(out float healthValue, out float foodValue, out float waterValue)
+        {
+            InitializePreciseValues();
+            SyncExternalValueChanges();
+            healthValue = preciseHealth;
+            foodValue = preciseFood;
+            waterValue = preciseWater;
+            return true;
+        }
+
+        /// <summary>
+        /// Obnoví uložený stav (save, nebo účet klienta u hosta). Přepíše výchozí inicializaci;
+        /// nula je platná hodnota. Hodnoty mimo rozsah se jen ořežou.
+        /// </summary>
+        public void ApplySavedState(float healthValue, float foodValue, float waterValue)
+        {
+            preciseHealth = Mathf.Clamp(Finite(healthValue, maxHealth), 0, maxHealth);
+            preciseFood = Mathf.Clamp(Finite(foodValue, maxFood), 0, maxFood);
+            preciseWater = Mathf.Clamp(Finite(waterValue, maxWater), 0, maxWater);
+            preciseValuesInitialized = true;
+            PublishRoundedValues();
+        }
+
+        private static float Finite(float v, float fallback) => float.IsNaN(v) || float.IsInfinity(v) ? fallback : v;
 
         private void InitializePreciseValues()
         {
