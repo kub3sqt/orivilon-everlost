@@ -1,0 +1,5 @@
+Reviewed-Content-Hash: Assets/Scripts/UI/Arcanum/ArcanumResearch.cs 00841bceda88ddab760b3e778dbafaa7ea4466c6
+Reviewed-Content-Hash: Assets/Scripts/UI/Arcanum/ArcanumUI.cs a04f052e7f4fd60685199a1c27f642745f839a11
+Reviewed-Content-Hash: Assets/Scripts/UI/Arcanum/ArcanumProgress.cs 776266d40372f5fcd23489bf204d4209d88a88b8
+Reviewed-Content-Hash: Assets/Scripts/UI/Arcanum/ArcanumData.cs 9ac0921ee51091efdfad14deb2f080d322386e75
+Reviewed-Content-Hash: Assets/Scripts/Core/GameConsole.Arcanum.cs c6c0692ffa232a684bfa17c4eecf9b43c507f878

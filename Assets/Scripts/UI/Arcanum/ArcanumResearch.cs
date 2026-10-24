@@ -7,9 +7,8 @@ namespace Orivilon.UI.Arcanum
     public enum ArcanumResult { Ok, AlreadyUnlocked, Locked, MissingMaterials, NoInventory }
 
     /// <summary>
-    /// Pravidla výzkumu nad skutečným inventářem hráče. Suroviny jsou existující itemy
-    /// (Stone, Berries, Log, Coal, Grass, Stick) a odečítají se stejně jako v BuildingTool.
-    /// Výzkum zatím nepřidává crafting recepty – je to placeholder progrese.
+    /// Pravidla výzkumu nad skutečným inventářem hráče. Cena uzlu je seznam předmětů
+    /// (<c>$</c> z data.js), odečítají se stejně jako v BuildingTool. Hradla receptů řeší story 002.
     /// </summary>
     public static class ArcanumResearch
     {
@@ -26,13 +25,37 @@ namespace Orivilon.UI.Arcanum
             return id != null && items.TryGetValue(id, out var item) ? item : null;
         }
 
+        /// <summary>První položka ceny uzlu (dočasně pro UI s jednou surovinou; skutečná cena je <see cref="ArcanumNode.cost"/>).</summary>
         public static string MaterialId(ArcanumNode n) =>
-            n.category < 0 ? null : ArcanumData.Categories[n.category].materialItemId;
+            n.cost != null && n.cost.Length > 0 ? n.cost[0].itemId : null;
 
         public static string MaterialName(ArcanumNode n)
         {
             var it = Item(MaterialId(n));
             return it != null ? it.itemName : "—";
+        }
+
+        /// <summary>Zobrazovaný název předmětu; předměty, které ještě neexistují (story 004), ukážou ID.</summary>
+        public static string ItemName(string id)
+        {
+            var it = Item(id);
+            return it != null ? it.itemName : id;
+        }
+
+        /// <summary>První položka ceny, které má hráč málo (null = cenu pokryje). Pro hlášku „Not enough …“.</summary>
+        public static ArcanumTreeAsset.ItemAmount? FirstMissing(ArcanumNode n)
+        {
+            foreach (var c in n.cost) if (CountOwned(c.itemId) < c.amount) return c;
+            return null;
+        }
+
+        /// <summary>Hláška pro MissingMaterials: jmenuje položku, která opravdu chybí (cena má více předmětů).</summary>
+        public static string MissingMessage(ArcanumNode n)
+        {
+            var miss = FirstMissing(n);
+            if (!miss.HasValue) return "Not enough materials";
+            var c = miss.Value;
+            return "Not enough " + ItemName(c.itemId) + ": " + CountOwned(c.itemId) + " / " + c.amount;
         }
 
         public static int CountOwned(string itemId)
@@ -45,44 +68,40 @@ namespace Orivilon.UI.Arcanum
             return count;
         }
 
+        /// <summary>True, když hráč vlastní všechny předměty ceny uzlu (uzel bez ceny = vždy true).</summary>
+        public static bool CanAfford(ArcanumNode n)
+        {
+            if (n.cost.Length == 0) return true;
+            if (InventoryData.Instance == null) return false;
+            foreach (var c in n.cost) if (CountOwned(c.itemId) < c.amount) return false;
+            return true;
+        }
+
         public static ArcanumResult Check(ArcanumNode n)
         {
             if (ArcanumProgress.IsUnlocked(n.id)) return ArcanumResult.AlreadyUnlocked;
             if (!ArcanumProgress.IsAvailable(n)) return ArcanumResult.Locked;
-            if (n.materialCost > 0)
+            if (n.cost.Length > 0)
             {
                 if (InventoryData.Instance == null) return ArcanumResult.NoInventory;
-                if (CountOwned(MaterialId(n)) < n.materialCost) return ArcanumResult.MissingMaterials;
+                if (!CanAfford(n)) return ArcanumResult.MissingMaterials;
             }
             return ArcanumResult.Ok;
         }
 
         /// <summary>
-        /// Atomický výzkum: nejdřív kompletní validace, pak odečtení surovin a odemčení
+        /// Atomický výzkum: nejdřív kompletní validace, pak odečtení všech předmětů ceny a odemčení
         /// v jednom synchronním kroku. Opakované volání (dvojklik) selže na AlreadyUnlocked.
+        /// Uzel bez ceny (např. typ D) se odemyká bez spotřeby.
         /// </summary>
         public static ArcanumResult TryUnlock(ArcanumNode n)
         {
             var result = Check(n);
             if (result != ArcanumResult.Ok) return result;
 
-            if (n.materialCost > 0)
+            if (n.cost.Length > 0)
             {
-                string id = MaterialId(n);
-                int left = n.materialCost;
-                var slots = InventoryData.Instance.Slots;
-                // Nejdřív hlavní inventář od konce, hotbar (0–7) až nakonec – hráč nepřijde o věci v ruce zbytečně.
-                for (int i = slots.Length - 1; i >= 0 && left > 0; i--)
-                {
-                    var slot = slots[i];
-                    if (slot == null || slot.IsEmpty || !InventoryItemData.Satisfies(slot.item, id)) continue;
-                    int take = Mathf.Min(slot.amount, left);
-                    string takenId = slot.item.id;
-                    slot.amount -= take;
-                    left -= take;
-                    if (slot.amount <= 0) slot.Clear();
-                    Orivilon.Multiplayer.MpLedger.ReportConsume(takenId, take);   // MP klient: spotřeba i u hosta, po skutečných itemech
-                }
+                foreach (var c in n.cost) Consume(c.itemId, c.amount);
                 InventoryData.Instance.NotifyInventoryChanged();
             }
 
@@ -90,40 +109,64 @@ namespace Orivilon.UI.Arcanum
             return ArcanumResult.Ok;
         }
 
-        /// <summary>Nejlevnější dostupný výzkum v oboru (nebo null, když je obor hotový).</summary>
+        private static void Consume(string id, int amount)
+        {
+            int left = amount;
+            var slots = InventoryData.Instance.Slots;
+            // Nejdřív hlavní inventář od konce, hotbar (0–7) až nakonec – hráč nepřijde o věci v ruce zbytečně.
+            // Satisfies zajistí, že za "Log (any wood)" se spotřebují i druhy dřeva.
+            for (int i = slots.Length - 1; i >= 0 && left > 0; i--)
+            {
+                var slot = slots[i];
+                if (slot == null || slot.IsEmpty || !InventoryItemData.Satisfies(slot.item, id)) continue;
+                int take = Mathf.Min(slot.amount, left);
+                string takenId = slot.item.id;
+                slot.amount -= take;
+                left -= take;
+                if (slot.amount <= 0) slot.Clear();
+                Orivilon.Multiplayer.MpLedger.ReportConsume(takenId, take);   // MP klient: spotřeba i u hosta, po skutečných itemech
+            }
+        }
+
+        /// <summary>Nejlevnější dostupný výzkum v oboru (nebo null, když není žádný dostupný).</summary>
         public static ArcanumNode NextInCategory(int c)
         {
             ArcanumNode best = null;
-            var nodes = ArcanumData.Nodes;
-            int start = 1 + c * ArcanumData.NodesPerCategory;
-            for (int i = start; i < start + ArcanumData.NodesPerCategory; i++)
+            int bestCost = 0;
+            foreach (var n in ArcanumData.Nodes)
             {
-                var n = nodes[i];
-                if (!ArcanumProgress.IsAvailable(n)) continue;
-                if (best == null || n.materialCost < best.materialCost || (n.materialCost == best.materialCost && n.id < best.id))
-                    best = n;
+                if (n.category != c || !ArcanumProgress.IsAvailable(n)) continue;
+                int cost = TotalCost(n);
+                if (best == null || cost < bestCost) { best = n; bestCost = cost; }   // při shodě vyhrává dřívější uzel
             }
             return best;
         }
 
-        public static int AffordableInCategory(int c, int owned)
+        public static int AffordableInCategory(int c)
         {
             int count = 0;
-            var nodes = ArcanumData.Nodes;
-            int start = 1 + c * ArcanumData.NodesPerCategory;
-            for (int i = start; i < start + ArcanumData.NodesPerCategory; i++)
-                if (ArcanumProgress.IsAvailable(nodes[i]) && owned >= nodes[i].materialCost) count++;
+            foreach (var n in ArcanumData.Nodes)
+                if (n.category == c && ArcanumProgress.IsAvailable(n) && CanAfford(n)) count++;
             return count;
         }
 
+        private static int TotalCost(ArcanumNode n)
+        {
+            int sum = 0;
+            foreach (var c in n.cost) sum += c.amount;
+            return sum;
+        }
+
 #if UNITY_EDITOR
-        /// <summary>Jen editor/QA: přidá testovací suroviny všech oborů. Ve buildu neexistuje.</summary>
-        public static void EditorGiveTestMaterials(int amount)
+        /// <summary>Jen editor/QA: přidá testovací suroviny (výchozí sada, nebo jen zadaná ID). Ve buildu neexistuje.</summary>
+        public static void EditorGiveTestMaterials(int amount, params string[] onlyIds)
         {
             if (InventoryData.Instance == null) return;
-            foreach (var cat in ArcanumData.Categories)
+            var ids = onlyIds != null && onlyIds.Length > 0 ? onlyIds
+                : new[] { "everlost:stone", "everlost:stick", "everlost:log", "everlost:grass", "everlost:berries", "everlost:coal" };
+            foreach (var id in ids)
             {
-                var it = Item(cat.materialItemId);
+                var it = Item(id);
                 if (it != null) InventoryData.Instance.AddItem(it, amount);
             }
             InventoryData.Instance.NotifyInventoryChanged();

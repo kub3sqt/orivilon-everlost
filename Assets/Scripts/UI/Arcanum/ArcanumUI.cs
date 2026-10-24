@@ -408,7 +408,7 @@ namespace Orivilon.UI.Arcanum
         {
             HideTooltip();
             focusedCategory = c;
-            var n = ArcanumResearch.NextInCategory(c) ?? ArcanumData.Nodes[1 + c * ArcanumData.NodesPerCategory + 29];
+            var n = ArcanumResearch.NextInCategory(c) ?? ArcanumData.Nodes[0];
             selectedId = n.id;
             Vector2 size = ViewSize;
             float s = Mathf.Clamp((size.y - 170f) / 950f, 0.55f, 0.85f);
@@ -525,11 +525,19 @@ namespace Orivilon.UI.Arcanum
             if (n.materialCost > 0)
             {
                 var item = ArcanumResearch.Item(ArcanumResearch.MaterialId(n));
-                int owned = ArcanumResearch.CountOwned(ArcanumResearch.MaterialId(n));
                 tipMatIcon.enabled = item != null && item.icon != null;
                 tipMatIcon.sprite = item != null ? item.icon : null;
-                string col = owned >= n.materialCost ? "#c9e986" : "#e6a56b";
-                tipMaterial.text = (item != null ? item.itemName : "Material") + "\n<color=" + col + ">" + owned + " / " + n.materialCost + "</color> <size=80%><color=#a8b0a6>owned / required</color></size>";
+                // Všechny položky ceny (ikona jen první; rozložení pro více surovin přinese story 003).
+                var sb = new System.Text.StringBuilder();
+                foreach (var c in n.cost)
+                {
+                    int have = ArcanumResearch.CountOwned(c.itemId);
+                    if (sb.Length > 0) sb.Append('\n');
+                    sb.Append(ArcanumResearch.ItemName(c.itemId)).Append("  <color=").Append(have >= c.amount ? "#c9e986" : "#e6a56b")
+                      .Append('>').Append(have).Append(" / ").Append(c.amount).Append("</color>");
+                }
+                sb.Append(" <size=80%><color=#a8b0a6>owned / required</color></size>");
+                tipMaterial.text = sb.ToString();
             }
             else
             {
@@ -563,8 +571,7 @@ namespace Orivilon.UI.Arcanum
                     StartPulse(n);
                     break;
                 case ArcanumResult.MissingMaterials:
-                    ShowToast("Not enough " + ArcanumResearch.MaterialName(n) + ": " +
-                              ArcanumResearch.CountOwned(ArcanumResearch.MaterialId(n)) + " / " + n.materialCost);
+                    ShowToast(ArcanumResearch.MissingMessage(n));
                     break;
                 case ArcanumResult.Locked:
                     ShowToast("Research " + ArcanumData.Nodes[n.parent].name + " first");
@@ -637,7 +644,7 @@ namespace Orivilon.UI.Arcanum
             researchedValue.text = ArcanumProgress.UnlockedCount + " / " + total;
             int ready = 0;
             for (int c = 0; c < ArcanumData.Categories.Length; c++)
-                ready += ArcanumResearch.AffordableInCategory(c, ArcanumResearch.CountOwned(ArcanumData.Categories[c].materialItemId));
+                ready += ArcanumResearch.AffordableInCategory(c);
             readyValue.text = ready.ToString();
         }
 
@@ -664,10 +671,11 @@ namespace Orivilon.UI.Arcanum
                 var row = rows[c];
                 var cat = ArcanumData.Categories[c];
                 var next = ArcanumResearch.NextInCategory(c);
-                int owned = ArcanumResearch.CountOwned(cat.materialItemId);
+                string matId = next != null ? ArcanumResearch.MaterialId(next) : null;   // dočasně první položka ceny (UI přepíše story 003)
+                int owned = ArcanumResearch.CountOwned(matId);
                 int need = next != null ? next.materialCost : 0;
-                int ready = ArcanumResearch.AffordableInCategory(c, owned);
-                var item = ArcanumResearch.Item(cat.materialItemId);
+                int ready = ArcanumResearch.AffordableInCategory(c);
+                var item = ArcanumResearch.Item(matId);
 
                 row.ready.text = ready + " ready";
                 row.ready.color = ready > 0 ? GoodText : DimText;

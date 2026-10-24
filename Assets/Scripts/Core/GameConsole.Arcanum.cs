@@ -29,7 +29,10 @@ namespace Orivilon.Core
                 case "toggle": if (gm != null) { if (gm.IsArcanumOpen) gm.CloseArcanum(); else gm.OpenArcanum(); } break;
 #if UNITY_EDITOR
                 case "testkit":
-                    ArcanumResearch.EditorGiveTestMaterials(a.Length > 2 ? int.Parse(a[2]) : 10);
+                    // /arcanum testkit [počet] [everlost:id ...] – bez ID výchozí sada surovin.
+                    string[] ids = a.Length > 3 ? new string[a.Length - 3] : null;
+                    if (ids != null) System.Array.Copy(a, 3, ids, 0, ids.Length);
+                    ArcanumResearch.EditorGiveTestMaterials(a.Length > 2 ? int.Parse(a[2]) : 10, ids);
                     Print("[Arcanum] editor test materials added");
                     break;
 #endif

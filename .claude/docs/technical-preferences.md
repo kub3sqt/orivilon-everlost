@@ -20,7 +20,7 @@
 <!-- Written by /setup-engine. Read by /ux-design, /ux-review, /test-setup, /team-ui, and /dev-story -->
 <!-- to scope interaction specs, test helpers, and implementation to the correct input methods. -->
 
-- **Target Platforms**: PC
+- **Target Platforms**: PC (Steam: Windows, macOS, Linux)
 - **Input Methods**: Keyboard/Mouse
 - **Primary Input**: Keyboard/Mouse
 - **Gamepad Support**: Partial
